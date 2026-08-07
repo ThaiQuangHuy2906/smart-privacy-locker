@@ -1,0 +1,30 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+firmware/include/app_config.h
+firmware/include/secrets.h
+
+# PlatformIO build and editor output
+.pio/
+firmware/.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+
+# Node-RED machine-specific runtime and encrypted credentials
+node-red/.node-red/
+node-red/flows_*.json
+node-red/*.cred.json
+node-red/*.credentials.json
+
+# Logs, captures, caches, and temporary evidence
+*.log
+*.tmp
+*.cache
+tests/evidence/private/
+docs/private/
+
+# Common operating-system files
+.DS_Store
+Thumbs.db
