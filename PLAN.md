@@ -63,17 +63,39 @@ Lifecycle chuẩn, chỉ chuyển theo evidence thật chứ không theo lịch:
 
 - `NOT_STARTED`: chưa được phép triển khai Phase.
 - `ACTIVE`: Terra được phép triển khai đúng Phase này.
-- `READY_FOR_REVIEW`: Terra đã hoàn thành mọi `MUST` implementation của Phase, chạy các automated tests cần thiết, có evidence cho mọi MANUAL `HARD-GATE`, cập nhật code/docs/`PLAN.md` và hoàn tất Git handoff trong phạm vi môi trường/quyền cho phép. Nếu không có quyền push/PR, Terra ghi chính xác commands còn lại cho người dùng. MANUAL `FINAL-GATE` có thể còn `Pending` và phải được liệt kê trong Phase Completion Summary.
-- `COMPLETED`: reviewer đã approve, PR đã merge vào integration branch, acceptance criteria bắt buộc đạt và evidence thật đã được ghi. Riêng Phase 3, toàn bộ mandatory `FINAL-GATE`, Section 8 E2E, full-load và release tests phải đạt trước `COMPLETED`. Chỉ human hoặc một agent ở phiên sau xác minh được Git/PR/test evidence thật mới được cập nhật trạng thái này.
+- `READY_FOR_REVIEW`: Terra đã hoàn thành mọi `MUST` implementation thuộc **SOFTWARE-GATE** của Phase, chạy các automated/contract/broker-simulator tests cần thiết, cập nhật code/docs/`PLAN.md` và hoàn tất Git handoff trong phạm vi môi trường/quyền cho phép. Mọi `DEFERRED — HARDWARE-FINAL-GATE` phải được liệt kê trung thực trong Phase Completion Summary, không được ghi `PASS` hoặc `VERIFIED`. Nếu không có quyền push/PR, Terra ghi chính xác commands còn lại cho người dùng.
+- `COMPLETED`: reviewer đã approve và software baseline của Phase đã merge vào integration branch với evidence thật. Với Phase 1/2, đây cũng là mốc **SOFTWARE_BASELINE_COMPLETED** cho dependency purposes; nó không xác nhận board, sensor, actuator, nguồn hay cơ khí đã verified. Mọi `DEFERRED — HARDWARE-FINAL-GATE` vẫn mở và chặn final release/demo. Riêng Phase 3, toàn bộ mandatory hardware final gates, Section 8 E2E, full-load và release tests phải đạt trước `COMPLETED`. Chỉ human hoặc một agent ở phiên sau xác minh được Git/PR/test evidence thật mới được cập nhật trạng thái này.
 
 Quy tắc vận hành:
 
 - Khi coding xong, Terra chỉ chuyển `ACTIVE → READY_FOR_REVIEW`, cập nhật Phase Completion Summary và dừng. Terra không được tự ghi reviewer approved, PR merged, merge commit hoặc `COMPLETED`.
-- Sau human review + merge, cập nhật Phase hiện tại thành `COMPLETED`; chỉ lúc đó mới chuyển Phase kế tiếp từ `NOT_STARTED` sang `ACTIVE`.
+- Sau human software review + merge, cập nhật Phase hiện tại thành `COMPLETED` cho dependency purposes; chỉ lúc đó mới chuyển Phase kế tiếp từ `NOT_STARTED` sang `ACTIVE`. Các hardware final gates đã defer không chuyển thành `PASS` và vẫn thuộc Final Release checklist.
 - Nếu bắt đầu phiên mới và PR trước đã merge, agent được cập nhật lifecycle dựa trên `git`/PR evidence thật; không suy đoán từ checklist hay lời mô tả.
 - Mỗi thời điểm chỉ có tối đa một Phase `ACTIVE`; Phase kế tiếp vẫn `NOT_STARTED` khi Phase trước đang `READY_FOR_REVIEW`.
-- Phase có thể vào `READY_FOR_REVIEW` với MANUAL `FINAL-GATE` còn lại nếu dependency/credential thật chưa sẵn sàng, nhưng phải ghi rõ trong summary. Với Phase 3, mọi mandatory `FINAL-GATE` tuyệt đối block `COMPLETED` và final release.
+- Phase có thể vào `READY_FOR_REVIEW` với `DEFERRED — HARDWARE-FINAL-GATE` còn lại khi phần cứng chưa sẵn sàng, nhưng phải ghi rõ blocker, procedure và evidence cần thu thập trong summary. Với Phase 3, mọi mandatory hardware final gate tuyệt đối block `COMPLETED` và final release.
 - Hạ tầng dùng chung không làm thay đổi owner requirement. Minh xây dispatcher dùng cho CB2/CB3/YC3 nhưng không sở hữu CB3; Thùy nối buzzer/persistence vào YC6 nhưng Minh vẫn là owner YC6.
+
+### SOFTWARE-FIRST / DEFERRED-HARDWARE workflow
+
+Khi nhóm chưa có ESP32 hoặc module, tiến độ software vẫn tiếp tục theo frozen contracts, nhưng không một simulator/mock/broker capture nào được trình bày như hardware evidence.
+
+- **SOFTWARE-GATE:** clean build, automated/unit/contract tests, documentation, secret/diff audit, code review, và broker/simulator integration có thể chạy không cần board. Simulator chỉ xác nhận producer/consumer tuân thủ MQTT contract; nó không xác nhận firmware hay điện tử trên ESP32 thật.
+- **HARDWARE-FINAL-GATE:** board ESP32 thật; sensor/actuator thật; pin/wiring; nguồn, brownout và full-load; cơ cấu chốt; OLED/DHT/LED/buzzer/MC-38; WiFiManager captive portal trên thiết bị thật; physical MQTT recovery; và physical end-to-end demo. Các mục này bắt buộc trước **FINAL RELEASE/DEMO**.
+- Test hardware chưa thể chạy phải giữ checkbox `[ ]` và nhãn `DEFERRED — HARDWARE-FINAL-GATE`, kèm blocker “hardware chưa được mua/chưa có”. Nhãn này không phải `PASS`, không phải `VERIFIED`, và không được xóa test hoặc evidence requirement.
+- Một test service/account không cần board vẫn là SOFTWARE-GATE hoặc MANUAL service gate theo table riêng của nó; chỉ phần thật sự cần hardware mới được defer thành hardware final gate.
+- Sau khi Phase 1 đạt software acceptance, reviewer approve software baseline và approved commit được merge, Phase 1 là `COMPLETED` cho dependency purposes và Phase 2 có thể thành `ACTIVE`. Hardware final gates của Phase 1 vẫn được chạy lại trên release candidate trước demo/release.
+
+### Git integration workflow sau Phase 1 software review
+
+Repository hiện là bootstrap và chưa có `develop`. Không tạo branch đó trong khi Phase 1 chưa được human review/merge. Sau khi reviewer approve software baseline Phase 1, maintainer phải tạo `develop` đúng tại approved Phase-1 commit rồi push, ví dụ:
+
+```text
+git switch --create develop <approved-phase-1-commit>
+git push -u origin develop
+git switch --create phase/2-minh-security-orchestration develop
+```
+
+Không rebase/rewrite history, không force push. Phase 2 branch phải được tạo từ `develop`, không phải tự ý từ branch bootstrap Phase 1.
 
 ### Priority model, manual gates và Simple Implementation Rule
 
@@ -81,11 +103,12 @@ Thứ tự ưu tiên của dự án:
 
 `CORRECT → COMPLETE → TESTABLE → DEMOABLE → SECURE ENOUGH → MAINTAINABLE → HARDENING`
 
-- `MUST`: bắt buộc để đúng thuyết minh/frozen contract, an toàn, chạy demo hoặc đạt acceptance. Mọi `MUST` implementation và automated/HARD-GATE verification của Phase phải hoàn tất trước `READY_FOR_REVIEW`; các test/acceptance được ghi rõ là `FINAL-GATE` theo completion gate bên dưới.
+- `MUST`: bắt buộc để đúng thuyết minh/frozen contract, an toàn, chạy demo hoặc đạt acceptance. Mọi `MUST` software implementation và SOFTWARE-GATE verification của Phase phải hoàn tất trước `READY_FOR_REVIEW`; hardware `MUST` được đánh dấu `DEFERRED — HARDWARE-FINAL-GATE` chỉ có thể còn pending khi chưa có phần cứng và phải hoàn tất trước final release/demo.
 - `SHOULD`: engineering quality có ích nếu không làm chậm committed scope. Có thể defer và phải ghi trong Phase Completion Summary.
 - `OPTIONAL`: production hardening/enhancement. Không được block Phase, acceptance hoặc final project acceptance; chỉ làm sau khi mọi `MUST` đã hoàn thành và còn thời gian.
-- `MANUAL — HARD-GATE`: correctness/safety/dependency test bắt buộc có evidence trước Phase có thể rời `ACTIVE`.
-- `MANUAL — FINAL-GATE`: có thể còn pending ở `READY_FOR_REVIEW` do phần cứng, credential hoặc downstream chưa sẵn sàng, nhưng bắt buộc pass trước final release và trước Phase 3 `COMPLETED`. Không dùng nhãn này để né test có thể và cần chạy ngay.
+- `MANUAL — HARD-GATE`: manual correctness/safety/dependency test **không cần hardware** hoặc có environment thật sẵn sàng; evidence bắt buộc trước Phase có thể rời `ACTIVE`.
+- `DEFERRED — HARDWARE-FINAL-GATE`: manual physical test chưa thể chạy do thiếu hardware. Nó không chặn software handoff/phase dependency sau review+merge, nhưng bắt buộc pass trước final release/demo và trước Phase 3 `COMPLETED`.
+- `MANUAL — FINAL-GATE`: manual service/account/end-to-end test không nhất thiết là hardware; có thể còn pending ở `READY_FOR_REVIEW` khi dependency/credential thật chưa sẵn sàng, nhưng phải được liệt kê trung thực và pass trước final release. Không dùng nhãn nào để né test có thể và cần chạy ngay.
 
 > **Simple Implementation Rule:** Khi có nhiều cách đúng, chọn implementation đơn giản nhất đáp ứng committed requirements và frozen contracts. Không xây abstraction, framework, service, table, queue, retry system hoặc security mechanism phức tạp hơn mức project thực sự cần.
 
@@ -181,6 +204,7 @@ smart-privacy-locker/
 ├── dashboard/
 ├── hardware/
 ├── tests/
+├── tools/
 └── docs/
 ```
 
@@ -196,6 +220,7 @@ smart-privacy-locker/
 | `dashboard/` | Wireframe, asset và UI behavior/spec; FlowFuse flow runtime vẫn ở `node-red/` |
 | `hardware/` | Pin map, wiring diagram, power budget, BOM, enclosure/assembly guide và ảnh evidence |
 | `tests/` | Test plan, traceability matrix, fixtures, test results/evidence index; file lớn/nhạy cảm theo chính sách nhóm |
+| `tools/device-simulator/` | Test-support harness dùng broker để giả lập device theo frozen MQTT contract; không phải production firmware, không phải hardware evidence |
 | `docs/` | Requirements, architecture, MQTT/event contract, auth model, database design, user/deployment/troubleshooting/demo guide |
 
 Không tạo cấu trúc “cho đủ”. Mỗi Phase chỉ tạo đường dẫn có deliverable thực, và không commit build output, cache, local credentials, Node-RED encrypted credentials gắn với máy cá nhân hoặc dữ liệu người dùng thật.
@@ -261,6 +286,22 @@ Quy tắc MQTT:
 - ESP32 dùng client ID duy nhất theo locker/device. Reconnect **MUST** có khoảng chờ tăng dần và giới hạn hợp lý để không busy-loop/reset vô hạn; exponential backoff chính xác hoặc jitter là **SHOULD**, không được làm chậm committed scope nếu một state machine retry đơn giản đã đáp ứng.
 - Sau mỗi MQTT reconnect thành công: publish `ONLINE`, publish full state, rồi mới nhận command bình thường.
 - MQTT session cho device ưu tiên clean session và command không queued qua downtime; sau recovery Node-RED dùng `GET_STATE`, không replay actuator command.
+
+### Device simulator strategy
+
+`tools/device-simulator/` là **test-support component**, không phải production component và không thay firmware ESP32. Phase 2 sẽ tạo source/harness này khi bắt đầu software implementation; phiên cập nhật PLAN này không tạo skeleton/source simulator.
+
+Simulator phải dùng nguyên frozen MQTT topics, payloads, schema version, retained semantics, ACK semantics và QoS đã ghi trong plan; không tự thêm topic/field để tiện cho test. Nó phải có fixture/script có kiểm soát cho:
+
+- availability `ONLINE`/`OFFLINE`;
+- retained full state;
+- `GET_STATE`;
+- `LOCK`/`UNLOCK`, `LED_ON`/`LED_OFF`, `ALARM_ON`/`ALARM_OFF`;
+- ACK success/error, cached duplicate ACK, delayed ACK, timeout/no ACK, và malformed payload;
+- door telemetry `OPEN`/`CLOSED` cho CB1 Phase 2;
+- reconnect scenarios, gồm availability/full-state recovery.
+
+Simulator/broker output chỉ là SOFTWARE-GATE evidence cho contract, Node-RED, Dashboard/state-cache và recovery handling. Nó không xác minh GPIO, Wi-Fi provisioning trên ESP32, PubSubClient transport thực, sensor, servo, LED, buzzer, nguồn, cơ khí hoặc full-load; các mục đó vẫn là HARDWARE-FINAL-GATE.
 
 ### Command payload
 
@@ -549,12 +590,12 @@ Khởi tạo nền tảng repository và firmware ESP32; khóa pin map/MQTT cont
 
 ### Minimum Required Completion Path
 
-Để Phase 1 chuyển từ `ACTIVE` sang `READY_FOR_REVIEW`, Terra phải ưu tiên và hoàn tất các `MUST`: repository/toolchain build được; pin map và power/wiring thật; Wi-Fi + MQTT reconnect/LWT/full state; frozen command/ACK/state contract; parser/validation/dedupe đơn giản; CB2; YC1 local-only; YC3; YC12; toàn bộ MANUAL `HARD-GATE` của Phase 1; build/test/evidence thật; Git handoff. Không làm `OPTIONAL` trước critical path này.
+Để Phase 1 chuyển từ `ACTIVE` sang `READY_FOR_REVIEW`, Terra phải ưu tiên và hoàn tất SOFTWARE-GATE `MUST`: repository/toolchain build được; candidate pin map/wiring/power documentation; frozen command/ACK/state contract; Wi-Fi/MQTT/CB2/YC1/YC3/YC12 implementation và contract coverage; parser/validation/dedupe; broker/simulator integration khi harness có sẵn; build/test/evidence thật; Git handoff. Mọi xác minh pin map trên board, power/wiring thật, servo, DHT/OLED, LED, captive portal và physical MQTT recovery là `DEFERRED — HARDWARE-FINAL-GATE` nếu chưa có hardware; không làm `OPTIONAL` trước software critical path này.
 
 ### Dependencies
 
 - Hai PDF nguồn và Sections 1–4 của `PLAN.md`.
-- ESP32 DevKit V1 Type-C, MC-38 để reserved pin integration, SG90, DHT22, OLED SSD1306, WS2812B, nguồn 5 V/3 A, dây/đầu nối và linh kiện bảo vệ thực tế.
+- ESP32 DevKit V1 Type-C, MC-38 để reserved pin integration, SG90, DHT22, OLED SSD1306, WS2812B, nguồn 5 V/3 A, dây/đầu nối và linh kiện bảo vệ thực tế. Khi chưa mua/chưa có, đây là blocker riêng của HARDWARE-FINAL-GATE, không chặn software baseline hoặc Phase 2 software sau approved merge.
 - MQTT Broker development endpoint/credential hoặc broker local có cấu hình tương đương; không commit credential.
 - Minh phải review MQTT topics/payload/error semantics trước contract freeze.
 - Git remote/permissions nếu muốn hoàn tất push/PR; thiếu remote không được giả evidence.
@@ -592,6 +633,8 @@ Khởi tạo nền tảng repository và firmware ESP32; khóa pin map/MQTT cont
 | `PLAN.md` | Chỉ cập nhật trạng thái/evidence/commit/PR thực |
 
 ### Implementation Checklist
+
+Các bullet cần board, module, nguồn hoặc cơ khí bên dưới vẫn là `MUST` cho final release, nhưng khi hardware chưa có chúng được theo dõi bằng P1-M01–P1-M11 và Section 9 với nhãn `DEFERRED — HARDWARE-FINAL-GATE`; chúng không chặn SOFTWARE-GATE handoff Phase 1.
 
 - [ ] **[MUST]** Khởi tạo repository baseline và cấu trúc tối thiểu cần cho Phase 1.
   - File/module dự kiến: `README.md`, `.gitignore`, `.env.example`, các thư mục cần dùng trong bảng trên.
@@ -673,7 +716,7 @@ Khởi tạo nền tảng repository và firmware ESP32; khóa pin map/MQTT cont
 
 ### Tests
 
-Không ghi `PASS` trước khi chạy. Test dùng board/linh kiện/broker/điện thoại thật là `MANUAL`.
+Không ghi `PASS` trước khi chạy. `P1-Sxx` là SOFTWARE-GATE broker/simulator integration, không cần board nhưng vẫn cần command/output thật. `P1-Mxx` là physical ESP32 verification; khi nhóm chưa có hardware, giữ `[ ]` và dùng nhãn `DEFERRED — HARDWARE-FINAL-GATE`.
 
 | Test ID | Kịch bản | Bước thực hiện | Kết quả mong đợi | Loại | Evidence cần lưu |
 |---|---|---|---|---|---|
@@ -681,33 +724,35 @@ Không ghi `PASS` trước khi chạy. Test dùng board/linh kiện/broker/đi�
 | P1-A02 | Valid command parser | Feed từng action hợp lệ và required fields | Parse đúng; locker/action/UUID được validate; queue đúng domain | Automated | Test report + fixtures |
 | P1-A03 | Invalid JSON/missing field/action | Feed malformed JSON không lấy được ID, rồi payload lấy được valid `command_id` nhưng lỗi field/action | Không actuation; case không có ID không phát normal ACK; case có ID phát correlated `result:error` | Automated | Test report + assertion no-ACK/captured error ACK |
 | P1-A04 | Duplicate command | Feed cùng `command_id` hai lần | Actuator handler gọi một lần; cached ACK phát lại với `duplicate:true` | Automated | Assertion/log không chứa secret |
-| P1-M01 | Servo không tải | Cấp nguồn đúng; gửi UNLOCK/LOCK nhiều vòng | Góc đúng, không rung/kẹt/reset; ACK/state đúng | MANUAL — HARD-GATE | Video, angle config, current/voltage note |
-| P1-M02 | Servo có tải/cơ cấu chốt | Lắp linkage; đóng/mở chốt lặp lại; xác minh chốt tự giữ cơ khí sau khi servo detach hay cần holding torque | Khóa/mở cơ khí tin cậy, không vượt travel/quá nhiệt; kết luận giữ lực được ghi trước khi sửa servo policy | MANUAL — HARD-GATE | Video, ảnh cơ khí, kết luận holding-torque, defect log nếu có |
-| P1-M03 | Servo power transient | Quan sát 5 V và ESP32 khi servo khởi động/đảo chiều | Không brownout/MQTT drop; rail trong giới hạn đã chốt | MANUAL — HARD-GATE | Meter/scope photo hoặc đo điện áp + serial/broker log |
-| P1-M04 | DHT22 thành công + OLED | Kết nối sensor; chạy qua nhiều chu kỳ | OLED hiển thị nhiệt độ/độ ẩm hợp lý, cập nhật đúng chu kỳ | MANUAL — HARD-GATE | Ảnh OLED + serial diagnostic |
-| P1-M05 | DHT22 lỗi/NaN | Tháo hoặc gây lỗi sensor an toàn | OLED hiển thị lỗi; firmware/MQTT không treo; không publish YC1 lên Dashboard | MANUAL — HARD-GATE | Video/ảnh + broker topic capture |
-| P1-M06 | LED ON/OFF và nguồn | Gửi LED_ON/OFF, test brightness đã chốt | LED đúng; ACK/state đúng; data/power ổn định | MANUAL — HARD-GATE | Video, current/voltage note |
-| P1-M07 | Servo + LED | Chạy servo khi LED đang ON | ESP32/OLED/MQTT ổn định, không flicker/reset bất thường | MANUAL — HARD-GATE | Video + broker/serial log |
-| P1-M08 | WiFiManager bằng điện thoại | Xóa config theo hướng dẫn; boot; kết nối AP; nhập Wi-Fi mới | Portal mở; credential lưu cục bộ; Internet/MQTT reconnect không reflash | MANUAL — HARD-GATE | Screen recording đã che SSID/password + broker log |
-| P1-M09 | MQTT reconnect/LWT | Ngắt Wi-Fi/broker đột ngột rồi khôi phục nhiều lần. Nếu tạo được điều kiện thực tế làm `PubSubClient::subscribe()` trả `false` ở local/send level thì lưu capture riêng. Broker ACL là deployment prerequisite; PubSubClient 2.8 không expose SUBACK grant/rejection nên không yêu cầu firmware phát hiện ACL reject. | LWT `OFFLINE`; backoff bounded; `ONLINE` + full state sau reconnect. Local/send failure không để `ONLINE`/full state giả, đặt MQTT false, disconnect và retry bounded. | MANUAL — HARD-GATE | Timestamped serial/broker log; local/send-failure setup nếu thực hiện được |
-| P1-M10 | ESP32 restart/GET_STATE | Đưa lock về trạng thái đã biết, restart board, quan sát servo; sau online gửi GET_STATE rồi gửi command mới | Restart không di chuyển servo/replay command; cold-boot state là lock UNKNOWN, alarm INACTIVE, LED OFF, door UNKNOWN; chỉ command mới xác nhận LOCKED/UNLOCKED. Không yêu cầu stable MC-38 sample ở Phase 1. | MANUAL — HARD-GATE | Video servo + broker transcript + serial boot log |
-| P1-M11 | Full-state retained semantics | Khi ESP32 online/reconnected, dùng subscriber mới subscribe availability và state | Subscriber mới nhận retained availability và retained full state phù hợp. Door telemetry non-retained/no old-event replay thuộc CB1 Phase 2. | MANUAL — HARD-GATE | Broker subscription capture |
+| P1-S05 | MQTT broker/simulator recovery contract | Dùng `tools/device-simulator/` khi được tạo ở Phase 2 cùng broker test để phát availability/state, rồi mô phỏng OFFLINE/ONLINE, reconnect và GET_STATE | Consumer nhận retained availability + full state đúng contract; reconnect reconciliation không replay command; capture không được gọi là ESP32/LWT hardware evidence | SOFTWARE-GATE — broker/simulator integration | Simulator scenario, broker capture, automated/integration output |
+| P1-S06 | MQTT broker/simulator command/ACK contract | Dùng simulator gửi LOCK/UNLOCK, LED_ON/OFF, ALARM_ON/OFF, GET_STATE; chạy success/error/duplicate/delayed/no-ACK/malformed fixtures | ACK/state/timeout/duplicate semantics đúng frozen contract; không khẳng định actuator vật lý hoặc firmware PubSubClient đã chạy | SOFTWARE-GATE — broker/simulator integration | Fixture + broker/test-runner output |
+| P1-M01 | Servo không tải | Khi có hardware: cấp nguồn đúng; gửi UNLOCK/LOCK nhiều vòng | Góc đúng, không rung/kẹt/reset; ACK/state đúng | DEFERRED — HARDWARE-FINAL-GATE | Video, angle config, current/voltage note |
+| P1-M02 | Servo có tải/cơ cấu chốt | Khi có hardware: lắp linkage; đóng/mở chốt lặp lại; xác minh chốt tự giữ cơ khí sau khi servo detach hay cần holding torque | Khóa/mở cơ khí tin cậy, không vượt travel/quá nhiệt; kết luận giữ lực được ghi trước khi sửa servo policy | DEFERRED — HARDWARE-FINAL-GATE | Video, ảnh cơ khí, kết luận holding-torque, defect log nếu có |
+| P1-M03 | Servo power transient | Khi có hardware: quan sát 5 V và ESP32 khi servo khởi động/đảo chiều | Không brownout/MQTT drop; rail trong giới hạn đã chốt | DEFERRED — HARDWARE-FINAL-GATE | Meter/scope photo hoặc đo điện áp + serial/broker log |
+| P1-M04 | DHT22 thành công + OLED | Khi có hardware: kết nối sensor; chạy qua nhiều chu kỳ | OLED hiển thị nhiệt độ/độ ẩm hợp lý, cập nhật đúng chu kỳ | DEFERRED — HARDWARE-FINAL-GATE | Ảnh OLED + serial diagnostic |
+| P1-M05 | DHT22 lỗi/NaN | Khi có hardware: tháo hoặc gây lỗi sensor an toàn | OLED hiển thị lỗi; firmware/MQTT không treo; không publish YC1 lên Dashboard | DEFERRED — HARDWARE-FINAL-GATE | Video/ảnh + broker topic capture |
+| P1-M06 | LED ON/OFF và nguồn | Khi có hardware: gửi LED_ON/OFF, test brightness đã chốt | LED đúng; ACK/state đúng; data/power ổn định | DEFERRED — HARDWARE-FINAL-GATE | Video, current/voltage note |
+| P1-M07 | Servo + LED | Khi có hardware: chạy servo khi LED đang ON | ESP32/OLED/MQTT ổn định, không flicker/reset bất thường | DEFERRED — HARDWARE-FINAL-GATE | Video + broker/serial log |
+| P1-M08 | WiFiManager bằng điện thoại | Khi có hardware: xóa config theo hướng dẫn; boot; kết nối AP; nhập Wi-Fi mới | Portal mở; credential lưu cục bộ; Internet/MQTT reconnect không reflash | DEFERRED — HARDWARE-FINAL-GATE | Screen recording đã che SSID/password + broker log |
+| P1-M09 | MQTT physical ESP32 reconnect/LWT | Khi có hardware: ngắt Wi-Fi/broker đột ngột rồi khôi phục nhiều lần. Nếu tạo được điều kiện thực tế làm `PubSubClient::subscribe()` trả `false` ở local/send level thì lưu capture riêng. Broker ACL là deployment prerequisite; PubSubClient 2.8 không expose SUBACK grant/rejection nên không yêu cầu firmware phát hiện ACL reject. | ESP32 thật phát LWT `OFFLINE`; backoff bounded; `ONLINE` + full state sau reconnect. Local/send failure không để `ONLINE`/full state giả, đặt MQTT false, disconnect và retry bounded. | DEFERRED — HARDWARE-FINAL-GATE | Timestamped serial/broker log; local/send-failure setup nếu thực hiện được |
+| P1-M10 | ESP32 physical restart/GET_STATE | Khi có hardware: đưa lock về trạng thái đã biết, restart board, quan sát servo; sau online gửi GET_STATE rồi gửi command mới | Restart không di chuyển servo/replay command; cold-boot state là lock UNKNOWN, alarm INACTIVE, LED OFF, door UNKNOWN; chỉ command mới xác nhận LOCKED/UNLOCKED. Không yêu cầu stable MC-38 sample ở Phase 1. | DEFERRED — HARDWARE-FINAL-GATE | Video servo + broker transcript + serial boot log |
+| P1-M11 | ESP32 physical full-state retained semantics | Khi có hardware: ESP32 online/reconnected, dùng subscriber mới subscribe availability và state | Subscriber mới nhận retained availability và retained full state phù hợp từ ESP32 thật. Door telemetry non-retained/no old-event replay thuộc CB1 Phase 2. | DEFERRED — HARDWARE-FINAL-GATE | Broker subscription capture |
 
 ### Acceptance Criteria
 
 Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không được làm thất bại acceptance nếu Minimum Required Completion Path đã đạt và được ghi trong summary.
 
-- [ ] Repository/toolchain baseline có thể được Minh tái tạo từ tài liệu trên checkout sạch.
-- [ ] Pin map, power/wiring guide và MQTT contract v1 đã được Minh review và không còn TBD chặn Phase 2.
-- [ ] Firmware clean build và automated parser/state/dedupe tests đã chạy thật, evidence được liên kết.
-- [ ] Wi-Fi/MQTT reconnect, LWT, availability và full-state-after-reconnect hoạt động trên board thật.
-- [ ] Invalid JSON/action/missing field/locker mismatch không gây actuation; chỉ command có `command_id` hợp lệ mới nhận correlated error ACK, malformed JSON không có ID sẽ timeout/reconcile.
-- [ ] CB2 servo LOCK/UNLOCK, ACK/state, duplicate protection, cold-boot no-motion/lock UNKNOWN policy và kiểm thử cơ khí/nguồn bắt buộc đạt.
-- [ ] YC1 DHT22/OLED success/error đạt và không có telemetry/card Dashboard ngoài phạm vi.
-- [ ] YC3 LED ON/OFF, ACK/state và test nguồn Servo + LED đạt.
-- [ ] YC12 captive portal, lưu Wi-Fi, reset configuration và MQTT reconnect đạt bằng điện thoại thật.
-- [ ] Không có secret, build output, cache, debug token hoặc kết quả test giả trong diff.
-- [ ] Handoff đủ để Minh thêm DoorSensor và Node-RED mà không đổi contract một phía.
+- [ ] **[SOFTWARE-GATE]** Repository/toolchain baseline có thể được Minh tái tạo từ tài liệu trên checkout sạch.
+- [ ] **[SOFTWARE-GATE]** Candidate pin map, wiring/power documentation và MQTT contract v1 đã được Minh software-review; physical pin/power verification còn được ghi riêng là hardware final gate, không phải `VERIFIED`.
+- [ ] **[SOFTWARE-GATE]** Firmware clean build và automated parser/state/dedupe tests đã chạy thật, evidence được liên kết.
+- [ ] **[PLANNED SOFTWARE-GATE — Phase 2 harness]** Broker/simulator integration cho availability, retained full state, GET_STATE, ACK/timeout/duplicate và reconnect contract sẽ chạy thật khi `tools/device-simulator/` được tạo ở Phase 2; output không được gọi là ESP32 evidence và không block Phase 1 software handoff trước khi harness tồn tại.
+- [ ] **[SOFTWARE-GATE]** Invalid JSON/action/missing field/locker mismatch không gây actuation; chỉ command có `command_id` hợp lệ mới nhận correlated error ACK, malformed JSON không có ID sẽ timeout/reconcile.
+- [ ] **[SOFTWARE-GATE]** CB2/YC1/YC3/YC12 implementation, cold-boot policy, state/ACK contract và documentation đủ để Phase 2 dùng frozen baseline mà không đổi contract một phía.
+- [ ] **[SOFTWARE-GATE]** Không có secret, build output, cache, debug token hoặc kết quả test giả trong diff; software review/handoff đủ để Minh bắt đầu Phase 2 từ approved merge.
+- [ ] **[DEFERRED — HARDWARE-FINAL-GATE]** P1-M01–P1-M03: servo không tải/có tải, latch/holding torque, rail/power transient.
+- [ ] **[DEFERRED — HARDWARE-FINAL-GATE]** P1-M04–P1-M05: DHT22/OLED physical success/error và actual I2C address.
+- [ ] **[DEFERRED — HARDWARE-FINAL-GATE]** P1-M06–P1-M07: WS2812B physical ON/OFF và Servo + LED power stability.
+- [ ] **[DEFERRED — HARDWARE-FINAL-GATE]** P1-M08–P1-M11: WiFiManager phone/board, physical ESP32 MQTT recovery/LWT, safe reboot và retained full-state verification.
 
 ### Git Checklist
 
@@ -715,16 +760,16 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 - [ ] **Terra/owner:** Xác nhận Phase 1 đang `ACTIVE`, owner đúng và tạo branch, đề xuất `phase/1-huy-firmware-foundation`.
 - [ ] **Terra/owner:** Bảo toàn hai PDF nguồn và mọi user work; không reformat/move ngoài scope.
 - [ ] **Terra/owner:** Không có secret trong diff; chạy secret scan phù hợp và kiểm tra file ignore.
-- [ ] **Terra/owner:** Build/test phù hợp đã chạy; mọi MANUAL `HARD-GATE` có evidence thật; không ghi PASS giả.
+- [ ] **Terra/owner:** Build/test SOFTWARE-GATE phù hợp đã chạy; MANUAL service gate có environment sẵn sàng có evidence thật; mọi P1-M01–P1-M11 hardware test chưa chạy được ghi `DEFERRED — HARDWARE-FINAL-GATE`, không ghi PASS giả.
 - [ ] **Terra/owner:** `PLAN.md` chỉ cập nhật checklist/status/evidence thực; final diff đã review về scope, artifact, debug output và contract drift.
 - [ ] **Terra/owner:** Commit đã tạo với message có Phase/requirement phù hợp; ghi hash thật vào Phase Completion Summary.
 - [ ] **Terra/owner, nếu có quyền:** Branch đã push. Nếu không có quyền/remote, để `Pending`, ghi blocker và exact push command cho người dùng; không bịa trạng thái.
 - [ ] **Terra/owner, nếu có quyền:** Pull Request đã tạo vào integration branch. Nếu không thể tạo, để `Pending` và ghi exact command/thao tác cần thiết; không bịa URL.
-- [ ] **Terra/owner:** Khi mọi `MUST` implementation, automated tests cần thiết và MANUAL `HARD-GATE` đã đạt, evidence/code/docs/Git handoff đủ, chuyển Phase `ACTIVE → READY_FOR_REVIEW`, cập nhật summary rồi dừng; không bắt đầu Phase 2.
+- [ ] **Terra/owner:** Khi mọi `MUST` SOFTWARE-GATE implementation, automated/contract tests cần thiết, evidence/code/docs/Git handoff đủ, chuyển Phase `ACTIVE → READY_FOR_REVIEW`, cập nhật summary rồi dừng; P1-M01–P1-M11 còn deferred phải được liệt kê và không bắt đầu Phase 2 trong cùng phiên.
 - [ ] **Human/reviewer:** Nguyễn Văn Minh đã review; owner/Terra không tự ghi approved.
 - [ ] **Owner + reviewer:** Review comments và checks thật đã hoàn tất.
 - [ ] **Human/maintainer:** PR đã merge vào integration branch; Terra không tự tick nếu không có Git/PR evidence thật.
-- [ ] **Human hoặc phiên agent sau có evidence:** Commit/PR/merge commit thật được ghi vào `PLAN.md`; Phase 1 chuyển `COMPLETED`, Phase 2 chuyển `ACTIVE` và Phase 3 giữ `NOT_STARTED`.
+- [ ] **Human/maintainer hoặc phiên agent sau có evidence:** Software review/approved merge commit thật được ghi vào `PLAN.md`; tạo `develop` tại approved Phase-1 commit, Phase 1 chuyển `COMPLETED` cho dependency purposes, Phase 2 chuyển `ACTIVE` từ branch tạo trên `develop`, Phase 3 giữ `NOT_STARTED`. P1-M01–P1-M11 vẫn deferred cho final release.
 
 ### Handoff
 
@@ -732,27 +777,27 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 - Phase tiếp theo: **Phase 2 — CB1, YC6, YC8, YC9 và Node-RED orchestration**.
 - Contract phải đọc: Sections 4; `docs/mqtt-contract.md`; pin map; firmware README; command/ACK/error/duplicate/time và cold-boot/Servo safe-state contracts.
 - Những phần đã hoàn thành: khi handoff phải liệt kê đúng checklist/evidence thực; baseline hiện chưa có implementation nào hoàn thành.
-- Những phần còn MANUAL: mọi Phase 1 `HARD-GATE` phải có evidence trước `READY_FOR_REVIEW`; các full-system case phụ thuộc Node-RED/Supabase/Dashboard được ghi `FINAL-GATE` cho Phase 3, không bị trình bày là đã pass.
-- Dependency được mở khóa sau acceptance: firmware buildable; CB2/YC1/YC3/YC12 firmware; MQTT/LWT/state/ACK foundation; pin map; contract v1.
+- Những phần còn MANUAL: P1-M01–P1-M11 là `DEFERRED — HARDWARE-FINAL-GATE` do nhóm chưa có ESP32/module; chúng không có evidence/PASS và phải chạy lại trước final release/demo. Các full-system case phụ thuộc Node-RED/Supabase/Dashboard vẫn được ghi `FINAL-GATE` cho Phase 3, không bị trình bày là đã pass.
+- Dependency được mở khóa sau software acceptance + review/merge: firmware buildable; CB2/YC1/YC3/YC12 software baseline; MQTT/LWT/state/ACK contract; candidate pin map documentation; contract v1. Physical pin/wiring/power behavior chưa được unlock/verified.
 - Dependency vẫn dành cho Phase 3: actual buzzer, event persistence, chart, email và final Dashboard.
-- Khi coding/evidence Phase 1 đủ: đặt Phase 1 `READY_FOR_REVIEW`, Phase 2 vẫn `NOT_STARTED`, chuyển handoff cho Minh review và dừng.
-- Chỉ sau review approve + PR merge có evidence thật: đặt Phase 1 `COMPLETED`, Phase 2 `ACTIVE`, giữ Phase 3 `NOT_STARTED`.
+- Khi SOFTWARE-GATE coding/evidence Phase 1 đủ: đặt Phase 1 `READY_FOR_REVIEW`, Phase 2 vẫn `NOT_STARTED`, chuyển software handoff cho Minh review và dừng.
+- Chỉ sau software review approve + approved merge có evidence thật: maintainer tạo `develop` tại commit đó, đặt Phase 1 `COMPLETED` cho dependency purposes, Phase 2 `ACTIVE` từ `develop`, giữ Phase 3 `NOT_STARTED`; hardware final gates vẫn pending.
 
 ### Phase Completion Summary
 
-- Status: ACTIVE — automated implementation evidence recorded; Phase cannot leave ACTIVE until every P1-M01–P1-M11 HARD-GATE and required review evidence exists.
+- Status: ACTIVE — automated implementation/build evidence đã được ghi, nhưng software acceptance/reviewer approval/approved merge chưa có. P1-M01–P1-M11 đều `DEFERRED — HARDWARE-FINAL-GATE` do nhóm chưa có ESP32/module; chúng không phải PASS và không chặn software handoff khi các SOFTWARE-GATE còn lại đạt.
 - Implementation: Repository baseline; PlatformIO ESP32 Arduino firmware foundation; WiFiManager; MQTT v1 parser/validation/dedupe/ACK/state/LWT/reconnect; CB2 SG90 state machine with cold-boot no-motion; YC1 local DHT22/OLED error display; YC3 WS2812B control; wiring/power/test/docs created. Targeted patch: a transport connection is operational only after PubSubClient 2.8 sends the `command` SUBSCRIBE packet successfully at local/send level; it does not expose broker SUBACK grant/rejection. A local/send failure keeps MQTT state false, publishes `OFFLINE` when possible, disconnects, and follows bounded retry. OLED I2C address is `AppConfig::OLED_I2C_ADDRESS` (default `0x3C`), not a display-source literal; local calibration copies the full ignored `app_config.h` from the example and edits it directly. CB1/YC6/YC8/YC9/CB3/YC4/YC5/YC7 were not implemented.
 - Automated tests: PASS — after the targeted patch, P1-A01 clean `esp32dev` build (PlatformIO Core 6.1.18, `espressif32@6.10.0`) and P1-A02/P1-A03/P1-A04 native contract suite 7/7. Evidence: `tests/evidence/phase-1/automated-results.md`.
-- Manual HARD-GATE tests: Pending — P1-M01 through P1-M11. No ESP32 serial device, hardware, phone session, or local MQTT broker was available; P1-M09 covers Wi-Fi/broker disconnect/reconnect, LWT, bounded backoff and ONLINE/full-state recovery, and may capture a real local/send `subscribe()` failure but does not claim PubSubClient can detect a broker ACL/SUBACK rejection. P1-M02 must determine mechanical self-holding versus holding torque before any servo-policy change. Exact procedures/evidence are in `tests/test-plan.md`.
-- Manual FINAL-GATE tests remaining: Section 8 end-to-end/final-system tests remain Phase 3 FINAL-GATE; they have not been executed or claimed.
+- Manual HARD-GATE tests: Pending only where a non-hardware service environment becomes available; none is claimed in this summary. P1-S05/P1-S06 are planned broker/simulator SOFTWARE-GATE scenarios for the Phase 2 harness, not hardware evidence.
+- Deferred HARDWARE-FINAL-GATE tests: P1-M01–P1-M11 remain `[ ]` because the group has not bought/received ESP32 or modules. P1-M09 remains the physical ESP32 Wi-Fi/broker reconnect/LWT check and P1-M02 must determine mechanical self-holding versus holding torque before any servo-policy change. Section 8/full-system hardware tests remain mandatory before final release/demo.
 - Known issues: PlatformIO Core 6.1.18 fails from the current Windows path containing Vietnamese characters; documented ASCII-path build workaround was used. Default Arduino partition build uses 83.7% flash (16.3% remaining). MQTT contract v1/pin map are pending Minh review and physical as-built verification. Remote has no `develop`/integration branch, so no valid PR target exists yet.
 - Deferred SHOULD/OPTIONAL items: `boot_id`/sequence telemetry; optional local TLS and broker ACL; conditional WS2812B level shifter/extra bulk capacitance pending physical measurements. No optional scope was used to replace a MUST.
 - Branch: `phase/1-huy-firmware-foundation` pushed to `origin/phase/1-huy-firmware-foundation`.
 - Commit: `a520372` — `feat(phase-1): add ESP32 firmware foundation`; `3b84bf8` — `docs(phase-1): record active handoff blockers`; `bbc39b0` — `docs(phase-1): record push and PR blocker`; `02a15e2` — `fix(phase-1): harden MQTT subscription recovery`; `a44c972` — `fix(phase-1): correct MQTT subscription semantics`.
-- PR: Pending — Phase remains ACTIVE while P1-M01–P1-M11 are pending and `origin` has no `develop`/integration branch to target; no PR was created or claimed.
+- PR: Pending — software review/acceptance is not yet recorded and `origin` has no `develop`/integration branch to target. After approved Phase 1 software merge, maintainer must create `develop` at that exact commit; no PR was created or claimed.
 - Reviewer: Pending — Nguyễn Văn Minh must review the MQTT contract, baseline, pin map, and handoff.
 - Merge commit: Pending — owner/Terra did not approve or merge.
-- Next phase: Phase 2 remains NOT_STARTED; do not activate until Phase 1 is reviewed, merged, and marked COMPLETED with real evidence.
+- Next phase: Phase 2 remains NOT_STARTED; only after Phase 1 SOFTWARE-GATE review and approved merge may Phase 1 be marked `COMPLETED` for dependency purposes, `develop` be created at that commit, and Phase 2 become `ACTIVE`. Hardware final gates remain open until final release.
 
 ## 6. Phase 2 — Nguyễn Văn Minh
 
@@ -760,16 +805,16 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 
 **Status: NOT_STARTED. Owner: Nguyễn Văn Minh — 24127205. Reviewer: Mai Phương Thùy.**
 
-Chỉ chuyển Phase này sang `ACTIVE` sau khi Phase 1 `COMPLETED`. Triển khai CB1; nền tảng Node-RED authentication/authorization/command orchestration; YC9; logic YC6 và Telegram; YC8 routing/grounding. Tạo interface rõ để Thùy nối actual buzzer và event persistence ở Phase 3, không nhận ownership CB3 hoặc YC4.
+Chỉ chuyển Phase này sang `ACTIVE` sau khi Phase 1 được software-review, approved merge và `COMPLETED` cho dependency purposes trên `develop`; P1 hardware final gates có thể vẫn deferred. Triển khai CB1; nền tảng Node-RED authentication/authorization/command orchestration; YC9; logic YC6 và Telegram; YC8 routing/grounding. Tạo interface rõ để Thùy nối actual buzzer và event persistence ở Phase 3, không nhận ownership CB3 hoặc YC4.
 
 ### Minimum Required Completion Path
 
-Để Phase 2 chuyển từ `ACTIVE` sang `READY_FOR_REVIEW`, Terra phải hoàn tất các `MUST`: CB1 với debounce và semantics `UNKNOWN` khả thi; Supabase Auth/session/ownership/RLS và frozen auth transport; Node-RED validation + secure dispatcher; pending/ACK/timeout/dedupe/restart recovery; live-state cache; authorized window + unauthorized detector; `UNAUTHORIZED_OPEN`/`ALARM_ON` interface; Telegram path; YC8 live/history adapter contract và grounded failure behavior; MANUAL `HARD-GATE`; regression/evidence/Git handoff. Actual CB3, YC4 persistence và history backend thật vẫn thuộc Phase 3. Không làm `OPTIONAL` trước critical path này.
+Để Phase 2 chuyển từ `ACTIVE` sang `READY_FOR_REVIEW`, Terra phải hoàn tất SOFTWARE-GATE `MUST`: CB1 debounce/state semantics qua unit tests và simulator; Supabase Auth/session/ownership/RLS và frozen auth transport; Node-RED validation + secure dispatcher; pending/ACK/timeout/dedupe/restart recovery; live-state cache; authorized window + unauthorized detector; `UNAUTHORIZED_OPEN`/`ALARM_ON` interface; Telegram path; YC8 live/history adapter contract và grounded failure behavior; regression/evidence/Git handoff. Physical MC-38/ESP32 verification được defer thành HARDWARE-FINAL-GATE khi hardware chưa có. Actual CB3, YC4 persistence và history backend thật vẫn thuộc Phase 3. Không làm `OPTIONAL` trước software critical path này.
 
 ### Dependencies
 
-- Phase 1 đã merge, handoff có evidence, MQTT contract v1 và pin map đã khóa.
-- Firmware build được; Wi-Fi/MQTT/LWT/state/ACK parser foundation hoạt động trên ESP32.
+- Phase 1 software baseline đã approved merge trên `develop`, handoff có evidence và MQTT contract v1 đã freeze; physical pin map/wiring vẫn có thể là deferred hardware final gate.
+- Firmware build được; Wi-Fi/MQTT/LWT/state/ACK parser foundation có software evidence. Hardware behavior trên ESP32 chỉ được coi là verified sau hardware final gates.
 - Supabase development project và hai test account riêng; credential thật chỉ ở local/backend secret store.
 - MQTT Broker/Node-RED development environment; Telegram bot và Gemini credential cho MANUAL tests khi được cấp.
 - Thùy review normalized event/history adapter contract trước khi Phase 2 merge.
@@ -778,6 +823,7 @@ Chỉ chuyển Phase này sang `ACTIVE` sau khi Phase 1 `COMPLETED`. Triển kha
 ### Deliverables
 
 - Firmware `DoorSensor` cho MC-38: logic OPEN/CLOSED và boot/untrusted-state `UNKNOWN`, debounce, transition telemetry, timestamp; sequence/boot ID là `SHOULD`.
+- Device simulator test harness theo frozen MQTT contract cho Phase 2 software/broker integration; không phải firmware production và không thay physical ESP32 verification.
 - Node-RED modular foundation: MQTT connection, payload validation, availability/state cache, authenticated command dispatcher, pending map, ACK matching, timeout, dedupe và disabled-control state.
 - YC9: Supabase Auth register/login/logout/session/JWT; frozen browser → Node-RED access-token transport; profile/locker ownership/claim; RLS; Node-RED token + ownership middleware; test User A/B.
 - CB1 Dashboard state `OPEN/CLOSED/UNKNOWN` và updated time.
@@ -791,6 +837,7 @@ Chỉ chuyển Phase này sang `ACTIVE` sau khi Phase 1 `COMPLETED`. Triển kha
 |---|---|
 | `firmware/src/door_sensor.*`, `firmware/include/pin_map.h`, `firmware/src/main.cpp` | MC-38 integration, debounce, telemetry/state |
 | `firmware/test/door_sensor/` | Debounce/state-transition tests không cần hardware khi khả thi |
+| `tools/device-simulator/` | Harness/fixtures broker MQTT giả lập device theo frozen contract cho contract, dispatcher, cache, ACK/timeout và reconnect tests; không phải production component |
 | `node-red/flows.json`, `node-red/package.json`, `node-red/README.md` | Export nguồn FlowFuse/Node-RED, dependency và deploy guide |
 | `node-red/test/`, `node-red/fixtures/` | Auth/dispatcher/ACK/YC6/chatbot contract tests, dữ liệu giả chỉ trong test |
 | `supabase/migrations/` | Profiles, lockers, claim/ownership và RLS migrations của YC9 |
@@ -804,6 +851,8 @@ Chỉ chuyển Phase này sang `ACTIVE` sau khi Phase 1 `COMPLETED`. Triển kha
 Node-RED flow phải được tổ chức thành tab/subflow có trách nhiệm rõ: authentication/authorization, command dispatcher, ACK processor, telemetry/cache, unauthorized detector, Telegram, history adapter và chatbot. Không đặt toàn bộ logic trong một Function node lớn.
 
 ### Implementation Checklist
+
+Các bullet CB1/MC-38 cần phần cứng thật vẫn là `MUST` cho final release, nhưng khi hardware chưa có chúng được theo dõi bằng P2-M01/P2-M02 và Section 9 với nhãn `DEFERRED — HARDWARE-FINAL-GATE`; simulator/unit/broker evidence không thay thế physical verification.
 
 - [ ] **[MUST]** Re-audit Phase 1 handoff và khóa contract bổ sung với Thùy.
   - File/module dự kiến: `docs/mqtt-contract.md`, `docs/event-contract.md`, fixtures dùng chung.
@@ -900,8 +949,9 @@ Node-RED flow phải được tổ chức thành tab/subflow có trách nhiệm 
 | Test ID | Kịch bản | Bước thực hiện | Kết quả mong đợi | Loại | Evidence cần lưu |
 |---|---|---|---|---|---|
 | P2-A01 | Door debounce timeline | Feed bounce sequences quanh threshold | Một stable transition, không event giả; boundary xác định | Automated | Test report + input timeline |
-| P2-M01 | MC-38 OPEN/CLOSED | Tác động reed switch/nam châm thật; dùng subscriber mới kiểm tra telemetry sau transition | Stable electrical states ánh xạ đúng; telemetry door non-retained nên subscriber mới không nhận lại old transition; cache và Dashboard đúng state/time | MANUAL — HARD-GATE | Video + broker/Dashboard capture |
-| P2-M02 | MC-38 debounce và UNKNOWN khả thi | Toggle nhanh; boot trước stable sample; tạo Offline/stale hoặc inject invalid/missing state payload | Debounce lọc bounce; OPEN/CLOSED từ input ổn định; cache/Dashboard dùng UNKNOWN khi live state không đáng tin | MANUAL — HARD-GATE | Video/log + cache/UI capture; ghi rõ không test broken-wire detection |
+| P2-S01 | Device simulator contract matrix | Chạy harness với broker cho availability/state/door telemetry, command/ACK success/error/duplicate/delay/no-ACK/malformed và reconnect | Node-RED/consumer xử lý frozen contract đúng; output không được gọi là MC-38/ESP32 hardware evidence | SOFTWARE-GATE — broker/simulator integration | Harness fixture + broker/test-runner output |
+| P2-M01 | MC-38 OPEN/CLOSED | Khi có hardware: tác động reed switch/nam châm thật; dùng subscriber mới kiểm tra telemetry sau transition | Stable electrical states ánh xạ đúng; telemetry door non-retained nên subscriber mới không nhận lại old transition; cache và Dashboard đúng state/time | DEFERRED — HARDWARE-FINAL-GATE | Video + broker/Dashboard capture |
+| P2-M02 | MC-38 debounce và UNKNOWN khả thi | Khi có hardware: toggle nhanh; boot trước stable sample; tạo Offline/stale hoặc inject invalid/missing state payload | Debounce lọc bounce; OPEN/CLOSED từ input ổn định; cache/Dashboard dùng UNKNOWN khi live state không đáng tin | DEFERRED — HARDWARE-FINAL-GATE | Video/log + cache/UI capture; ghi rõ không test broken-wire detection |
 | P2-A02 | Invalid MQTT payload | Inject malformed JSON/schema/enum/locker | Reject; cache/UI/event interface không đổi | Automated | Flow test output |
 | P2-A03 | Auth transport/ownership command gates | Gửi canonical Bearer token valid/missing/malformed/expired, spoof `user_id`, wrong owner, offline và MQTT down | Node-RED dùng verified token identity; 401/403/unavailable phù hợp; không publish khi deny; không auth bypass/song song | Automated | Request fixtures + broker spy + redacted log assertion |
 | P2-M03 | Register/login/logout/session + FlowFuse transport | Dùng Supabase test account thật; inspect request protected từ Dashboard qua login/refresh/logout | Browser session và frozen token transport đúng tài liệu; logout/expiry disable control; full JWT không log | MANUAL — HARD-GATE | Screen/network capture đã redact PII/token |
@@ -926,7 +976,8 @@ Node-RED flow phải được tổ chức thành tab/subflow có trách nhiệm 
 Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có thể còn `Pending` khi Phase 2 handoff nếu credential/dependency thật chưa sẵn sàng, nhưng implementation/contract test tương ứng phải đạt và test thật bắt buộc hoàn tất trước final release. `SHOULD`/`OPTIONAL` không block acceptance.
 
 - [ ] Phase 1 regression còn đạt và shared contract không bị đổi một phía.
-- [ ] CB1 đọc/debounce/publish OPEN/CLOSED end-to-end; UNKNOWN dùng đúng cho boot/uninitialized/Offline/stale/invalid state, không tuyên bố phát hiện dây đứt ngoài khả năng phần cứng.
+- [ ] **[SOFTWARE-GATE]** Device simulator/broker matrix chứng minh CB1 telemetry OPEN/CLOSED/UNKNOWN, retained/non-retained, reconnect và consumer handling theo frozen contract; không gọi đây là MC-38/ESP32 evidence.
+- [ ] **[DEFERRED — HARDWARE-FINAL-GATE]** CB1 đọc/debounce/publish OPEN/CLOSED với MC-38/ESP32 thật; UNKNOWN dùng đúng cho boot/uninitialized/Offline/stale/invalid state, không tuyên bố phát hiện dây đứt ngoài khả năng phần cứng.
 - [ ] Node-RED validate mọi MQTT ingress trước cache/UI/event side effect.
 - [ ] YC9 register/login/logout/session/JWT, frozen Supabase access-token transport, ownership/claim và RLS hoạt động với hai user; verified token là nguồn user ID duy nhất; service-role key không ở frontend.
 - [ ] Command dispatcher kiểm tra auth/ownership cho user request; internal YC6 entrypoint không public, allowlisted/audited; cả hai kiểm tra MQTT, device freshness và pending conflict trước publish.
@@ -940,20 +991,20 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 
 ### Git Checklist
 
-- [ ] **Terra/owner:** Pull integration branch mới nhất; xác minh bằng Git evidence rằng Phase 1 `COMPLETED`, Phase 2 `ACTIVE` và handoff contract có thật.
+- [ ] **Terra/owner:** Pull `develop` mới nhất; xác minh bằng Git evidence rằng Phase 1 đã `COMPLETED` cho dependency purposes qua approved software merge, Phase 2 `ACTIVE` và handoff contract có thật; P1 hardware final gates vẫn được ghi deferred.
 - [ ] **Terra/owner:** Xác nhận owner Nguyễn Văn Minh và tạo branch, đề xuất `phase/2-minh-security-orchestration`.
 - [ ] **Terra/owner:** Không có secret trong diff; kiểm tra Node-RED credentials/export và Supabase config đặc biệt kỹ.
 - [ ] **Terra/owner:** Build/test phù hợp đã chạy; firmware regression + Node-RED/Auth/RLS/dispatcher/YC6/YC8 contract tests được ghi đúng.
-- [ ] **Terra/owner:** MANUAL `HARD-GATE` dùng account/board thật có evidence đã che token, PII và credential; `FINAL-GATE` còn lại được ghi `Pending`, không giả PASS.
+- [ ] **Terra/owner:** Manual service/account gates có environment sẵn sàng có evidence đã che token, PII và credential; MC-38/ESP32 hardware tests chưa chạy được ghi `DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` còn lại được ghi `Pending`, không giả PASS.
 - [ ] **Terra/owner:** `PLAN.md` cập nhật tối thiểu; final diff không nhận ownership CB3/YC4 và không đổi frozen contract thiếu version/review.
 - [ ] **Terra/owner:** Commit đã tạo; hash thật được ghi vào Phase Completion Summary.
 - [ ] **Terra/owner, nếu có quyền:** Branch đã push; nếu không, để `Pending`, ghi blocker và exact push command.
 - [ ] **Terra/owner, nếu có quyền:** Pull Request đã tạo; nếu không, để `Pending` và ghi exact command/thao tác cần thiết.
-- [ ] **Terra/owner:** Khi mọi `MUST` implementation, automated tests cần thiết và MANUAL `HARD-GATE` đạt, evidence/code/docs/Git handoff đủ, chuyển Phase `ACTIVE → READY_FOR_REVIEW`, cập nhật summary rồi dừng; không bắt đầu Phase 3.
+- [ ] **Terra/owner:** Khi mọi `MUST` SOFTWARE-GATE implementation, automated/contract/simulator tests cần thiết và non-hardware manual gates đạt, evidence/code/docs/Git handoff đủ, chuyển Phase `ACTIVE → READY_FOR_REVIEW`, cập nhật summary rồi dừng; hardware final gates phải còn `[ ]`/deferred nếu chưa có hardware và không bắt đầu Phase 3.
 - [ ] **Human/reviewer:** Mai Phương Thùy đã review; owner/Terra không tự ghi approved.
 - [ ] **Owner + reviewer:** Review comments/checks thật đã hoàn tất.
 - [ ] **Human/maintainer:** PR đã merge; Terra không tự tick nếu không có Git/PR evidence thật.
-- [ ] **Human hoặc phiên agent sau có evidence:** Commit/PR/merge commit thật được ghi vào `PLAN.md`; Phase 2 chuyển `COMPLETED`, Phase 3 chuyển `ACTIVE`.
+- [ ] **Human hoặc phiên agent sau có evidence:** Approved software merge commit thật được ghi vào `PLAN.md`; Phase 2 chuyển `COMPLETED` cho dependency purposes, Phase 3 chuyển `ACTIVE`; Phase 1/2 hardware final gates vẫn mở cho final release.
 
 ### Handoff
 
@@ -965,7 +1016,7 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Dependency được mở khóa: door telemetry; secure dispatcher; pending/ACK/timeout; cache; auth/RLS; unauthorized event + ALARM_ON; Telegram; chatbot context adapter.
 - Dependency Phase 3 phải hoàn thiện: CB3 firmware/hardware, event schema/persistence, history query thật, YC6 full integration, YC5, YC7, final Dashboard/docs/regression.
 - Khi coding/evidence Phase 2 đủ: đặt Phase 2 `READY_FOR_REVIEW`, Phase 3 vẫn `NOT_STARTED`, chuyển handoff cho Thùy review và dừng.
-- Chỉ sau review approve + PR merge có evidence thật: đặt Phase 2 `COMPLETED`, Phase 3 `ACTIVE`; không đổi owner YC6/YC8 sang Thùy.
+- Chỉ sau software review approve + approved merge có evidence thật: đặt Phase 2 `COMPLETED` cho dependency purposes, Phase 3 `ACTIVE`; hardware final gates của Phase 1/2 vẫn pending và không đổi owner YC6/YC8 sang Thùy.
 
 ### Phase Completion Summary
 
@@ -989,17 +1040,17 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 
 **Status: NOT_STARTED. Owner: Mai Phương Thùy — 24127249. Reviewer: Thái Quang Huy.**
 
-Chỉ chuyển Phase này sang `ACTIVE` sau khi Phase 2 `COMPLETED`. Triển khai CB3, YC4, YC5, YC7; nối actual buzzer và Supabase persistence vào YC6; nối history thật vào YC8; hoàn thiện Dashboard, full-system integration, regression, tài liệu, demo và release checklist. Không nhận ownership YC6/YC8 từ Minh.
+Chỉ chuyển Phase này sang `ACTIVE` sau khi Phase 2 được software-review, approved merge và `COMPLETED` cho dependency purposes; Phase 1/2 hardware final gates có thể vẫn deferred. Triển khai CB3, YC4, YC5, YC7; nối actual buzzer và Supabase persistence vào YC6; nối history thật vào YC8; hoàn thiện Dashboard, full-system integration, regression, tài liệu, demo và release checklist. Không nhận ownership YC6/YC8 từ Minh.
 
 ### Minimum Required Completion Path
 
-Để Phase 3 chuyển từ `ACTIVE` sang `READY_FOR_REVIEW`, Terra phải hoàn tất mọi `MUST` implementation: CB3; YC4 schema/persistence/history/RLS; YC5 chart 7/30; YC7 settings/scheduler/report/dedupe; nối full YC6 với buzzer + persistence; nối full YC8 history backend; final Dashboard; automated tests cần thiết; mọi MANUAL `HARD-GATE`; evidence/code/docs và Git handoff. Không làm `OPTIONAL` trước committed scope; Phase 3 không có Phase 4 để đẩy core implementation sang.
+Để Phase 3 chuyển từ `ACTIVE` sang `READY_FOR_REVIEW`, Terra phải hoàn tất mọi SOFTWARE-GATE `MUST` implementation: CB3 controller logic; YC4 schema/persistence/history/RLS; YC5 chart 7/30; YC7 settings/scheduler/report/dedupe; full YC6/YC8 integration adapters; final Dashboard; automated/contract/simulator tests cần thiết; non-hardware manual gates có environment sẵn sàng; evidence/code/docs và Git handoff. Board, buzzer, door, servo, LED, OLED/DHT, WiFiManager, nguồn/cơ khí/full-load và physical E2E còn thiếu hardware được giữ `DEFERRED — HARDWARE-FINAL-GATE`. Không làm `OPTIONAL` trước committed software scope; Phase 3 không có Phase 4 để đẩy core implementation sang.
 
 MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `Pending` tại `READY_FOR_REVIEW` nếu được ghi trung thực trong Phase Completion Summary. Chúng tuyệt đối block `READY_FOR_REVIEW → COMPLETED` và final release; chỉ sau human approval, PR merge, toàn bộ mandatory final tests cùng final acceptance đạt mới được đặt Phase 3 `COMPLETED`.
 
 ### Dependencies
 
-- Phase 1 và Phase 2 đã merge với acceptance/evidence thực; Phase 3 được đặt `ACTIVE`.
+- Phase 1 và Phase 2 software baselines đã approved merge với acceptance/evidence thực; Phase 3 được đặt `ACTIVE`. Hardware final gates từ Phase 1/2 có thể còn deferred và vẫn phải được đóng trước release.
 - MQTT/event/auth/history/time/counting contracts đã khóa và Thùy đã review ở Phase 2.
 - Active Buzzer module, MOSFET/protection/power wiring thật; Huy review power/pin implications.
 - Supabase project/schema YC9, Node-RED secure dispatcher/cache, test users/lockers.
@@ -1033,6 +1084,8 @@ MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `
 | `README.md`, `PLAN.md` | Quick start/status/release evidence thực |
 
 ### Implementation Checklist
+
+Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST` cho final release, nhưng khi hardware chưa có chúng được theo dõi bằng deferred hardware-final tests và Section 9; chúng không chặn Phase 3 software handoff hoặc thay thế physical E2E.
 
 - [ ] **[MUST]** Re-audit handoff, contract và unresolved hardware/service questions trước khi chỉnh integration.
   - File/module dự kiến: `PLAN.md`, contract docs, risk/open-question log.
@@ -1118,11 +1171,11 @@ MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `
   - Cách kiểm tra: state-model/integration checks cho auth expiry, wrong owner, broker/device offline và every control path; MANUAL desktop + phone P3-M10 là `FINAL-GATE`.
   - Điều kiện được tick cho implementation handoff: UI bám wireframe/phạm vi, không có YC1 card/mock data, disabled controls đúng và accessibility cơ bản đủ dùng theo review khả dụng; P3-M10 có thể còn `Pending` nhưng block `COMPLETED`.
 
-- [ ] **[MUST]** Hoàn thiện full-system test plan/harness, chạy automated/HARD-GATE và quản lý FINAL-GATE execution.
+- [ ] **[MUST]** Hoàn thiện full-system test plan/harness, chạy SOFTWARE-GATE và quản lý DEFERRED HARDWARE-FINAL-GATE/FINAL-GATE execution.
   - File/module dự kiến: `tests/` plan/cases/evidence, defect log, firmware/flow regression.
-  - Kết quả phải đạt để vào `READY_FOR_REVIEW`: test plan/harness hoàn chỉnh, automated tests và MANUAL `HARD-GATE` đạt, mọi `FINAL-GATE` chưa chạy được liệt kê `Pending` với bước/evidence/blocker cụ thể. Trước `COMPLETED`: toàn bộ Section 8/full-load/release tests đạt, Critical/High = 0; Medium có workaround/decision rõ.
-  - Cách kiểm tra: trước review, audit automated/HARD-GATE output và danh sách FINAL-GATE pending; trước completion, chạy test session với hardware/accounts thật, fault injection có kiểm soát và final evidence audit.
-  - Điều kiện được tick cho implementation handoff: plan/harness + automated/HARD-GATE + pending record đầy đủ, không ghi giả. Các test row/acceptance `FINAL-GATE` vẫn để unticked cho đến khi chạy thật và tiếp tục block `COMPLETED`; defects được triage và affected regression rerun.
+  - Kết quả phải đạt để vào `READY_FOR_REVIEW`: test plan/harness hoàn chỉnh, SOFTWARE-GATE và non-hardware manual gate đạt, mọi hardware final gate/`FINAL-GATE` chưa chạy được liệt kê `Pending` với bước/evidence/blocker cụ thể. Trước `COMPLETED`: toàn bộ Section 8/full-load/release tests đạt, Critical/High = 0; Medium có workaround/decision rõ.
+  - Cách kiểm tra: trước review, audit SOFTWARE-GATE output và danh sách deferred hardware final gate/FINAL-GATE pending; trước completion, chạy test session với hardware/accounts thật, fault injection có kiểm soát và final evidence audit.
+  - Điều kiện được tick cho implementation handoff: plan/harness + SOFTWARE-GATE + pending record đầy đủ, không ghi giả. Các test row/acceptance hardware final/`FINAL-GATE` vẫn để unticked cho đến khi chạy thật và tiếp tục block `COMPLETED`; defects được triage và affected regression rerun.
 
 - [ ] **[MUST]** Hoàn thiện user/deployment/troubleshooting/demo documents và release checklist.
   - File/module dự kiến: docs cuối, README, test traceability, `PLAN.md`.
@@ -1135,10 +1188,10 @@ MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `
 | Test ID | Kịch bản | Bước thực hiện | Kết quả mong đợi | Loại | Evidence cần lưu |
 |---|---|---|---|---|---|
 | P3-A01 | Alarm controller valid/duplicate/invalid | Feed ALARM_ON/OFF, duplicate ID, invalid action | State/ACK đúng; duplicate không actuation; invalid an toàn | Automated | Test report + ACK fixtures |
-| P3-M01 | Buzzer active polarity/boot | Boot/restart, bật/tắt qua command | Boot INACTIVE; ON/OFF đúng; không treo/reset | MANUAL — HARD-GATE | Video + wiring/voltage note |
-| P3-M02 | Dashboard Test/Stop Alarm | Login owner, thao tác control | Pending → ACK success → ACTIVE/INACTIVE; không direct MQTT | MANUAL — HARD-GATE | UI + broker + hardware video |
+| P3-M01 | Buzzer active polarity/boot | Khi có hardware: boot/restart, bật/tắt qua command | Boot INACTIVE; ON/OFF đúng; không treo/reset | DEFERRED — HARDWARE-FINAL-GATE | Video + wiring/voltage note |
+| P3-M02 | Dashboard Test/Stop Alarm | Software: test bằng simulator/broker; khi có hardware: login owner, thao tác control | Pending → ACK success → ACTIVE/INACTIVE; không direct MQTT; physical buzzer evidence còn deferred | DEFERRED — HARDWARE-FINAL-GATE | UI + broker + hardware video |
 | P3-A02 | Event persistence matrix | Feed mọi canonical event type | Mapping đầy đủ; required fields; idempotent insert | Automated | DB assertions/test report |
-| P3-M03 | Supabase insert thành công | Chạy door/lock/alarm/LED/unauthorized thật | Rows đúng locker/source/result/authorized/command/time | MANUAL — HARD-GATE | Sanitized query export/screenshot |
+| P3-M03 | Supabase insert thành công | Software: inject simulator fixtures; khi có hardware: chạy door/lock/alarm/LED/unauthorized thật | Rows đúng locker/source/result/authorized/command/time; physical producer evidence còn deferred | DEFERRED — HARDWARE-FINAL-GATE | Sanitized query export/screenshot |
 | P3-A03 | Supabase duplicate/failure | Insert same event ID; inject 4xx/5xx/network | Một row; lỗi được surface, không crash/loop; retry transient hữu hạn nếu có | Automated | Invocation/row counts + error log |
 | P3-M04 | RLS event history | User A/B query UI/API | A không đọc B; unauthenticated bị deny | MANUAL — HARD-GATE | Sanitized request/result |
 | P3-A04 | Chart aggregation 7/30 | Deterministic events tại boundary/multiple/zero days | Đủ buckets, counts đúng contract | Automated | Dataset + expected/actual report |
@@ -1172,16 +1225,16 @@ Mọi mục trong phần này là `MUST`; mọi `FINAL-GATE` phải có evidence
 
 ### Git Checklist
 
-- [ ] **Terra/owner:** Pull integration branch mới nhất; xác minh bằng Git evidence rằng Phase 2 `COMPLETED`, Phase 3 `ACTIVE` và handoff contract có thật.
+- [ ] **Terra/owner:** Pull `develop` mới nhất; xác minh bằng Git evidence rằng Phase 2 `COMPLETED` cho dependency purposes qua approved software merge, Phase 3 `ACTIVE` và handoff contract có thật; prior hardware final gates vẫn deferred nếu chưa có hardware.
 - [ ] **Terra/owner:** Xác nhận owner Mai Phương Thùy và tạo branch, đề xuất `phase/3-thuy-data-dashboard-release`.
 - [ ] **Terra/owner:** Không có secret trong diff; kiểm tra Supabase/Gmail/Telegram/Gemini/MQTT/Node-RED credentials và evidence.
-- [ ] **Terra/owner:** Build/test phù hợp đã chạy: firmware, Node-RED, migrations/RLS, aggregation và regression; MANUAL `HARD-GATE` có evidence thật.
+- [ ] **Terra/owner:** Build/test SOFTWARE-GATE phù hợp đã chạy: firmware, Node-RED, migrations/RLS, aggregation và regression; non-hardware manual gates có environment sẵn sàng có evidence thật; physical tests chưa chạy được giữ `DEFERRED — HARDWARE-FINAL-GATE`.
 - [ ] **Terra/owner:** Mọi MANUAL `FINAL-GATE` đã chạy nếu hardware/account/credential có sẵn; mục chưa thể chạy giữ `Pending` với blocker chính xác và vẫn block final release, không giả PASS.
 - [ ] **Terra/owner:** `PLAN.md` cập nhật tối thiểu; final diff đã kiểm tra scope, contract, generated flows/migrations, debug/mock data và docs consistency.
 - [ ] **Terra/owner:** Commit đã tạo; hash thật được ghi vào Phase Completion Summary.
 - [ ] **Terra/owner, nếu có quyền:** Branch đã push; nếu không, để `Pending`, ghi blocker và exact push command.
 - [ ] **Terra/owner, nếu có quyền:** Pull Request đã tạo; nếu không, để `Pending` và ghi exact command/thao tác cần thiết.
-- [ ] **Terra/owner:** Khi mọi `MUST` implementation, automated tests cần thiết và MANUAL `HARD-GATE` đạt, evidence/code/docs/Git handoff đủ, chuyển Phase `ACTIVE → READY_FOR_REVIEW`, cập nhật summary rồi dừng. `FINAL-GATE` còn pending phải được nêu rõ và vẫn chặn release/`COMPLETED`.
+- [ ] **Terra/owner:** Khi mọi `MUST` SOFTWARE-GATE implementation, automated/contract/simulator tests cần thiết và non-hardware manual gates đạt, evidence/code/docs/Git handoff đủ, chuyển Phase `ACTIVE → READY_FOR_REVIEW`, cập nhật summary rồi dừng. Deferred hardware-final gates và `FINAL-GATE` còn pending phải được nêu rõ và vẫn chặn release/`COMPLETED`.
 - [ ] **Human/reviewer:** Thái Quang Huy đã review; owner/Terra không tự ghi approved.
 - [ ] **Human/domain owner:** Nguyễn Văn Minh đã xác nhận integration YC6/YC8 không đổi owner/semantics.
 - [ ] **Owner + reviewers:** Review comments/checks thật đã hoàn tất; toàn bộ `FINAL-GATE` bắt buộc có evidence.
@@ -1194,10 +1247,10 @@ Mọi mục trong phần này là `MUST`; mọi `FINAL-GATE` phải có evidence
 - Phase tiếp theo: **Không có Phase 4; chuyển sang release/demo chỉ khi Phase 3 acceptance đạt**.
 - Contract phải đọc: architecture/MQTT/event/auth/database/time/counting/deployment docs đã khóa và traceability matrix.
 - Những phần đã hoàn thành: khi handoff liệt kê chính xác 12 requirements có evidence, release commit/PR/deployment version; baseline hiện chưa có implementation.
-- Những phần còn MANUAL: phân biệt `HARD-GATE`/`FINAL-GATE`, ghi rõ mọi credential/hardware/demo rehearsal chưa chạy; không gắn release-ready hoặc `COMPLETED` nếu còn final test bắt buộc chưa đạt.
+- Những phần còn MANUAL: phân biệt SOFTWARE-GATE, `DEFERRED — HARDWARE-FINAL-GATE` và `FINAL-GATE`; ghi rõ mọi credential/hardware/demo rehearsal chưa chạy; không gắn release-ready hoặc `COMPLETED` nếu còn final test bắt buộc chưa đạt.
 - Dependency được mở khóa: full demo, grading handoff, reproducible deployment và maintenance/troubleshooting.
 - Release record: chỉ ghi tag/version, commit, PR, deployment URL và evidence link sau khi chúng tồn tại; không tạo giá trị giả.
-- Khi `MUST` implementation + automated/HARD-GATE evidence + code/docs/Git handoff đã đủ: đặt Phase 3 `READY_FOR_REVIEW` và dừng; `FINAL-GATE` được phép còn `Pending`, không tự approve/merge/đặt `COMPLETED`.
+- Khi `MUST` SOFTWARE-GATE implementation + automated/contract/simulator evidence + code/docs/Git handoff đã đủ: đặt Phase 3 `READY_FOR_REVIEW` và dừng; deferred hardware-final/`FINAL-GATE` được phép còn `Pending`, không tự approve/merge/đặt `COMPLETED`.
 - Sau review approve + PR merge + mọi acceptance/`FINAL-GATE` có evidence thật: human hoặc phiên agent sau có Git evidence mới đặt Phase 3 `COMPLETED`. Không có Phase 4.
 
 ### Phase Completion Summary
@@ -1276,27 +1329,27 @@ Quy tắc dùng bảng:
 
 ## 9. Manual Hardware Checklist
 
-Mọi mục trong section này là **MANUAL**, chưa được thực hiện ở baseline và mang nhãn gate cụ thể. `SHOULD/OPTIONAL` không block Phase; nếu một mục conditional trở thành cần thiết để loại bỏ lỗi điện/an toàn đã quan sát, nó trở thành `MUST` cho test bị ảnh hưởng.
+Mọi mục trong section này là **MANUAL hardware**, chưa được thực hiện ở baseline và mang nhãn gate cụ thể. Khi hardware chưa có, mục physical dùng `DEFERRED — HARDWARE-FINAL-GATE`: vẫn `[ ]`, không có `PASS`/`VERIFIED`, không chặn SOFTWARE-GATE handoff, nhưng bắt buộc trước FINAL RELEASE/DEMO. `SHOULD/OPTIONAL` không block Phase; nếu một mục conditional trở thành cần thiết để loại bỏ lỗi điện/an toàn đã quan sát, nó trở thành `MUST` cho test bị ảnh hưởng.
 
-- [ ] **[MUST | HARD-GATE Phase 1]** Đối chiếu board ESP32 thực với PlatformIO board profile, pin labels, USB serial và điện áp chân.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Đối chiếu board ESP32 thực với PlatformIO board profile, pin labels, USB serial và điện áp chân.
 - [ ] **[OPTIONAL]** Ghi serial/model/ảnh từng linh kiện dùng chính; phân biệt linh kiện dự phòng khỏi linh kiện đang test.
-- [ ] **[MUST | HARD-GATE Phase 1]** Xác minh candidate pin map trên board thật; không dùng nhầm boot-strapping/input-only pin.
-- [ ] **[MUST | HARD-GATE Phase 2]** Xác minh MC-38 logic điện, `INPUT_PULLUP`/điện trở, vị trí reed trên khung và nam châm trên cánh cửa; không tuyên bố digital input thường phát hiện dây đứt.
-- [ ] **[MUST | HARD-GATE Phase 2]** Xác minh khoảng cách MC-38 ở trạng thái đóng/mở và dây không bị kéo/kẹp khi cửa chuyển động.
-- [ ] **[MUST | HARD-GATE Phase 1]** Servo SG90 lấy 5 V trực tiếp từ rail đủ dòng, signal riêng, common ground; tuyệt đối không lấy dòng servo từ GPIO/3.3 V.
-- [ ] **[MUST | HARD-GATE Phase 1]** Hiệu chuẩn góc LOCK/UNLOCK không tải; ghi giới hạn an toàn trước khi lắp linkage.
-- [ ] **[MUST | HARD-GATE Phase 1]** Lắp chốt có giới hạn cơ khí/khe hở; không để servo stall kéo dài ở hai đầu hành trình.
-- [ ] **[MUST | HARD-GATE Phase 1]** Test servo có tải lặp lại khi cửa căn chỉnh đúng; ghi lỗi cơ khí, nhiệt và dòng.
-- [ ] **[MUST | HARD-GATE Phase 3]** Xác minh Active Buzzer active-high/active-low, voltage/current và safe boot state.
-- [ ] **[MUST khi phần cứng yêu cầu | HARD-GATE Phase 3]** Dùng MOSFET/driver đúng nếu buzzer cần 5 V/dòng vượt GPIO; xác minh gate/control/common ground và linh kiện bảo vệ phù hợp module.
-- [ ] **[MUST | HARD-GATE Phase 1]** Xác minh DHT22 chạy ở điện áp module phù hợp; lắp pull-up 10 kΩ nếu module chưa tích hợp; đặt sensor trong khoang chứa.
-- [ ] **[MUST | HARD-GATE Phase 1]** Xác minh OLED SSD1306 địa chỉ I2C, điện áp, SDA/SCL và vị trí quan sát ở mặt trước khoang kỹ thuật.
-- [ ] **[MUST | HARD-GATE Phase 1]** Đo số pixel WS2812B thực, current worst case và đặt brightness limit phù hợp nguồn.
-- [ ] **[MUST | HARD-GATE Phase 1]** Lắp điện trở 330–470 Ω nối tiếp data WS2812B và tụ 470–1000 µF gần đầu nguồn strip.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh candidate pin map trên board thật; không dùng nhầm boot-strapping/input-only pin.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 2]** Xác minh MC-38 logic điện, `INPUT_PULLUP`/điện trở, vị trí reed trên khung và nam châm trên cánh cửa; không tuyên bố digital input thường phát hiện dây đứt.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 2]** Xác minh khoảng cách MC-38 ở trạng thái đóng/mở và dây không bị kéo/kẹp khi cửa chuyển động.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Servo SG90 lấy 5 V trực tiếp từ rail đủ dòng, signal riêng, common ground; tuyệt đối không lấy dòng servo từ GPIO/3.3 V.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Hiệu chuẩn góc LOCK/UNLOCK không tải; ghi giới hạn an toàn trước khi lắp linkage.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Lắp chốt có giới hạn cơ khí/khe hở; không để servo stall kéo dài ở hai đầu hành trình.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Test servo có tải lặp lại khi cửa căn chỉnh đúng; ghi lỗi cơ khí, nhiệt và dòng.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 3]** Xác minh Active Buzzer active-high/active-low, voltage/current và safe boot state.
+- [ ] **[MUST khi phần cứng yêu cầu | DEFERRED — HARDWARE-FINAL-GATE | Phase 3]** Dùng MOSFET/driver đúng nếu buzzer cần 5 V/dòng vượt GPIO; xác minh gate/control/common ground và linh kiện bảo vệ phù hợp module.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh DHT22 chạy ở điện áp module phù hợp; lắp pull-up 10 kΩ nếu module chưa tích hợp; đặt sensor trong khoang chứa.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh OLED SSD1306 địa chỉ I2C, điện áp, SDA/SCL và vị trí quan sát ở mặt trước khoang kỹ thuật.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Đo số pixel WS2812B thực, current worst case và đặt brightness limit phù hợp nguồn.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Lắp điện trở 330–470 Ω nối tiếp data WS2812B và tụ 470–1000 µF gần đầu nguồn strip.
 - [ ] **[SHOULD, conditional]** Kiểm tra level shifter 3.3 V → 5 V nếu WS2812B không ổn định với ESP32 logic; chỉ thêm khi test chứng minh cần.
-- [ ] **[MUST | HARD-GATE Phase 1]** Xác minh nguồn DC 5 V/3 A đúng cực, công suất và chất lượng; jack/công tắc/terminal không lỏng hoặc quá nhiệt.
-- [ ] **[MUST | HARD-GATE Phase 1]** Tất cả thiết bị dùng common ground; tách đường nguồn tải (servo/LED/buzzer) khỏi logic, chỉ nối ground theo thiết kế.
-- [ ] **[MUST | HARD-GATE Phase 1]** Dùng dây đủ tiết diện cho tải; mối nối cách điện, có strain relief và không để dây trần chạm vỏ/linh kiện.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh nguồn DC 5 V/3 A đúng cực, công suất và chất lượng; jack/công tắc/terminal không lỏng hoặc quá nhiệt.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Tất cả thiết bị dùng common ground; tách đường nguồn tải (servo/LED/buzzer) khỏi logic, chỉ nối ground theo thiết kế.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Dùng dây đủ tiết diện cho tải; mối nối cách điện, có strain relief và không để dây trần chạm vỏ/linh kiện.
 - [ ] **[SHOULD, conditional]** Đặt tụ decoupling/bulk gần servo/LED theo kết quả đo, không thêm linh kiện ngẫu nhiên thiếu sơ đồ; nếu thiếu tụ gây brownout thì fix này trở thành `MUST`.
 - [ ] **[MUST | FINAL-GATE]** Đo rail 5 V và theo dõi brownout khi boot, Servo + LED, rồi Servo + LED + Buzzer full load.
 - [ ] **[MUST | FINAL-GATE]** Xác nhận ESP32, OLED, MQTT và DHT22 vẫn ổn định trong full-load test.
@@ -1306,8 +1359,8 @@ Mọi mục trong section này là **MANUAL**, chưa được thực hiện ở 
 - [ ] **[SHOULD]** Nắp khoang kỹ thuật tháo được để bảo trì nhưng được cố định chắc khi vận hành.
 - [ ] **[MUST | FINAL-GATE]** Dây được đi sát vách, có quản lý dây và tấm che; không cản cửa, chốt hoặc vật dụng.
 - [ ] **[MUST | FINAL-GATE]** Đối chiếu kích thước danh nghĩa tổng thể 300 × 250 × 220 mm, khoang chứa 260 × 170 × 190 mm và vỏ 10 mm; ghi rõ sai số/gia công thực.
-- [ ] **[MUST | HARD-GATE Phase 1]** Test WiFiManager/reset configuration bằng điện thoại thật, không quay/lưu password trong evidence.
-- [ ] **[MUST | HARD-GATE Phase 1]** Test restart/mất Wi-Fi/mất MQTT/cắt nguồn và recovery theo các test case Phase 1, không chỉ một lần thuận lợi.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Test WiFiManager/reset configuration bằng điện thoại thật, không quay/lưu password trong evidence.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Test restart/mất Wi-Fi/mất MQTT/cắt nguồn và recovery theo các test case Phase 1, không chỉ một lần thuận lợi.
 - [ ] **[SHOULD]** Dán nhãn dây/connector, GPIO và polarity để thành viên khác lắp lại không suy đoán.
 - [ ] **[MUST | FINAL-GATE]** Cập nhật wiring diagram/pin map/power budget theo “as-built”, không để tài liệu chỉ phản ánh thiết kế ban đầu.
 - [ ] **[MUST | FINAL-GATE]** Lưu ảnh/video/đo điện áp theo Test ID; evidence không chứa token, Wi-Fi password, email cá nhân hoặc nội dung nhạy cảm.
@@ -1350,7 +1403,7 @@ Mọi mục trong section này là **MANUAL**, chưa được thực hiện ở 
 - [ ] **[MUST | FINAL-GATE]** Gmail credential/test mailbox được cấu hình; không dùng email production/lớp học nếu chưa được phép.
 - [ ] **[MUST | FINAL-GATE]** Gemini API key/model/quota được xác minh; không gửi JWT, email, token, service key hoặc raw PII trong context.
 - [ ] **[MUST | Phase 3]** Notification recipient/time/timezone có validation và RLS; default timezone `Asia/Ho_Chi_Minh` được ghi rõ.
-- [ ] **[MUST | HARD-GATE Phase 1]** Wi-Fi password chỉ nhập qua portal cục bộ và không xuất hiện trong serial log, MQTT, Dashboard, video hoặc docs.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Wi-Fi password chỉ nhập qua portal cục bộ và không xuất hiện trong serial log, MQTT, Dashboard, video hoặc docs.
 - [ ] **[MUST]** Logging ở trust boundaries redact `Authorization`, cookies, API keys, passwords, SMTP auth, bot tokens và full JWT.
 - [ ] **[MUST]** Test fixtures dùng ID/email giả rõ ràng; không sao chép production dumps vào repository.
 - [ ] **[MUST]** Trước mỗi PR/release, scan working tree/staged diff và các file sẽ commit để bảo đảm không có secret; false positive chỉ suppress bằng lý do hẹp được review.
@@ -1434,6 +1487,7 @@ Demo phải chạy trên một release candidate/build ID đã ghi, dùng dữ l
 - [ ] Firmware clean build, Node-RED deploy/export, Supabase migrations/RLS và relevant automated tests đã chạy trên release candidate.
 - [ ] Full demo regression theo Test `E2E-45` đã chạy; không còn production mock data.
 - [ ] Manual full-load, auth/RLS, external services và recovery tests có evidence.
+- [ ] Mọi `DEFERRED — HARDWARE-FINAL-GATE` đã được chạy trên release candidate với hardware thật: P1-M01–P1-M11 (ESP32, servo/latch/power, DHT22/OLED, WS2812B, WiFiManager, physical MQTT recovery), P2-M01/P2-M02 (MC-38), P3-M01–P3-M03 (buzzer/physical producers), full-load và physical E2E. Simulator/mock/broker-only output không thay thế evidence này.
 - [ ] README/user/deployment/troubleshooting/demo docs khớp as-built system.
 - [ ] Không có secret trong Git, flow export, firmware binary metadata, log, screenshot/video hoặc release package.
 - [ ] PDF nguồn còn nguyên và không bị sửa.
@@ -1450,7 +1504,7 @@ Bạn đang thực thi Phase `<PHASE_NUMBER>` cho owner `<MEMBER_NAME>`.
 
 1. Đọc toàn bộ PLAN.md và repository trước khi chỉnh file.
 2. Xác minh Phase `<PHASE_NUMBER>` đang `ACTIVE`; nếu không, dừng và báo evidence trạng thái.
-3. Xác minh owner là `<MEMBER_NAME>` và Phase trước (nếu có) đã `COMPLETED` bằng Git/PR/evidence thật.
+3. Xác minh owner là `<MEMBER_NAME>` và Phase trước (nếu có) đã `COMPLETED` cho dependency purposes bằng approved software merge/Git evidence thật; các deferred hardware final gates không được gọi là completed/verified.
 4. Đọc implementation, tests, config, docs và diff hiện có; bảo toàn user work.
 5. Ưu tiên hoàn thành tất cả `MUST` theo Minimum Required Completion Path trước.
 6. Không làm `OPTIONAL` cho đến khi mọi `MUST` đã hoàn thành; `SHOULD` không được làm chậm committed scope.
@@ -1459,14 +1513,14 @@ Bạn đang thực thi Phase `<PHASE_NUMBER>` cho owner `<MEMBER_NAME>`.
 9. Áp dụng Simple Implementation Rule: chọn implementation đơn giản nhất đủ yêu cầu, KISS/YAGNI, tách trách nhiệm vừa đủ; không giant Function node/god class/premature optimization.
 10. Thực sự tạo/sửa source code, config, tests và docs thuộc Phase hiện tại; không thay bằng mô tả hoặc placeholder.
 11. Chạy build/test thực tế có thể chạy và lưu command/output/evidence thật.
-12. Thực hiện MANUAL test khi người dùng, phần cứng, account và credential hiện có cho phép; tuân thủ `HARD-GATE`/`FINAL-GATE`.
+12. Thực hiện MANUAL test khi phần cứng, account và credential hiện có cho phép; chạy SOFTWARE-GATE/broker-simulator trước khi khả thi và giữ physical test thiếu hardware là `DEFERRED — HARDWARE-FINAL-GATE`.
 13. Không giả MANUAL evidence, không ghi PASS cho test chưa chạy và không suy đoán phần cứng hoạt động.
 14. Không giả credential/secret/account/service; không commit hoặc log secret.
 15. Chỉ tick checklist/test/acceptance khi có evidence truy vết được.
 16. Cập nhật PLAN.md tối thiểu cho status, evidence, deferred items và handoff; không rewrite checklist của Phase khác.
 17. Commit/push/tạo PR theo Git Checklist nếu môi trường, remote và quyền cho phép; chỉ ghi hash/URL thật.
 18. Nếu không có quyền push/tạo PR, ghi blocker và exact commands người dùng cần chạy; không bịa trạng thái remote.
-19. Khi toàn bộ `MUST` implementation, automated tests cần thiết và MANUAL `HARD-GATE` đã đạt, evidence/code/docs/Git handoff đủ nhưng còn chờ human review/merge, chuyển `ACTIVE → READY_FOR_REVIEW`, cập nhật Phase Completion Summary, không ghi `COMPLETED`, rồi dừng. Nếu HARD-GATE còn thiếu, giữ `ACTIVE` và ghi blocker.
+19. Khi toàn bộ `MUST` SOFTWARE-GATE implementation, automated/contract/simulator tests cần thiết và non-hardware manual gates đã đạt, evidence/code/docs/Git handoff đủ nhưng còn chờ human review/merge, chuyển `ACTIVE → READY_FOR_REVIEW`, cập nhật Phase Completion Summary, không ghi `COMPLETED`, rồi dừng. Deferred hardware-final gates phải giữ `[ ]`, có blocker/procedure rõ và không block software handoff.
 20. Không tự review/approve/merge và không tự bắt đầu Phase tiếp theo.
 ```
 
@@ -1486,14 +1540,14 @@ Bạn đang thực thi Phase 1 cho owner Thái Quang Huy — 24127177; scope là
 9. Chọn implementation đơn giản nhất đủ yêu cầu, KISS/YAGNI, module vừa đủ; không god class/framework/retry/cache phức tạp.
 10. Thực sự tạo/sửa source code firmware, config, tests và docs của Phase 1; không thay bằng placeholder.
 11. Chạy clean firmware build và mọi automated parser/state/dedupe test có thể chạy; lưu command/output thật.
-12. Thực hiện MANUAL test nếu ESP32, linh kiện, điện thoại và broker hiện có; tuân thủ Phase 1 `HARD-GATE`.
+12. Thực hiện P1-S broker/simulator SOFTWARE-GATE khi harness/broker có sẵn; nếu ESP32, linh kiện và điện thoại chưa có thì giữ P1-M01–P1-M11 là `DEFERRED — HARDWARE-FINAL-GATE`, không ghi PASS.
 13. Không giả MANUAL evidence hoặc ghi PASS cho board/servo/DHT/OLED/LED/WiFi/MQTT chưa test.
 14. Không giả Wi-Fi/MQTT credential; không commit/log password hoặc secret.
 15. Chỉ tick checklist/test/acceptance có evidence truy vết được.
 16. Cập nhật PLAN.md tối thiểu cho Phase 1 status/evidence/deferred items/handoff; không rewrite Phase 2/3.
 17. Commit/push/tạo PR theo Git Checklist nếu môi trường, remote và quyền cho phép; chỉ ghi hash/URL thật.
 18. Nếu không có quyền push/tạo PR, ghi blocker và exact commands người dùng cần chạy; không bịa remote/PR.
-19. Khi mọi `MUST` implementation, automated tests cần thiết và MANUAL `HARD-GATE` Phase 1 đạt, evidence/code/docs/Git handoff đủ nhưng chờ Minh review/merge, chuyển Phase 1 `ACTIVE → READY_FOR_REVIEW`, cập nhật summary, không ghi `COMPLETED`, rồi dừng. Nếu HARD-GATE thiếu, giữ `ACTIVE`.
+19. Khi mọi `MUST` SOFTWARE-GATE implementation, automated/contract tests cần thiết và software evidence Phase 1 đạt, evidence/code/docs/Git handoff đủ nhưng chờ Minh review/merge, chuyển Phase 1 `ACTIVE → READY_FOR_REVIEW`, cập nhật summary, không ghi `COMPLETED`, rồi dừng. P1-M01–P1-M11 có thể deferred vì thiếu hardware nhưng phải giữ `[ ]` cho đến final release.
 20. Không tự review/approve/merge và không bắt đầu Phase 2.
 ```
 
@@ -1504,7 +1558,7 @@ Bạn đang thực thi Phase 2 cho owner Nguyễn Văn Minh — 24127205; scope 
 
 1. Đọc toàn bộ PLAN.md và repository trước khi chỉnh file.
 2. Xác minh Phase 2 đang `ACTIVE`; nếu không, dừng và báo evidence trạng thái.
-3. Xác minh owner là Nguyễn Văn Minh — 24127205, Phase 1 đã `COMPLETED` bằng acceptance + merged-PR evidence thật và Phase 3 còn `NOT_STARTED`.
+3. Xác minh owner là Nguyễn Văn Minh — 24127205, Phase 1 software baseline đã `COMPLETED` cho dependency purposes bằng approved merge trên `develop`, P1 hardware final gates được ghi deferred và Phase 3 còn `NOT_STARTED`.
 4. Đọc implementation, tests, config, docs, frozen contracts và diff hiện có; bảo toàn Phase 1/user work.
 5. Ưu tiên hoàn thành tất cả `MUST` trong Minimum Required Completion Path Phase 2 trước.
 6. Không làm `OPTIONAL` cho đến khi mọi `MUST` hoàn thành; `SHOULD` không được làm chậm CB1/YC6/YC8/YC9/orchestration.
@@ -1512,15 +1566,15 @@ Bạn đang thực thi Phase 2 cho owner Nguyễn Văn Minh — 24127205; scope 
 8. Không đổi scope, owner hoặc frozen contract; giữ Nguyễn Văn Minh là owner YC6/YC8 và không nhận owner CB3/YC4.
 9. Chọn implementation đơn giản nhất đủ yêu cầu, KISS/YAGNI, subflow/module vừa đủ; không giant Function node, queue/LRU/retry/validator framework phức tạp.
 10. Thực sự tạo/sửa firmware CB1, Node-RED, Supabase YC9, Dashboard phần Phase 2, tests và docs; không thay bằng placeholder.
-11. Chạy firmware regression và automated tests cho debounce, auth/RLS, validation, dispatcher, ACK/timeout/dedupe, YC6 và YC8 contract; lưu output thật.
-12. Thực hiện MANUAL test nếu board, test accounts, Telegram/Gemini credential có sẵn; tuân thủ `HARD-GATE`/`FINAL-GATE`.
+11. Tạo/dùng `tools/device-simulator/` theo frozen MQTT contract và chạy firmware regression + automated/simulator tests cho debounce, auth/RLS, validation, dispatcher, ACK/timeout/dedupe, YC6 và YC8 contract; lưu output thật.
+12. Thực hiện MANUAL service/account test nếu environment có sẵn; MC-38/ESP32 board test chưa có hardware phải giữ `DEFERRED — HARDWARE-FINAL-GATE`, còn `FINAL-GATE` service được ghi pending trung thực.
 13. Không giả MANUAL evidence, actual buzzer ACK, event persistence hoặc history backend thật.
 14. Không giả credential/account/service; không commit/log JWT, service-role key, Telegram/Gemini secret hoặc PII.
 15. Chỉ tick checklist/test/acceptance có evidence truy vết được.
 16. Cập nhật PLAN.md tối thiểu cho Phase 2 status/evidence/deferred items/handoff; không rewrite Phase 1/3.
 17. Commit/push/tạo PR theo Git Checklist nếu môi trường, remote và quyền cho phép; chỉ ghi hash/URL thật.
 18. Nếu không có quyền push/tạo PR, ghi blocker và exact commands người dùng cần chạy; không bịa remote/PR.
-19. Khi mọi `MUST` implementation, automated tests cần thiết và MANUAL `HARD-GATE` Phase 2 đạt, evidence/code/docs/Git handoff đủ nhưng chờ Thùy review/merge, chuyển Phase 2 `ACTIVE → READY_FOR_REVIEW`, cập nhật summary, không ghi `COMPLETED`, rồi dừng. Nếu HARD-GATE thiếu, giữ `ACTIVE`; FINAL-GATE pending phải ghi rõ và vẫn block final release.
+19. Khi mọi `MUST` SOFTWARE-GATE implementation, automated/contract/simulator tests cần thiết và non-hardware manual gates Phase 2 đạt, evidence/code/docs/Git handoff đủ nhưng chờ Thùy review/merge, chuyển Phase 2 `ACTIVE → READY_FOR_REVIEW`, cập nhật summary, không ghi `COMPLETED`, rồi dừng. MC-38/ESP32 hardware gates có thể deferred; FINAL-GATE pending phải ghi rõ và vẫn block final release.
 20. Không tự review/approve/merge và không bắt đầu Phase 3.
 ```
 
@@ -1531,7 +1585,7 @@ Bạn đang thực thi Phase 3 cho owner Mai Phương Thùy — 24127249; scope 
 
 1. Đọc toàn bộ PLAN.md và repository trước khi chỉnh file.
 2. Xác minh Phase 3 đang `ACTIVE`; nếu không, dừng và báo evidence trạng thái.
-3. Xác minh owner là Mai Phương Thùy — 24127249 và Phase 2 đã `COMPLETED` bằng acceptance + merged-PR evidence thật.
+3. Xác minh owner là Mai Phương Thùy — 24127249 và Phase 2 software baseline đã `COMPLETED` cho dependency purposes bằng approved merge/Git evidence thật; prior hardware final gates vẫn có thể deferred.
 4. Đọc implementation, tests, config, docs, frozen contracts và diff hiện có; bảo toàn Phase 1/2/user work.
 5. Ưu tiên hoàn thành tất cả `MUST` trong Minimum Required Completion Path Phase 3 trước.
 6. Không làm `OPTIONAL` cho đến khi mọi `MUST` hoàn thành; `SHOULD` không được làm chậm CB3/YC4/YC5/YC7/integration/release.
@@ -1540,14 +1594,14 @@ Bạn đang thực thi Phase 3 cho owner Mai Phương Thùy — 24127249; scope 
 9. Chọn implementation đơn giản nhất đủ yêu cầu, KISS/YAGNI, separation vừa đủ; không framework migration/dead-letter/retry/observability/scaling phức tạp.
 10. Thực sự tạo/sửa firmware CB3, Supabase YC4/YC5/YC7, Node-RED, final Dashboard, tests và docs; không thay bằng placeholder.
 11. Chạy firmware/Node-RED/Supabase/RLS/aggregation/email-dedupe/regression tests có thể chạy; lưu command/output thật.
-12. Thực hiện MANUAL test nếu hardware, accounts và external credentials hiện có; tuân thủ `HARD-GATE`/`FINAL-GATE` và full E2E trước release.
+12. Thực hiện SOFTWARE-GATE/simulator và MANUAL service tests khi environment có sẵn; physical test thiếu hardware giữ `DEFERRED — HARDWARE-FINAL-GATE`. Trước release phải chạy toàn bộ physical E2E/final hardware gates thật.
 13. Không giả MANUAL evidence, full-load result, Telegram/Gmail/Gemini delivery hoặc demo rehearsal.
 14. Không giả credential/account/service/release tag; không commit/log service-role, MQTT, Telegram, Gmail, Gemini hoặc Wi-Fi secret.
 15. Chỉ tick checklist/test/acceptance có evidence truy vết được.
 16. Cập nhật PLAN.md tối thiểu cho Phase 3 status/evidence/deferred items/handoff; không rewrite checklist Phase 1/2.
 17. Commit/push/tạo PR theo Git Checklist nếu môi trường, remote và quyền cho phép; chỉ ghi hash/URL/tag thật.
 18. Nếu không có quyền push/tạo PR, ghi blocker và exact commands người dùng cần chạy; không bịa remote/PR/release.
-19. Khi mọi `MUST` implementation, automated tests cần thiết và MANUAL `HARD-GATE` đạt, evidence/code/docs/Git handoff đủ nhưng còn chờ Huy review/merge, chuyển Phase 3 `ACTIVE → READY_FOR_REVIEW`, cập nhật summary, không ghi `COMPLETED`, rồi dừng. FINAL-GATE còn pending phải ghi rõ và vẫn block release/COMPLETED; nếu HARD-GATE thiếu, giữ `ACTIVE`.
+19. Khi mọi `MUST` SOFTWARE-GATE implementation, automated/contract/simulator tests cần thiết và non-hardware manual gates đạt, evidence/code/docs/Git handoff đủ nhưng còn chờ Huy review/merge, chuyển Phase 3 `ACTIVE → READY_FOR_REVIEW`, cập nhật summary, không ghi `COMPLETED`, rồi dừng. Deferred hardware-final/FINAL-GATE còn pending phải ghi rõ và vẫn block release/COMPLETED.
 20. Không tự review/approve/merge, không tự đặt Phase 3 `COMPLETED` và không bắt đầu Phase 4.
 ```
 
