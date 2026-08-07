@@ -61,7 +61,7 @@ python -X utf8 -m platformio run -e esp32dev -t clean
 python -X utf8 -m platformio run -e esp32dev
 ```
 
-The native suite covers contract parser/validation, malformed/correlated error behavior, stale handling, duplicate ACK replay, and cold-boot state. It cannot prove a servo moves correctly, an OLED is wired, a phone opens the portal, or a broker receives an LWT; those remain manual HARD-GATE tests.
+The native suite covers contract parser/validation, malformed/correlated error behavior, stale handling, duplicate ACK replay, and cold-boot state. It cannot prove a servo moves correctly, an OLED is wired, a phone opens the portal, or an ESP32 physically recovers through a broker; P1-M01–P1-M11 therefore remain `DEFERRED — HARDWARE-FINAL-GATE`. They require real evidence before final release/demo, but do not block the Phase 1 software handoff.
 
 ## Upload and serial monitor
 

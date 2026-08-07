@@ -46,4 +46,4 @@ CB1, YC6, YC8, YC9, CB3, YC4, YC5, and YC7 are deliberately not implemented here
 
 ## Evidence and status
 
-Automated results and the manual-test procedure are in [tests/evidence/phase-1/README.md](tests/evidence/phase-1/README.md) and [tests/test-plan.md](tests/test-plan.md). Hardware, phone, broker, and reviewer evidence are not fabricated; Phase 1 remains `ACTIVE` until its manual HARD-GATE tests and reviewer actions are completed.
+Automated results and the manual-test procedure are in [tests/evidence/phase-1/README.md](tests/evidence/phase-1/README.md) and [tests/test-plan.md](tests/test-plan.md). Hardware, phone, and physical-broker checks P1-M01–P1-M11 are not fabricated: they remain `[ ] DEFERRED — HARDWARE-FINAL-GATE` until real equipment is available. They block final release/demo, but do not block the Phase 1 software handoff; Phase 1 is `READY_FOR_REVIEW` pending Nguyễn Văn Minh's human review.

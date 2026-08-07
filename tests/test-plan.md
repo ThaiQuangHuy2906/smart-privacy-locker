@@ -11,9 +11,9 @@
 
 The exact executed results are in `evidence/phase-1/automated-results.md`. The literal fixtures are in `firmware/test/test_command_contract/test_main.cpp`; no mock asserts an internal implementation call.
 
-## Required manual HARD-GATE tests
+## Deferred HARDWARE-FINAL-GATE tests
 
-All rows remain **pending** until a real tester with hardware/phone/broker completes the procedure and stores the requested redacted evidence. These are not optional for Phase 1 to leave `ACTIVE`.
+All P1-M01–P1-M11 rows remain `[ ] DEFERRED — HARDWARE-FINAL-GATE` until a real tester with ESP32 hardware, modules, phone, and broker completes the procedure and stores the requested redacted evidence. They are mandatory before final release/demo; under the SOFTWARE-FIRST workflow they do not block Phase 1 from moving to `READY_FOR_REVIEW` after its SOFTWARE-GATE evidence is complete. They are not PASS or VERIFIED.
 
 | ID | Procedure | Expected result | Evidence |
 |---|---|---|---|

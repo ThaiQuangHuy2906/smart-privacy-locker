@@ -16,7 +16,7 @@
 4. Add WS2812B with the prescribed resistor/capacitor. Test `LED_ON`/`LED_OFF` through a broker only after MQTT is configured.
 5. Add SG90 power/signal with no mechanical load. Test one `UNLOCK`, then one `LOCK`; observe voltage and ESP32 stability.
 6. Install latch linkage. Repeat a limited number of cycles, then inspect for collision, binding, heat, and rail sag before longer runs.
-7. Execute every Phase 1 manual HARD-GATE in `tests/test-plan.md`, capturing redacted evidence by test ID.
+7. When real hardware is available, execute every P1-M01–P1-M11 `DEFERRED — HARDWARE-FINAL-GATE` in `tests/test-plan.md`, capturing redacted evidence by test ID before final release/demo. These checks do not replace or invalidate the Phase 1 software handoff.
 
 ## Wi-Fi reset and captive portal
 

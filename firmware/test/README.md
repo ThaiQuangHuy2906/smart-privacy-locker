@@ -1,6 +1,6 @@
 # Firmware automated tests
 
-`native/test_command_contract.cpp` covers the Phase 1 behavior that does not need an ESP32 or live broker:
+`test/test_command_contract/test_main.cpp` covers the Phase 1 behavior that does not need an ESP32 or live broker:
 
 - valid command fields and allowed actions;
 - malformed versus correlatable invalid messages;
@@ -14,4 +14,4 @@ Run it from `firmware/`:
 pio test -e native
 ```
 
-The fixtures use UUIDs reserved for tests and no credentials. A real ESP32, broker, phone, servo, DHT22, OLED, and LED remain mandatory MANUAL HARD-GATE verification; see `tests/test-plan.md`.
+The fixtures use UUIDs reserved for tests and no credentials. A real ESP32, broker, phone, servo, DHT22, OLED, and LED remain mandatory `DEFERRED — HARDWARE-FINAL-GATE` verification before final release/demo; they do not block Phase 1 software review. See `tests/test-plan.md`.

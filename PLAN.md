@@ -49,9 +49,9 @@ Có **12 requirement** phải được triển khai đầy đủ; `Owner chính`
 
 ### Phase registry và reviewer chéo
 
-| Phase | Thành viên | MSSV | Owner chính | Reviewer | Trạng thái baseline |
+| Phase | Thành viên | MSSV | Owner chính | Reviewer | Trạng thái hiện tại |
 |---|---|---|---|---|---|
-| 1 | Thái Quang Huy | 24127177 | CB2, YC1, YC3, YC12 | Nguyễn Văn Minh | **ACTIVE** |
+| 1 | Thái Quang Huy | 24127177 | CB2, YC1, YC3, YC12 | Nguyễn Văn Minh | **READY_FOR_REVIEW** |
 | 2 | Nguyễn Văn Minh | 24127205 | CB1, YC6, YC8, YC9 | Mai Phương Thùy | **NOT_STARTED** |
 | 3 | Mai Phương Thùy | 24127249 | CB3, YC4, YC5, YC7 | Thái Quang Huy | **NOT_STARTED** |
 
@@ -584,7 +584,7 @@ Tránh dùng GPIO boot-strapping hoặc input-only nếu không có lý do/kiể
 
 ### Phase Goal
 
-**Status: ACTIVE. Owner: Thái Quang Huy — 24127177. Reviewer: Nguyễn Văn Minh.**
+**Status: READY_FOR_REVIEW. Owner: Thái Quang Huy — 24127177. Reviewer: Nguyễn Văn Minh.**
 
 Khởi tạo nền tảng repository và firmware ESP32; khóa pin map/MQTT contract; triển khai firmware foundation, CB2, YC1, YC3, YC12 đủ để Minh thêm CB1 và xây Node-RED orchestration ở Phase 2. Phase 1 không tuyên bố CB2/YC3 end-to-end qua Dashboard đã hoàn thành khi auth/dispatcher/final Dashboard chưa tồn tại.
 
@@ -776,7 +776,7 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 - Người nhận tiếp theo: **Nguyễn Văn Minh — 24127205**.
 - Phase tiếp theo: **Phase 2 — CB1, YC6, YC8, YC9 và Node-RED orchestration**.
 - Contract phải đọc: Sections 4; `docs/mqtt-contract.md`; pin map; firmware README; command/ACK/error/duplicate/time và cold-boot/Servo safe-state contracts.
-- Những phần đã hoàn thành: khi handoff phải liệt kê đúng checklist/evidence thực; baseline hiện chưa có implementation nào hoàn thành.
+- Những phần đã hoàn thành (SOFTWARE-GATE): repository/toolchain baseline; PlatformIO firmware foundation; WiFiManager lifecycle; MQTT v1 parser/validation/dedupe/ACK/state/LWT/reconnect; CB2, YC1 và YC3 software implementation; pin/wiring/power documentation; automated build/native evidence. Minh phải review các artifact này, MQTT contract v1 và candidate pin map; owner/Terra không tự ghi approved.
 - Những phần còn MANUAL: P1-M01–P1-M11 là `DEFERRED — HARDWARE-FINAL-GATE` do nhóm chưa có ESP32/module; chúng không có evidence/PASS và phải chạy lại trước final release/demo. Các full-system case phụ thuộc Node-RED/Supabase/Dashboard vẫn được ghi `FINAL-GATE` cho Phase 3, không bị trình bày là đã pass.
 - Dependency được mở khóa sau software acceptance + review/merge: firmware buildable; CB2/YC1/YC3/YC12 software baseline; MQTT/LWT/state/ACK contract; candidate pin map documentation; contract v1. Physical pin/wiring/power behavior chưa được unlock/verified.
 - Dependency vẫn dành cho Phase 3: actual buzzer, event persistence, chart, email và final Dashboard.
@@ -785,10 +785,10 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 
 ### Phase Completion Summary
 
-- Status: ACTIVE — automated implementation/build evidence đã được ghi, nhưng software acceptance/reviewer approval/approved merge chưa có. P1-M01–P1-M11 đều `DEFERRED — HARDWARE-FINAL-GATE` do nhóm chưa có ESP32/module; chúng không phải PASS và không chặn software handoff khi các SOFTWARE-GATE còn lại đạt.
+- Status: READY_FOR_REVIEW — tất cả MUST SOFTWARE-GATE implementation, documentation, automated evidence, secret/diff audit và Git handoff đã được re-audit. Reviewer approval/merge chưa có và không được owner/Terra tự ghi. P1-M01–P1-M11 đều `[ ] DEFERRED — HARDWARE-FINAL-GATE` do nhóm chưa có ESP32/module; chúng không phải PASS/VERIFIED, không chặn software handoff, nhưng vẫn bắt buộc trước final release/demo.
 - Implementation: Repository baseline; PlatformIO ESP32 Arduino firmware foundation; WiFiManager; MQTT v1 parser/validation/dedupe/ACK/state/LWT/reconnect; CB2 SG90 state machine with cold-boot no-motion; YC1 local DHT22/OLED error display; YC3 WS2812B control; wiring/power/test/docs created. Targeted patch: a transport connection is operational only after PubSubClient 2.8 sends the `command` SUBSCRIBE packet successfully at local/send level; it does not expose broker SUBACK grant/rejection. A local/send failure keeps MQTT state false, publishes `OFFLINE` when possible, disconnects, and follows bounded retry. OLED I2C address is `AppConfig::OLED_I2C_ADDRESS` (default `0x3C`), not a display-source literal; local calibration copies the full ignored `app_config.h` from the example and edits it directly. CB1/YC6/YC8/YC9/CB3/YC4/YC5/YC7 were not implemented.
-- Automated tests: PASS — after the targeted patch, P1-A01 clean `esp32dev` build (PlatformIO Core 6.1.18, `espressif32@6.10.0`) and P1-A02/P1-A03/P1-A04 native contract suite 7/7. Evidence: `tests/evidence/phase-1/automated-results.md`.
-- Manual HARD-GATE tests: Pending only where a non-hardware service environment becomes available; none is claimed in this summary. P1-S05/P1-S06 are planned broker/simulator SOFTWARE-GATE scenarios for the Phase 2 harness, not hardware evidence.
+- Automated tests: PASS — SOFTWARE-GATE re-audit at `8695b3c` ran P1-A01 clean `esp32dev` build (PlatformIO Core 6.1.18, `espressif32@6.10.0`) and P1-A02/P1-A03/P1-A04 native contract suite 7/7. Evidence: `tests/evidence/phase-1/automated-results.md`.
+- Planned broker/simulator tests: P1-S05/P1-S06 remain PLANNED SOFTWARE-GATE scenarios for the Phase 2 harness. They are not hardware evidence and do not create a circular dependency that blocks this Phase 1 handoff.
 - Deferred HARDWARE-FINAL-GATE tests: P1-M01–P1-M11 remain `[ ]` because the group has not bought/received ESP32 or modules. P1-M09 remains the physical ESP32 Wi-Fi/broker reconnect/LWT check and P1-M02 must determine mechanical self-holding versus holding torque before any servo-policy change. Section 8/full-system hardware tests remain mandatory before final release/demo.
 - Known issues: PlatformIO Core 6.1.18 fails from the current Windows path containing Vietnamese characters; documented ASCII-path build workaround was used. Default Arduino partition build uses 83.7% flash (16.3% remaining). MQTT contract v1/pin map are pending Minh review and physical as-built verification. Remote has no `develop`/integration branch, so no valid PR target exists yet.
 - Deferred SHOULD/OPTIONAL items: `boot_id`/sequence telemetry; optional local TLS and broker ACL; conditional WS2812B level shifter/extra bulk capacitance pending physical measurements. No optional scope was used to replace a MUST.

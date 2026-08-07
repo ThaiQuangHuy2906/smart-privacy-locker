@@ -88,4 +88,26 @@ The native environment intentionally builds only parser/state/ACK source (`platf
 
 ## Manual test availability check
 
-At evidence time, PlatformIO and Windows detected only Bluetooth virtual ports `COM8` and `COM9`; no ESP32 serial device and no local MQTT broker process were available. This was rechecked during the targeted quality-patch execution with `python -X utf8 -m platformio device list` and a local broker-process check. Therefore P1-M01 through P1-M11 have not been run, no manual checkbox is ticked, and Phase 1 remains `ACTIVE`.
+At evidence time, PlatformIO and Windows detected only Bluetooth virtual ports `COM8` and `COM9`; no ESP32 serial device and no local MQTT broker process were available. This was rechecked during the targeted quality-patch execution with `python -X utf8 -m platformio device list` and a local broker-process check. Therefore P1-M01 through P1-M11 have not been run and no manual checkbox is ticked. Under the current SOFTWARE-FIRST workflow they are `[ ] DEFERRED — HARDWARE-FINAL-GATE`, not PASS or VERIFIED.
+
+## SOFTWARE-GATE re-audit
+
+**Recorded:** 2026-08-07, before Phase 1 handoff for human review.
+
+**Source tested:** the unmodified `firmware/` tree at `8695b3c` (`phase/1-huy-firmware-foundation`), copied to an ASCII-only temporary directory because of the documented Windows-path limitation. No ESP32, module, phone, broker, credential, or simulator was used.
+
+Commands actually run:
+
+```text
+python -X utf8 -m platformio test -e native
+python -X utf8 -m platformio run -e esp32dev -t clean
+python -X utf8 -m platformio run -e esp32dev
+```
+
+Results:
+
+- Native contract suite: **PASS**, 7/7 in 7.870 seconds.
+- `esp32dev -t clean`: **PASS**, 1.580 seconds.
+- Clean `esp32dev` build: **PASS**, 13.075 seconds; RAM 52,900 / 327,680 bytes (16.1%), flash 1,097,373 / 1,310,720 bytes (83.7%).
+
+The audit also inspected the resolved PubSubClient 2.8 source: `subscribe()` returns the local transport `write()` result and does not wait for or expose a broker SUBACK grant. The current firmware, MQTT contract, and documentation use that boundary consistently. P1-S05/P1-S06 remain planned Phase 2 simulator scenarios and are not a circular Phase 1 blocker. P1-M01–P1-M11 remain `[ ] DEFERRED — HARDWARE-FINAL-GATE`; no physical claim is inferred from these results.
