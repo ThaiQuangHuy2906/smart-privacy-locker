@@ -70,9 +70,9 @@ Flash: 83.7% (used 1097373 bytes from 1310720 bytes)
 
 No compiler error or warning was ignored. Flash headroom is approximately 16.3% in the default Arduino partition; it is recorded as a known sizing constraint for later phases, not a completed hardware test.
 
-## Targeted Phase 1 quality patch verification
+## Targeted Phase 1 correctness/documentation patch verification
 
-**Recorded:** 2026-08-07 (local execution environment), after the MQTT subscription-recovery and configurable OLED-address patch.
+**Recorded:** 2026-08-07 (local execution environment), after correcting the PubSubClient subscription semantics and local OLED-calibration documentation.
 
 Commands actually run from fresh ASCII-only temporary copies of the patched `firmware/` tree:
 
@@ -82,9 +82,9 @@ python -X utf8 -m platformio run -e esp32dev -t clean
 python -X utf8 -m platformio run -e esp32dev
 ```
 
-Results: **PASS**. The native suite passed 7/7 in 4.443 seconds. The clean target completed in 0.960 seconds and the subsequent `esp32dev` build completed in 44.895 seconds with the same RAM/Flash report above. The successful target build compiled `src/mqtt_client.cpp` and `src/display_controller.cpp` after the change.
+Results: **PASS**. The native suite passed 7/7 in 5.921 seconds. The clean target completed in 1.170 seconds and the subsequent `esp32dev` build completed in 63.205 seconds with the same RAM/Flash report above. The successful target build compiled `src/mqtt_client.cpp` and `src/display_controller.cpp` after the change.
 
-The native environment intentionally builds only parser/state/ACK source (`platformio.ini` `build_src_filter`) and does not provide Arduino Wi-Fi, PubSubClient, or a live broker. Adding a mock transport seam solely for this patch would change the firmware architecture without proving PubSubClient/broker behavior. Consequently the subscription-rejection path has no false native assertion: it is documented as the controlled broker ACL subcase of pending manual HARD-GATE P1-M09. The clean ESP32 build is compile evidence only; it is not a broker or hardware pass.
+The native environment intentionally builds only parser/state/ACK source (`platformio.ini` `build_src_filter`) and does not provide Arduino Wi-Fi, PubSubClient, or a live broker. Adding a mock transport seam solely for this patch would change the firmware architecture without proving PubSubClient/broker behavior. Consequently the local/send-level `subscribe()` failure path has no false native assertion: it remains an optional controlled real condition in pending manual HARD-GATE P1-M09. Source inspection of resolved PubSubClient 2.8 showed `subscribe()` returns its local `write()` result and exposes no broker SUBACK grant/rejection, so an ACL rejection is not a firmware-detection assertion. The clean ESP32 build is compile evidence only; it is not a broker or hardware pass.
 
 ## Manual test availability check
 

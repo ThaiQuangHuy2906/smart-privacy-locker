@@ -30,7 +30,13 @@ This is a PlatformIO project for the ESP32 Dev Module profile `esp32dev`. It is 
 
 The committed examples intentionally use `replace_me`. The firmware suppresses MQTT connection attempts until non-placeholder credentials exist. It never prints these values. With `MQTT_USE_TLS=true`, a non-placeholder CA certificate is also required; the code never calls `setInsecure()`.
 
-`include/app_config.example.h` holds safe default behavior. An ignored `include/app_config.h` may override it for local calibration, for example `LOCK_ANGLE`, `UNLOCK_ANGLE`, `OLED_I2C_ADDRESS` (default `0x3C`), `WS2812_PIXEL_COUNT`, or brightness. The OLED address remains a hardware verification item; a compiled default is not evidence that a particular module uses that address.
+`runtime_config.h` selects either ignored `include/app_config.h` or the committed `include/app_config.example.h`; it does not layer a partial override on top of the example. For local calibration, copy the full example and edit the ignored copy directly:
+
+```powershell
+Copy-Item firmware\include\app_config.example.h firmware\include\app_config.h
+```
+
+For example, scan the actual OLED first. The committed default is `OLED_I2C_ADDRESS = 0x3C`; if the module is `0x3D`, change that constant to `0x3D` in the full ignored `app_config.h` copy. Do not include the example and redeclare a constant: that causes a redefinition. The configured default is not hardware verification.
 
 ## Build and test
 
@@ -73,7 +79,7 @@ To clear only Wi-Fi configuration, open the USB serial monitor and send a single
 ## Runtime behavior
 
 - `loop()` contains no intentional long `delay`; WiFiManager processing, MQTT, DHT polling, OLED refresh, and servo completion run cooperatively.
-- MQTT reconnect is bounded from 1 second up to 30 seconds. A broker connection becomes usable only after subscription to `command` succeeds. The firmware then publishes retained `ONLINE` and retained full state before the next MQTT callback can process a command. If subscription is rejected, it sets MQTT state false, publishes retained `OFFLINE` when possible, disconnects, and waits for the bounded retry; it does not publish a false `ONLINE` state.
+- MQTT reconnect is bounded from 1 second up to 30 seconds. With PubSubClient 2.8, a broker connection becomes operational only after the `command` SUBSCRIBE packet is sent successfully by the local transport. That return value is not broker confirmation: the library does not wait for or expose a SUBACK grant/rejection. The firmware then publishes retained `ONLINE` and retained full state before the next MQTT callback can process a command. If the local/send-level `subscribe()` call returns false, it sets MQTT state false, publishes retained `OFFLINE` when possible, disconnects, and waits for the bounded retry; it does not publish a false `ONLINE` state.
 - PubSubClient publishes at QoS 0. The design therefore uses correlated ACKs, bounded duplicate cache, Node-RED timeout, and `GET_STATE` reconciliation instead of claiming delivery exactly once.
 - The servo is **not attached at boot**. `lock=UNKNOWN` remains until a new valid `LOCK` or `UNLOCK` action finishes.
 - `ALARM_ON`/`ALARM_OFF` parse as valid shared-contract actions but return a deterministic `ACTUATION_FAILED` ACK. GPIO 26 and CB3 are not configured in Phase 1.

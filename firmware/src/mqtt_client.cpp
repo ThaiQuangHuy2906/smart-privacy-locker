@@ -161,25 +161,25 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
   char commandTopic[96] = {};
   makeTopic("command", commandTopic, sizeof(commandTopic));
   if (!mqtt_.subscribe(commandTopic, 0)) {
-    // A connected transport without the command subscription is not an
-    // operational device. Do not leave a retained ONLINE state behind.
+    // PubSubClient could not send the command SUBSCRIBE packet through its
+    // local transport. Do not leave a retained ONLINE state behind.
     state.setMqttConnected(false);
     publishAvailability("OFFLINE", true);
     mqtt_.disconnect();
     scheduleRetry(now);
-    Serial.println("MQTT command subscription failed; disconnected and retry scheduled");
+    Serial.println("MQTT command SUBSCRIBE packet send failed; disconnected and retry scheduled");
     return false;
   }
 
-  // PubSubClient invokes callbacks from mqtt_.loop(), which runs only after
-  // this method returns. Thus command processing begins after ONLINE and the
-  // retained full state below, even though subscription is confirmed first.
+  // PubSubClient 2.8 returns true after its local transport writes the
+  // SUBSCRIBE packet; it does not wait for or expose the broker SUBACK grant.
+  // Callbacks run from a later mqtt_.loop(), after ONLINE and full state.
   state.setMqttConnected(true);
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
   nextAttemptAt_ = 0;
   publishAvailability("ONLINE", true);
   publishState(state.current(), true);
-  Serial.println("MQTT subscription confirmed; availability and full state published");
+  Serial.println("MQTT command SUBSCRIBE packet sent successfully; availability and full state published");
   return true;
 }
 

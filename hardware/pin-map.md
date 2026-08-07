@@ -27,6 +27,10 @@ The public baseline in `firmware/include/app_config.example.h` is:
 | `WS2812_BRIGHTNESS` | 32/255 | yes — actual rail/current/visibility |
 | OLED I2C address | `0x3C` | yes — scan/confirm module address |
 
-`OLED_I2C_ADDRESS` is the firmware setting for the OLED address and defaults to `0x3C` in `firmware/include/app_config.example.h`. If the I2C scan finds another address, override only that non-secret value in ignored `firmware/include/app_config.h`; do not treat the default as hardware verification.
+`OLED_I2C_ADDRESS` is the firmware setting for the OLED address and defaults to `0x3C` in `firmware/include/app_config.example.h`. `runtime_config.h` selects a complete ignored `app_config.h` instead of the example; it does not merge a partial override. If the I2C scan finds another address, create the full local copy first:
 
-Create ignored `firmware/include/app_config.h` for local calibration. Record final non-secret values, meter readings, and evidence in the Phase 1 manual test record; do not claim values above are measured merely because they build.
+```powershell
+Copy-Item firmware\include\app_config.example.h firmware\include\app_config.h
+```
+
+Then edit `OLED_I2C_ADDRESS` directly in ignored `firmware/include/app_config.h`; for a `0x3D` module, set the copied constant to `0x3D`. Do not include the example and redeclare a constant. Record final non-secret values, meter readings, and evidence in the Phase 1 manual test record; do not claim values above are measured merely because they build.
