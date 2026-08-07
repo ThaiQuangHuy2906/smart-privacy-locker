@@ -745,11 +745,11 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 - Automated tests: PASS — P1-A01 clean `esp32dev` build (PlatformIO Core 6.1.18, `espressif32@6.10.0`) and P1-A02/P1-A03/P1-A04 native contract suite 7/7. Evidence: `tests/evidence/phase-1/automated-results.md`.
 - Manual HARD-GATE tests: Pending — P1-M01 through P1-M11. No ESP32 serial device, hardware, phone session, or local MQTT broker was available; exact procedures/evidence are in `tests/test-plan.md`.
 - Manual FINAL-GATE tests remaining: Section 8 end-to-end/final-system tests remain Phase 3 FINAL-GATE; they have not been executed or claimed.
-- Known issues: PlatformIO Core 6.1.18 fails from the current Windows path containing Vietnamese characters; documented ASCII-path build workaround was used. Default Arduino partition build uses 83.7% flash (16.3% remaining). MQTT contract v1/pin map are pending Minh review and physical as-built verification.
+- Known issues: PlatformIO Core 6.1.18 fails from the current Windows path containing Vietnamese characters; documented ASCII-path build workaround was used. Default Arduino partition build uses 83.7% flash (16.3% remaining). MQTT contract v1/pin map are pending Minh review and physical as-built verification. Remote has no `develop`/integration branch, so no valid PR target exists yet.
 - Deferred SHOULD/OPTIONAL items: `boot_id`/sequence telemetry; optional local TLS and broker ACL; conditional WS2812B level shifter/extra bulk capacitance pending physical measurements. No optional scope was used to replace a MUST.
-- Branch: `phase/1-huy-firmware-foundation` (local; `origin` has no remote branch heads).
-- Commit: `a520372` — `feat(phase-1): add ESP32 firmware foundation` (implementation, automated evidence, and current ACTIVE blocker record).
-- PR: Pending — remote reports no branch heads; no PR created or claimed.
+- Branch: `phase/1-huy-firmware-foundation` pushed to `origin/phase/1-huy-firmware-foundation`.
+- Commit: `a520372` — `feat(phase-1): add ESP32 firmware foundation`; `3b84bf8` — `docs(phase-1): record active handoff blockers`.
+- PR: Pending — Phase remains ACTIVE while P1-M01–P1-M11 are pending and `origin` has no `develop`/integration branch to target; no PR was created or claimed.
 - Reviewer: Pending — Nguyễn Văn Minh must review the MQTT contract, baseline, pin map, and handoff.
 - Merge commit: Pending — owner/Terra did not approve or merge.
 - Next phase: Phase 2 remains NOT_STARTED; do not activate until Phase 1 is reviewed, merged, and marked COMPLETED with real evidence.
