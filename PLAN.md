@@ -748,7 +748,7 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 - Known issues: PlatformIO Core 6.1.18 fails from the current Windows path containing Vietnamese characters; documented ASCII-path build workaround was used. Default Arduino partition build uses 83.7% flash (16.3% remaining). MQTT contract v1/pin map are pending Minh review and physical as-built verification. Remote has no `develop`/integration branch, so no valid PR target exists yet.
 - Deferred SHOULD/OPTIONAL items: `boot_id`/sequence telemetry; optional local TLS and broker ACL; conditional WS2812B level shifter/extra bulk capacitance pending physical measurements. No optional scope was used to replace a MUST.
 - Branch: `phase/1-huy-firmware-foundation` pushed to `origin/phase/1-huy-firmware-foundation`.
-- Commit: `a520372` — `feat(phase-1): add ESP32 firmware foundation`; `3b84bf8` — `docs(phase-1): record active handoff blockers`.
+- Commit: `a520372` — `feat(phase-1): add ESP32 firmware foundation`; `3b84bf8` — `docs(phase-1): record active handoff blockers`; `bbc39b0` — `docs(phase-1): record push and PR blocker`; `02a15e2` — `fix(phase-1): harden MQTT subscription recovery`.
 - PR: Pending — Phase remains ACTIVE while P1-M01–P1-M11 are pending and `origin` has no `develop`/integration branch to target; no PR was created or claimed.
 - Reviewer: Pending — Nguyễn Văn Minh must review the MQTT contract, baseline, pin map, and handoff.
 - Merge commit: Pending — owner/Terra did not approve or merge.
