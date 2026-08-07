@@ -18,14 +18,14 @@ All rows remain **pending** until a real tester with hardware/phone/broker compl
 | ID | Procedure | Expected result | Evidence |
 |---|---|---|---|
 | P1-M01 | With SG90 unloaded and 5 V rail verified, send alternating valid `UNLOCK`/`LOCK` commands through authenticated broker. | Correct travel, no jitter/reset; ACK/state matches each completed command. | video, angle values, voltage/current note |
-| P1-M02 | Mount the latch and repeat lock/unlock under actual mechanical load. | Latch reliably works without stall, excess travel, or heat. | latch photos/video, defect note if any |
+| P1-M02 | Mount the latch and repeat lock/unlock under actual mechanical load. Verify whether the latch mechanically holds after the servo detaches or requires holding torque. | Latch reliably works without stall, excess travel, or heat; holding requirement is recorded before any servo-policy change. | latch photos/video, holding-torque finding, defect note if any |
 | P1-M03 | Observe 5 V rail and serial/broker while SG90 starts/reverses. | No brownout, ESP32 reset, or MQTT loss; measured margin recorded. | meter/scope image plus timestamped serial/broker log |
 | P1-M04 | Connect DHT22/OLED; run several 2.5-second cycles. | OLED shows plausible temperature/humidity and continues updating. | OLED image/video plus serial diagnostic |
 | P1-M05 | Safely disconnect DHT data/sensor, then restore it. | OLED shows DHT22 error; firmware/MQTT remains responsive; no DHT topic/card exists. | video and broker topic inventory |
 | P1-M06 | Send `LED_ON` then `LED_OFF`; check configured brightness and supply. | LED and ACK/state agree; data/power stable. | video, LED count/brightness, voltage/current note |
 | P1-M07 | Keep LED ON while operating SG90. | OLED/ESP32/MQTT remain stable; no abnormal flicker/reset. | video plus broker/serial log |
 | P1-M08 | Send USB `R`, use phone to join `Locker-Setup`, enter test Wi-Fi, restart. | Captive portal works, credentials stay only in NVS, MQTT reconnects without reflash. | redacted screen recording and broker log |
-| P1-M09 | Abruptly stop Wi-Fi or broker, then restore it. Repeat more than once. | retained LWT `OFFLINE`, bounded retry, retained `ONLINE` and full state after recovery. | timestamped broker capture |
+| P1-M09 | Abruptly stop Wi-Fi or broker, then restore it. Repeat more than once. If the test broker supports a sandbox ACL, also allow connect/publish but reject only `command` subscription once, then restore it. | Interruption produces retained LWT `OFFLINE`, bounded retry, then retained `ONLINE` and full state after recovery. A rejected command subscription publishes no false `ONLINE`/full state, sets device MQTT state false, disconnects, and retries with the same bounded backoff; once allowed, recovery publishes `ONLINE` and full state. | timestamped broker capture, including ACL/failure configuration if used |
 | P1-M10 | First set lock known, then restart board; observe SG90 before new command. Send `GET_STATE`, then a new lock action. | No boot motion/replay; cold state lock `UNKNOWN`, alarm inactive, LED off; only new action confirms lock. | servo video, boot log, broker transcript |
 | P1-M11 | Subscribe with a fresh client after ESP32 is online/reconnected. | Retained availability/state arrive; old door telemetry is not replayed as an event. | broker subscription capture |
 

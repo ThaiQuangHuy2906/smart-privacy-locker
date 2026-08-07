@@ -11,7 +11,7 @@
 ## Safe incremental bring-up
 
 1. Power the ESP32 alone and confirm serial upload/boot.
-2. Add OLED; confirm the I2C address and boot message.
+2. Add OLED; confirm the I2C address and boot message. The configured default is `AppConfig::OLED_I2C_ADDRESS = 0x3C`; if the actual module differs, change only ignored `firmware/include/app_config.h` and record the measured address. Do not treat the default as hardware verification.
 3. Add DHT22 and wait at least several 2.5-second read cycles. Confirm values locally on OLED.
 4. Add WS2812B with the prescribed resistor/capacitor. Test `LED_ON`/`LED_OFF` through a broker only after MQTT is configured.
 5. Add SG90 power/signal with no mechanical load. Test one `UNLOCK`, then one `LOCK`; observe voltage and ESP32 stability.

@@ -27,4 +27,6 @@ The public baseline in `firmware/include/app_config.example.h` is:
 | `WS2812_BRIGHTNESS` | 32/255 | yes — actual rail/current/visibility |
 | OLED I2C address | `0x3C` | yes — scan/confirm module address |
 
+`OLED_I2C_ADDRESS` is the firmware setting for the OLED address and defaults to `0x3C` in `firmware/include/app_config.example.h`. If the I2C scan finds another address, override only that non-secret value in ignored `firmware/include/app_config.h`; do not treat the default as hardware verification.
+
 Create ignored `firmware/include/app_config.h` for local calibration. Record final non-secret values, meter readings, and evidence in the Phase 1 manual test record; do not claim values above are measured merely because they build.

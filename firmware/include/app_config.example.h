@@ -18,6 +18,7 @@ constexpr uint8_t UNLOCK_ANGLE = 95;
 constexpr uint32_t SERVO_SETTLE_MS = 550;
 constexpr uint32_t DHT_READ_INTERVAL_MS = 2500;
 constexpr uint32_t DISPLAY_REFRESH_INTERVAL_MS = 1000;
+constexpr uint8_t OLED_I2C_ADDRESS = 0x3C;
 constexpr uint8_t WS2812_PIXEL_COUNT = 1;
 constexpr uint8_t WS2812_BRIGHTNESS = 32;
 constexpr uint16_t WIFI_PORTAL_TIMEOUT_SECONDS = 180;

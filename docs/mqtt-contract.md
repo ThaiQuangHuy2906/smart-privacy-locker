@@ -93,7 +93,7 @@ Cold boot is fixed: `door=UNKNOWN`, `lock=UNKNOWN`, `alarm=INACTIVE`, `led=OFF`.
 
 ## Availability, LWT, and recovery
 
-At MQTT connect, the ESP32 registers a retained LWT `OFFLINE` payload, then publishes retained `ONLINE`, then full state, then subscribes to command. Payload shape:
+At MQTT connect, the ESP32 registers a retained LWT `OFFLINE` payload and confirms subscription to command. A transport connection is not operational until that subscription succeeds. Only then does it mark MQTT connected and publish retained `ONLINE` followed by full state. PubSubClient invokes received-message callbacks only from a later `mqtt_.loop()` call, so normal command processing still begins after those recovery publications. If subscription is rejected, firmware keeps MQTT state false, publishes retained `OFFLINE` when possible, disconnects, and schedules the same bounded reconnect; it never publishes `ONLINE` or full state for that rejected connection. Payload shape:
 
 ```json
 {"schema_version":1,"locker_id":"LOCKER-001","status":"ONLINE","sent_at":"2026-08-07T08:00:01Z"}

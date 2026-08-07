@@ -23,7 +23,7 @@ class MqttClient {
  private:
   static void dispatchMessage(char* topic, uint8_t* payload, unsigned int payloadLength);
   void handleMessage(const char* topic, const uint8_t* payload, unsigned int payloadLength);
-  bool connect(StateManager& state);
+  bool connect(unsigned long now, StateManager& state);
   bool publishAvailability(const char* status, bool retained);
   bool configured() const;
   void scheduleRetry(unsigned long now);

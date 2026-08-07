@@ -53,8 +53,8 @@ void MqttClient::tick(unsigned long now, StateManager& state) {
     scheduleRetry(now);
     return;
   }
-  if (!connect(state)) {
-    scheduleRetry(now);
+  if (!connect(now, state)) {
+    return;
   }
 }
 
@@ -126,7 +126,7 @@ void MqttClient::handleMessage(const char* topic, const uint8_t* payload, unsign
   }
 }
 
-bool MqttClient::connect(StateManager& state) {
+bool MqttClient::connect(unsigned long now, StateManager& state) {
   char availabilityTopic[96] = {};
   char lwtPayload[160] = {};
   char clientId[80] = {};
@@ -144,6 +144,7 @@ bool MqttClient::connect(StateManager& state) {
   }
   if (serializeJson(lwt, lwtPayload, sizeof(lwtPayload)) >= sizeof(lwtPayload)) {
     Serial.println("LWT serialization failed");
+    scheduleRetry(now);
     return false;
   }
 
@@ -153,20 +154,32 @@ bool MqttClient::connect(StateManager& state) {
   if (!mqtt_.connect(clientId, Secrets::MQTT_USERNAME, Secrets::MQTT_PASSWORD, availabilityTopic, 0,
                      true, lwtPayload, true)) {
     Serial.println("MQTT connection failed; retry scheduled");
+    scheduleRetry(now);
     return false;
   }
 
+  char commandTopic[96] = {};
+  makeTopic("command", commandTopic, sizeof(commandTopic));
+  if (!mqtt_.subscribe(commandTopic, 0)) {
+    // A connected transport without the command subscription is not an
+    // operational device. Do not leave a retained ONLINE state behind.
+    state.setMqttConnected(false);
+    publishAvailability("OFFLINE", true);
+    mqtt_.disconnect();
+    scheduleRetry(now);
+    Serial.println("MQTT command subscription failed; disconnected and retry scheduled");
+    return false;
+  }
+
+  // PubSubClient invokes callbacks from mqtt_.loop(), which runs only after
+  // this method returns. Thus command processing begins after ONLINE and the
+  // retained full state below, even though subscription is confirmed first.
   state.setMqttConnected(true);
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
   nextAttemptAt_ = 0;
   publishAvailability("ONLINE", true);
   publishState(state.current(), true);
-  char commandTopic[96] = {};
-  makeTopic("command", commandTopic, sizeof(commandTopic));
-  if (!mqtt_.subscribe(commandTopic, 0)) {
-    Serial.println("MQTT command subscription failed");
-  }
-  Serial.println("MQTT connected; availability and full state published");
+  Serial.println("MQTT subscription confirmed; availability and full state published");
   return true;
 }
 

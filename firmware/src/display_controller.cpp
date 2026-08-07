@@ -8,7 +8,6 @@
 namespace {
 constexpr uint8_t kDisplayWidth = 128;
 constexpr uint8_t kDisplayHeight = 64;
-constexpr uint8_t kDefaultI2cAddress = 0x3C;
 }  // namespace
 
 DisplayController::DisplayController()
@@ -16,7 +15,7 @@ DisplayController::DisplayController()
 
 bool DisplayController::begin() {
   Wire.begin(static_cast<int>(PinMap::OLED_SDA), static_cast<int>(PinMap::OLED_SCL));
-  available_ = display_.begin(SSD1306_SWITCHCAPVCC, kDefaultI2cAddress);
+  available_ = display_.begin(SSD1306_SWITCHCAPVCC, AppConfig::OLED_I2C_ADDRESS);
   if (available_) {
     display_.clearDisplay();
     display_.setTextColor(SSD1306_WHITE);
