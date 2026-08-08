@@ -1016,11 +1016,11 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - [x] **Terra/owner:** Build/test phù hợp đã chạy; firmware regression + Node-RED/Auth/RLS/dispatcher/YC6/YC8 contract tests được ghi đúng.
 - [x] **Terra/owner:** Manual service/account gates có environment sẵn sàng có evidence đã che token, PII và credential; MC-38/ESP32 tests thiếu hardware giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` khác ghi `Pending`, không giả PASS.
 - [x] **Terra/owner:** Chạy final diff/source/secret/generated-flow audit; không nhận ownership CB3/YC4 và không đổi frozen contract thiếu version/evidence.
-- [ ] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary.
+- [x] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary.
 - [ ] **Terra/owner:** Push Phase branch lên GitHub; nếu không có quyền, giữ Phase `ACTIVE` và ghi exact command.
 - [ ] **Terra/owner:** Khi SOFTWARE-GATE `PASS`, fast-forward merge Phase branch vào `develop` và push `develop`; không rewrite history hoặc force push.
 - [ ] **Terra/owner:** Chỉ sau integration push thành công, chuyển Phase 2 `ACTIVE → COMPLETED`, Phase 3 `NOT_STARTED → ACTIVE`, tạo `phase/3-thuy-data-integration` từ `develop`, push branch rồi dừng.
-- [ ] **Terra/owner:** Xác nhận Phase 1/2 hardware final gates vẫn `[ ]` và nằm trong Final Release checklist.
+- [x] **Terra/owner:** Xác nhận Phase 1/2 hardware final gates vẫn `[ ]` và nằm trong Final Release checklist.
 
 ### Handoff
 
@@ -1044,8 +1044,8 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Hardware final gates: P2-M01/P2-M02 `[ ] DEFERRED — HARDWARE-FINAL-GATE`; không có ESP32/MC-38, không tuyên bố GPIO/polarity/debounce/hardware verified. P1-M01–P1-M11 vẫn giữ nguyên deferred.
 - Known issues: Flash mặc định 83.9% (1,099,117/1,310,720 bytes), còn khoảng 16.1%; FlowFuse import/deploy và Supabase migrations chưa được chạy trên project thật; service/hardware gates nêu trên chưa có môi trường. Node-RED runtime phải do FlowFuse cung cấp ở phiên bản `>=4.1.13 <5`; project không vendor runtime/palette-manager npm thừa. Không có Critical/High dependency advisory trong dependency tree đã cài của project.
 - Deferred SHOULD/OPTIONAL items: MQTT ACL nâng cao; `boot_id`/sequence; persistent/distributed cache; numeric-output validator nâng cao. Không mục nào thay thế MUST.
-- Branch: `phase/2-minh-security-orchestration`, xác minh tạo đúng từ `develop`; Phase 2 source đang ở working tree, commit/push sẽ được ghi bằng evidence Git thật sau final audit.
-- Commit: Pending
+- Branch: `phase/2-minh-security-orchestration`, xác minh tạo đúng từ `develop`; implementation commit đã tạo cục bộ, trạng thái remote được cập nhật sau khi push thành công.
+- Commit: `d7e1c95` — Phase 2 implementation, automated evidence và software-gate documentation.
 - Integration into `develop`: Blocked bởi P2-M03–P2-M05 manual HARD-GATE chưa có environment/evidence; giữ Phase 2 `ACTIVE`, không merge/push `develop` và không tạo Phase 3 branch.
 - Next phase: Phase 3 `NOT_STARTED`.
 
