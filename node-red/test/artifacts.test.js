@@ -42,6 +42,8 @@ test('Supabase migrations enforce RLS, no locker update policy, and atomic uncla
   assert.match(migrations, /locker\.owner_id is null/i);
   assert.match(migrations, /security definer[\s\S]*set search_path = public, pg_temp/i);
   assert.doesNotMatch(migrations, /create policy lockers_.* for update/i);
+  const databaseTest = fs.readFileSync(path.join(root, 'supabase', 'tests', 'phase2_claim_rls.sql'), 'utf8');
+  assert.match(databaseTest, /insert into auth\.users/i);
 });
 
 test('Node-RED export has separate responsibility tabs and no embedded credential values', () => {
@@ -51,10 +53,14 @@ test('Node-RED export has separate responsibility tabs and no embedded credentia
   const serialized = JSON.stringify(flows);
   assert.doesNotMatch(serialized, /service_role|telegram_bot_token|gemini_api_key|eyJ[a-zA-Z0-9_-]{10}/i);
   assert.ok(flows.some((node) => node.type === 'mqtt out' && /Secure command egress/.test(node.name)));
+  assert.ok(flows.some((node) => node.z === 'tab_security' && node.type === 'link in'));
+  assert.ok(flows.some((node) => node.z === 'tab_security' && /notification status/i.test(node.name)));
 });
 
 test('Dashboard has no MQTT/service-role path and uses canonical Bearer header', () => {
   const app = fs.readFileSync(path.join(root, 'dashboard', 'app.js'), 'utf8');
   assert.match(app, /Authorization: `Bearer \$\{session\.access_token\}`/);
+  assert.match(app, /function clearSensitiveState/);
+  assert.match(app, /if \(!value\) clearSensitiveState\(\)/);
   assert.doesNotMatch(app, /mqtt_(?:username|password)|mqtt\.publish|service.?role|new WebSocket/i);
 });

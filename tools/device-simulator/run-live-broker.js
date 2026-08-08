@@ -8,6 +8,8 @@ const requireFromNodeRed = createRequire(path.resolve(__dirname, '..', '..', 'no
 const aedesFactory = requireFromNodeRed('aedes');
 const mqtt = requireFromNodeRed('mqtt');
 const { DeviceSimulator } = require('./simulator');
+const { Phase2Runtime } = require('../../node-red/lib/runtime');
+const { TelegramAdapter } = require('../../node-red/lib/telegram');
 
 const username = 'phase2_test_user';
 const password = 'phase2_test_password';
@@ -67,13 +69,39 @@ async function main() {
       typeof payload === 'string' ? payload : JSON.stringify(payload), { qos: 0, retain: Boolean(options?.retain) }) });
   device.on('message', (_topic, payload) => simulator.receiveCommand(JSON.parse(payload.toString()), 'success'));
   await subscribe(device, `locker/${lockerId}/command`);
+
+  const nodeRed = await connect(url, { clientId: 'phase2-node-red-consumer' });
+  const runtimeErrors = [];
+  const telegram = new TelegramAdapter({ transport: async () => {}, dashboardUrl: 'https://dashboard.example.test' });
+  const runtime = new Phase2Runtime({
+    authGate: { async authorize() { return { ok: true,
+      principal: { id: '20000000-0000-4000-8000-000000000001' } }; } },
+    publish: (topic, payload, options) => nodeRed.publish(topic, JSON.stringify(payload), {
+      qos: 0, retain: Boolean(options?.retain),
+    }),
+    history: { async query(request) { return { schema_version: 1,
+      request_id: request.request_id, locker_id: request.locker_id,
+      range: null, events: [], source: 'broker-test' }; } },
+    telegram,
+  });
+  nodeRed.on('message', (topic, payload) => {
+    runtime.ingest(topic, payload, Date.now()).catch((error) => runtimeErrors.push(error));
+  });
+  await subscribe(nodeRed, [
+    `locker/${lockerId}/availability`, `locker/${lockerId}/state`,
+    `locker/${lockerId}/ack`, `locker/${lockerId}/telemetry/door`,
+  ]);
+  runtime.setMqttConnected(true);
   simulator.connect();
   await waitFor(() => messages.some((item) => item.topic.endsWith('/state'))
     && messages.some((item) => item.payload?.status === 'ONLINE'));
+  await waitFor(() => runtime.cache.snapshot(lockerId).fresh);
 
   simulator.door('OPEN');
   await waitFor(() => messages.some((item) => item.topic.endsWith('/telemetry/door')));
   assert.equal(messages.find((item) => item.topic.endsWith('/telemetry/door')).retain, false);
+  await waitFor(() => runtime.events.some((event) => event.event_type === 'UNAUTHORIZED_OPEN'));
+  assert.equal(runtime.cache.snapshot(lockerId).latest_alert.event_type, 'UNAUTHORIZED_OPEN');
 
   const fresh = await connect(url, { clientId: 'phase2-fresh-observer' });
   const freshMessages = [];
@@ -83,14 +111,14 @@ async function main() {
   assert.equal(freshMessages.some((item) => item.topic.endsWith('/telemetry/door')), false);
   assert.equal(freshMessages.find((item) => item.topic.endsWith('/state')).payload.door, 'OPEN');
 
-  observer.publish(`locker/${lockerId}/command`, JSON.stringify({ schema_version: 1,
-    command_id: '10000000-0000-4000-8000-000000000501', locker_id: lockerId,
-    action: 'GET_STATE', issued_at: '2026-08-08T08:00:00.000Z',
-    requested_by: '20000000-0000-4000-8000-000000000001' }), { qos: 0, retain: false });
-  await waitFor(() => messages.some((item) => item.payload?.command_id === '10000000-0000-4000-8000-000000000501'));
+  const command = await runtime.protectedCommand({ headers: {}, body: { locker_id: lockerId, action: 'GET_STATE' } });
+  assert.equal(command.ok, true);
+  await waitFor(() => runtime.commandStatus.get(lockerId)?.status === 'COMMAND_SUCCEEDED');
+  assert.equal(runtime.dispatcher.pending.size, 0);
 
   device.stream.destroy();
   await waitFor(() => messages.some((item) => item.payload?.status === 'OFFLINE'));
+  await waitFor(() => runtime.cache.snapshot(lockerId).availability === 'OFFLINE');
   device = await connect(url, { clientId: 'phase2-device-reconnected', will: {
     topic: `locker/${lockerId}/availability`, retain: true, qos: 0,
     payload: JSON.stringify({ schema_version: 1, locker_id: lockerId, status: 'OFFLINE', sent_at: '2026-08-08T08:00:01.000Z' }),
@@ -98,14 +126,18 @@ async function main() {
   device.on('message', (_topic, payload) => simulator.receiveCommand(JSON.parse(payload.toString()), 'success'));
   await subscribe(device, `locker/${lockerId}/command`); simulator.connect();
   await waitFor(() => messages.filter((item) => item.payload?.status === 'ONLINE').length >= 2);
+  await waitFor(() => runtime.cache.snapshot(lockerId).fresh);
+  assert.equal(runtimeErrors.length, 0);
 
-  const summary = { result: 'PASS', assertions: 8, transport: url.replace(/:\d+$/, ':ephemeral'),
+  const summary = { result: 'PASS', assertions: 13, transport: url.replace(/:\d+$/, ':ephemeral'),
     authentication: 'test username/password accepted; anonymous connection rejected',
-    scenarios: ['retained availability/state', 'non-retained door', 'fresh subscriber', 'GET_STATE ACK/state', 'LWT OFFLINE', 'reconnect ONLINE/state'],
-    note: 'Local TCP broker/simulator evidence only; not ESP32/MC-38 hardware evidence.' };
+    scenarios: ['retained availability/state', 'Node-RED runtime cache ingestion',
+      'non-retained door and unauthorized detector', 'fresh subscriber',
+      'runtime-dispatched GET_STATE ACK/state', 'LWT OFFLINE', 'reconnect ONLINE/state'],
+    note: 'Local TCP broker/simulator/Phase2Runtime evidence only; not imported FlowFuse or ESP32/MC-38 hardware evidence.' };
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 
-  await Promise.all([observer.endAsync(), fresh.endAsync(), device.endAsync()]);
+  await Promise.all([observer.endAsync(), fresh.endAsync(), device.endAsync(), nodeRed.endAsync()]);
   await new Promise((resolve) => server.close(resolve));
   await broker.close();
 }

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { classify } = require('../lib/chatbot');
+const { classify, GeminiAdapter } = require('../lib/chatbot');
 const { makeRuntime, prime, headers, LOCKER_A } = require('./helpers');
 
 test('P2-A12 classifier routes live/history and rejects unsupported input', () => {
@@ -43,6 +43,26 @@ test('P2-A13 history adapter computes counts before provider and preserves prove
   assert.equal(providerContext.facts.alert_count, 1);
   assert.equal(providerContext.facts.source, 'phase2-fixture');
   assert.match(providerContext.instruction, /Never invent/);
+});
+
+test('history route reports unavailable instead of inventing zero counts when Phase 3 is absent', async () => {
+  const history = { async query(request) { return { schema_version: 1,
+    request_id: request.request_id, locker_id: request.locker_id, range: null,
+    events: [], source: 'phase3-not-configured' }; } };
+  const { runtime } = makeRuntime({ history }); await prime(runtime);
+  const result = await runtime.protectedChat({ headers: headers(), body: { locker_id: LOCKER_A,
+    question: 'Trong 7 ngày có bao nhiêu lần mở?' } });
+  assert.equal(result.ok, false); assert.equal(result.code, 'HISTORY_UNAVAILABLE');
+});
+
+test('Gemini credential is carried in a header, never in the request URL', async () => {
+  let request;
+  const adapter = new GeminiAdapter({ apiKey: 'gemini-test-key', model: 'gemini-test-model',
+    fetchImpl: async (url, options) => { request = { url, options }; return { ok: true,
+      async json() { return { candidates: [{ content: { parts: [{ text: 'ok' }] } }] }; } }; } });
+  assert.equal(await adapter.render({ facts: {} }), 'ok');
+  assert.doesNotMatch(request.url, /gemini-test-key|[?&]key=/);
+  assert.equal(request.options.headers['x-goog-api-key'], 'gemini-test-key');
 });
 
 test('dashboard separates MQTT/device, marks UNKNOWN/stale, and does not enable before gates', async () => {

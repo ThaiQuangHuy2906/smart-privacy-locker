@@ -54,6 +54,21 @@ test('P2-A11 duplicate OPEN/held-open telemetry does not duplicate alarm or Tele
   assert.equal(telegramCalls, 1);
 });
 
+test('ALARM_ON is dispatched without waiting for Telegram delivery', async () => {
+  let finishTelegram;
+  const telegramTransport = () => new Promise((resolve) => { finishTelegram = resolve; });
+  const { runtime, clock, publications } = makeRuntime({ telegramTransport });
+  await prime(runtime); clock.value += 1000;
+  const ingest = runtime.ingest(`locker/${LOCKER_A}/telemetry/door`, door('CLOSED', 'OPEN'), clock.value);
+  const result = await ingest;
+  assert.equal(result.accepted, true);
+  assert.equal(publications.filter((item) => item.payload.action === 'ALARM_ON').length, 1);
+  assert.equal(runtime.notificationStatuses.length, 0);
+  finishTelegram();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(runtime.notificationStatuses[0].status, 'delivered');
+});
+
 test('authorized window expires at exact boundary and restart does not restore it', async () => {
   const { runtime, clock } = makeRuntime(); await prime(runtime);
   const unlock = await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'UNLOCK' } });
@@ -66,4 +81,26 @@ test('authorized window expires at exact boundary and restart does not restore i
 
   runtime.restart();
   assert.equal(runtime.detector.windows.size, 0);
+});
+
+test('unsynced door events use receive time metadata and non-applicable authorization is null', async () => {
+  const { runtime, clock } = makeRuntime(); await prime(runtime);
+  clock.value += 1;
+  await runtime.ingest(`locker/${LOCKER_A}/telemetry/door`, {
+    ...door('CLOSED', 'OPEN', null), time_synced: false,
+  }, clock.value);
+  await new Promise((resolve) => setImmediate(resolve));
+  const opened = runtime.events.find((event) => event.event_type === 'DOOR_OPENED');
+  assert.equal(opened.occurred_at, new Date(clock.value).toISOString());
+  assert.equal(opened.metadata.device_time_unsynced, true);
+  assert.equal(runtime.notificationStatuses[0].schema_version, 1);
+  assert.equal(runtime.notificationStatuses[0].event_id,
+    runtime.events.find((event) => event.event_type === 'UNAUTHORIZED_OPEN').event_id);
+
+  clock.value += 1;
+  const closed = await runtime.ingest(`locker/${LOCKER_A}/telemetry/door`, {
+    ...door('OPEN', 'CLOSED', null), time_synced: false,
+  }, clock.value);
+  assert.equal(closed.outputs[0].authorized, null);
+  assert.equal(closed.outputs[0].metadata.device_time_unsynced, true);
 });

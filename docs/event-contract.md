@@ -64,6 +64,9 @@ The adapter emits `schema_version`, event ID, channel `telegram`, status
 `delivered|failed|duplicate_suppressed|rate_limited`, bounded `attempts`, UTC
 `attempted_at`, and a safe nullable error `{code,message}`. Token and chat ID are
 never fields. Failure does not discard normalized events or crash/retry forever.
+Notification delivery is asynchronous from the alarm path: `ALARM_ON` enters
+MQTT egress without waiting for Telegram. The completed delivery status is a
+separate Phase 3 hook and may update the in-memory latest event status.
 
 ## Compatibility log
 

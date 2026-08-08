@@ -23,12 +23,14 @@ topic, and observed time—never raw payload/token.
 ```powershell
 npm test
 npm run test:simulator
+npm run test:broker
 npm run audit
 ```
 
-Tests use Node's built-in runner and deterministic fixtures. The simulator uses
-a memory broker for retained/non-retained software semantics; it is explicitly
-not an authenticated network-broker capture or hardware evidence. Live
+Tests use Node's built-in runner and deterministic fixtures. The memory matrix
+covers retained/non-retained semantics; `test:broker` additionally passes real
+MQTT traffic through `Phase2Runtime` on an authenticated loopback Aedes broker.
+Neither result is an imported FlowFuse deployment or hardware evidence. Live
 Supabase, FlowFuse, Telegram, Gemini, MQTT and ESP32 gates require deployment
 environment and sanitized manual evidence.
 

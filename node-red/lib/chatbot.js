@@ -30,8 +30,9 @@ class GeminiAdapter {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const response = await this.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`, {
-        method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' },
+      const response = await this.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent`, {
+        method: 'POST', signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
         body: JSON.stringify({ contents: [{ parts: [{ text: JSON.stringify(context) }] }] }),
       });
       if (!response.ok) throw Object.assign(new Error('Gemini request failed'), { code: `PROVIDER_HTTP_${response.status}` });
@@ -63,6 +64,9 @@ class ChatbotRouter {
       if (!response || response.schema_version !== 1 || response.request_id !== request.request_id
         || response.locker_id !== lockerId) {
         return { ok: false, code: 'HISTORY_ADAPTER_ERROR', route };
+      }
+      if (response.source === 'phase3-not-configured') {
+        return { ok: false, code: 'HISTORY_UNAVAILABLE', route };
       }
       const events = Array.isArray(response.events) ? response.events : [];
       facts = {

@@ -9,6 +9,17 @@ const $ = (id) => document.getElementById(id);
 const lockerId = () => $('locker-id').value.trim();
 function message(id, text) { $(id).textContent = text; }
 
+function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nhận.') {
+  $('mqtt').textContent = 'DISCONNECTED';
+  $('device').textContent = 'OFFLINE';
+  $('door').textContent = 'UNKNOWN';
+  $('lock').textContent = 'UNKNOWN — chưa xác nhận';
+  $('updated').textContent = '—';
+  $('alert').textContent = '—';
+  message('state-message', reason);
+  message('command-message', 'Success chỉ xuất hiện sau ACK hợp lệ.');
+}
+
 async function jsonFetch(url, options = {}) {
   const response = await fetch(url, options);
   const body = await response.json().catch(() => ({}));
@@ -27,6 +38,7 @@ function saveSession(value) {
   if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey);
   $('logout').hidden = !value;
   $('session-label').textContent = value ? 'Đã đăng nhập — token được vận chuyển bằng Bearer' : 'Chưa đăng nhập';
+  if (!value) clearSensitiveState();
   scheduleRefresh();
   renderControls(null);
 }
@@ -80,7 +92,10 @@ function renderState(ui) {
 async function pollState() {
   if (!session) return;
   try { renderState(await protectedFetch(`/api/v1/lockers/${encodeURIComponent(lockerId())}/state`)); }
-  catch (error) { message('state-message', `Không lấy được live state: ${error.message}`); renderControls(null); }
+  catch (error) {
+    clearSensitiveState(`Không lấy được live state: ${error.message}`);
+    renderControls(null);
+  }
 }
 
 $('auth-form').addEventListener('click', async (event) => {

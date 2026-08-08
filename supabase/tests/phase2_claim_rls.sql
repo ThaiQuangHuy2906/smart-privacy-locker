@@ -3,6 +3,20 @@
 -- under request JWT claims without using the service role in a browser.
 begin;
 
+-- The locker owner foreign key points at auth.users. Create disposable local
+-- Auth rows so this script runs on a clean `supabase db reset` instead of only
+-- passing a static migration scan. The enclosing transaction is rolled back.
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values
+  ('20000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'phase2-user-a@example.test', '', now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+  ('20000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'phase2-user-b@example.test', '', now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now());
+
 do $$
 declare
   user_a constant uuid := '20000000-0000-4000-8000-000000000001';

@@ -2,7 +2,7 @@
 
 **Recorded:** 2026-08-08, Windows, branch `phase/2-minh-security-orchestration`
 
-**Source:** working tree before Phase 2 commit
+**Source:** Phase 2 corrective working tree after independent requirement review
 **Credentials/services/hardware used:** none
 
 ## Toolchain
@@ -44,17 +44,17 @@ Command actually run from `node-red/`:
 npm test
 ```
 
-Final result: **PASS — 32/32**, 0 failed, 0 skipped, 0 todo. The runner covers:
+Final result: **PASS — 38/38**, 0 failed, 0 skipped, 0 todo. The runner covers:
 
 - MQTT state/door/availability/ACK/command validation, invalid-side-effect rejection, and proof that door telemetry cannot refresh an old full state;
 - canonical Bearer auth, spoof rejection, owner/readiness gates, `locker_code` ownership query, and internal allowlist;
 - valid dispatcher, domain conflict, exact ACK state matching, wrong/duplicate/late ACK;
-- 5000 ms timeout, one GET_STATE, restart empty/stale recovery;
+- 5000 ms timeout, exactly one GET_STATE even after the reconciliation command expires, restart empty/stale recovery, and fresh availability/full-state requirements for each MQTT connection generation;
 - authorized window consume/exact boundary/restart, unauthorized episode and ALARM_ON;
-- Telegram message/dedupe/rate-limit/one-attempt controlled failure;
-- chatbot classifier, live missing/provider error, correlated history counts/provenance;
-- Dashboard stale/pending control model, versioned event/alarm/history fixtures;
-- migration RLS/claim contract, flow responsibility/export, and frontend secret-boundary assertions.
+- non-blocking ALARM_ON versus Telegram delivery, bounded HTTP timeout, full notification status schema, message/dedupe/rate-limit/one-attempt controlled failure;
+- chatbot classifier, live missing/provider error, explicit unconfigured-history result, correlated history counts/provenance, and Gemini credential header transport;
+- Dashboard stale/pending control model and sensitive-state clearing, versioned event/alarm/history fixtures, unsynced-device-time metadata, and nullable non-applicable authorization;
+- migration RLS/claim contract plus disposable `auth.users` prerequisites, populated security flow responsibility/export, and frontend secret-boundary assertions.
 
 ## P2-S01 simulator matrix
 
@@ -75,12 +75,14 @@ An additional real MQTT 3.1.1 loopback integration was run:
 npm run test:broker
 ```
 
-Result: **PASS**, 8 assertions. Aedes listened on an ephemeral `127.0.0.1` TCP
+Result: **PASS**, 13 assertions. Aedes listened on an ephemeral `127.0.0.1` TCP
 port, accepted only the fixed test username/password, rejected anonymous
-connection, and real MQTT clients verified retained availability/state,
-non-retained door behavior for a fresh subscriber, GET_STATE ACK/state, LWT
-OFFLINE and reconnect ONLINE/state. It remains simulator/broker software
-evidence, not ESP32/MC-38 hardware evidence.
+connection, and real MQTT clients passed retained availability/state and
+non-retained door telemetry through `Phase2Runtime`. The runtime verified cache
+freshness, unauthorized detection/latest alert, dispatched a correlated
+GET_STATE and consumed its ACK/state, then handled LWT OFFLINE and reconnect
+ONLINE/state. It remains simulator/broker/runtime software evidence, not an
+imported FlowFuse deployment or ESP32/MC-38 hardware evidence.
 
 ## Dependency and secret/config audits
 

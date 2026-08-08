@@ -8,6 +8,7 @@ class LiveStateCache {
 
   restart() {
     this.mqttConnected = false;
+    this.connectionGeneration = 0;
     this.lockers = new Map();
   }
 
@@ -17,19 +18,25 @@ class LiveStateCache {
         state: null, stateObservedAt: 0, stateDeviceAt: null, stateSource: null,
         doorObservedAt: 0, doorDeviceAt: null, doorSource: null,
         availability: 'OFFLINE', availabilityObservedAt: 0,
+        availabilityGeneration: -1, stateGeneration: -1,
         door: 'UNKNOWN', latestAlert: null,
       });
     }
     return this.lockers.get(lockerId);
   }
 
-  setMqttConnected(connected) { this.mqttConnected = Boolean(connected); }
+  setMqttConnected(connected) {
+    const next = Boolean(connected);
+    if (next && !this.mqttConnected) this.connectionGeneration += 1;
+    this.mqttConnected = next;
+  }
 
   ingestAvailability(lockerId, value, observedAt) {
     const item = this.entry(lockerId);
     if (observedAt < item.availabilityObservedAt) return false;
     item.availability = value.status;
     item.availabilityObservedAt = observedAt;
+    item.availabilityGeneration = this.connectionGeneration;
     return true;
   }
 
@@ -44,6 +51,7 @@ class LiveStateCache {
     item.stateObservedAt = observedAt;
     item.stateDeviceAt = value.timestamp;
     item.stateSource = source;
+    item.stateGeneration = this.connectionGeneration;
     item.doorObservedAt = observedAt;
     item.doorDeviceAt = value.timestamp;
     item.doorSource = source;
@@ -67,8 +75,10 @@ class LiveStateCache {
   snapshot(lockerId, now = Date.now()) {
     const item = this.entry(lockerId);
     const availabilityFresh = item.availability === 'ONLINE'
+      && item.availabilityGeneration === this.connectionGeneration
       && now - item.availabilityObservedAt <= this.staleAfterMs;
     const stateFresh = Boolean(item.state) && now - item.stateObservedAt <= this.staleAfterMs
+      && item.stateGeneration === this.connectionGeneration
       && item.stateObservedAt >= item.availabilityObservedAt;
     const trusted = this.mqttConnected && availabilityFresh && stateFresh;
     return {

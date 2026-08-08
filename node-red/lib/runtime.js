@@ -18,6 +18,7 @@ class Phase2Runtime {
     this.publish = publish;
     this.now = now;
     this.events = [];
+    this.notificationStatuses = [];
     this.diagnostics = [];
     this.commandStatus = new Map();
     this.cache = new LiveStateCache({ staleAfterMs });
@@ -34,6 +35,7 @@ class Phase2Runtime {
       dispatchAlarm: (lockerId) => this.dispatcher.dispatchInternal({ lockerId, action: 'ALARM_ON' }),
       emit: (event) => this.events.push(event),
       notify: (event) => this.telegram.notify(event),
+      notificationStatus: (status) => this.notificationStatuses.push(status),
       latestAlert: (lockerId, event) => this.cache.setLatestAlert(lockerId, event),
     });
     this.chatbot = new ChatbotRouter({ cache: this.cache, history, provider: gemini, now, uuid });
@@ -44,6 +46,7 @@ class Phase2Runtime {
     this.dispatcher.restart();
     this.detector.restart();
     this.commandStatus.clear();
+    this.notificationStatuses.length = 0;
   }
 
   setMqttConnected(connected) { this.cache.setMqttConnected(connected); }
@@ -83,7 +86,8 @@ class Phase2Runtime {
     const snapshot = this.cache.snapshot(lockerId, observedAt);
     const deviceState = { ...snapshot.state, door: value.state, lock: before.lock };
     const outputs = await this.detector.onDoor({ lockerId, previousState: value.previous_state,
-      state: value.state, deviceState, occurredAt: value.timestamp, observedAt: new Date(observedAt).toISOString() });
+      state: value.state, deviceState, occurredAt: value.timestamp,
+      observedAt: new Date(observedAt).toISOString(), timeSynced: value.time_synced });
     return { accepted: true, type: 'door', outputs };
   }
 

@@ -55,7 +55,7 @@ class CommandDispatcher {
     const command = { schema_version: 1, command_id: commandId, locker_id: lockerId,
       action, issued_at: issuedAt, requested_by: requestedBy };
     const pending = { commandId, lockerId, action, domain: actuatorDomain, requestedBy,
-      caller, issuedAt, deadline: this.now() + this.timeoutMs, reconciliationSent: false };
+      caller, issuedAt, deadline: this.now() + this.timeoutMs };
     this.pending.set(commandId, pending);
     try {
       this.publish(`locker/${lockerId}/command`, command, { retain: false });
@@ -91,7 +91,10 @@ class CommandDispatcher {
       this.remember(id, { ...pending, result: 'timeout' });
       let reconciliation = null;
       const snapshot = this.cache.snapshot(pending.lockerId, current);
-      if (snapshot.mqtt_connected && snapshot.availability === 'ONLINE' && snapshot.fresh) {
+      // GET_STATE is itself a command. If it times out, stop: reconciling a
+      // reconciliation command would otherwise create an unbounded loop.
+      if (pending.action !== 'GET_STATE' && snapshot.mqtt_connected
+          && snapshot.availability === 'ONLINE' && snapshot.fresh) {
         reconciliation = this.dispatchInternal({ lockerId: pending.lockerId, action: 'GET_STATE' });
       }
       const result = { ok: false, code: 'COMMAND_TIMEOUT', pending, reconciliation };

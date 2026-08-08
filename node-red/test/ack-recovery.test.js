@@ -46,6 +46,12 @@ test('P2-A08 timeout never retries actuator and emits at most one GET_STATE reco
   assert.equal(expired[0].code, 'COMMAND_TIMEOUT');
   assert.equal(publications.filter((item) => item.payload.action === 'LED_ON').length, 1);
   assert.equal(publications.filter((item) => item.payload.action === 'GET_STATE').length, 1);
+  clock.value += 5000;
+  const reconciliationExpired = runtime.dispatcher.expire();
+  assert.equal(reconciliationExpired.length, 1);
+  assert.equal(reconciliationExpired[0].pending.action, 'GET_STATE');
+  assert.equal(publications.filter((item) => item.payload.action === 'GET_STATE').length, 1);
+  assert.equal(runtime.dispatcher.pending.size, 0);
   const late = await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command), clock.value);
   assert.equal(late.result.code, 'DUPLICATE_OR_LATE_ACK');
 });
@@ -75,4 +81,16 @@ test('door telemetry cannot refresh an old full state or re-enable controls', as
     timestamp: new Date(clock.value).toISOString(), time_synced: true }, clock.value);
   assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, false);
   assert.equal(runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A }).controls.lock.enabled, false);
+});
+
+test('MQTT reconnect requires availability and full state from the new connection generation', async () => {
+  const { runtime, clock } = makeRuntime(); await prime(runtime);
+  runtime.setMqttConnected(false);
+  runtime.setMqttConnected(true);
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, false);
+  await runtime.ingest(`locker/${LOCKER_A}/availability`, { schema_version: 1,
+    locker_id: LOCKER_A, status: 'ONLINE', sent_at: new Date(clock.value).toISOString() }, clock.value);
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, false);
+  await runtime.ingest(`locker/${LOCKER_A}/state`, state(), clock.value);
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, true);
 });

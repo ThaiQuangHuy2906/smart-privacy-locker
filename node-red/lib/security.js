@@ -5,13 +5,14 @@ const { normalizedEvent } = require('./events');
 class UnauthorizedDetector {
   constructor({ windowMs = 30_000, now = Date.now, uuid, dispatchAlarm,
     emit = () => {}, notify = async () => ({ status: 'not_configured' }),
-    latestAlert = () => {} }) {
+    notificationStatus = () => {}, latestAlert = () => {} }) {
     this.windowMs = windowMs;
     this.now = now;
     this.uuid = uuid;
     this.dispatchAlarm = dispatchAlarm;
     this.emit = emit;
     this.notify = notify;
+    this.notificationStatus = notificationStatus;
     this.latestAlert = latestAlert;
     this.restart();
   }
@@ -28,11 +29,13 @@ class UnauthorizedDetector {
     }
   }
 
-  async onDoor({ lockerId, previousState, state, deviceState, occurredAt, observedAt }) {
+  onDoor({ lockerId, previousState, state, deviceState, occurredAt, observedAt, timeSynced = true }) {
+    const eventMetadata = timeSynced ? {} : { device_time_unsynced: true };
     if (previousState === state) return [];
     if (state === 'CLOSED') {
       this.openEpisodes.delete(lockerId);
-      const event = this.event('DOOR_CLOSED', lockerId, deviceState, true, occurredAt, observedAt);
+      const event = this.event('DOOR_CLOSED', lockerId, deviceState, null, occurredAt, observedAt,
+        null, eventMetadata);
       this.emit(event);
       return [event];
     }
@@ -43,25 +46,40 @@ class UnauthorizedDetector {
     const authorized = Boolean(window && this.now() < window.expiresAt && deviceState.lock === 'UNLOCKED');
     if (authorized) this.windows.delete(lockerId);
     const opened = this.event('DOOR_OPENED', lockerId, deviceState, authorized, occurredAt, observedAt,
-      window?.commandId || null);
+      window?.commandId || null, eventMetadata);
     this.emit(opened);
     if (authorized) return [opened];
 
     this.windows.delete(lockerId);
-    const unauthorized = this.event('UNAUTHORIZED_OPEN', lockerId, deviceState, false, occurredAt, observedAt);
+    const unauthorized = this.event('UNAUTHORIZED_OPEN', lockerId, deviceState, false, occurredAt,
+      observedAt, null, eventMetadata);
     this.emit(unauthorized);
     this.latestAlert(lockerId, unauthorized);
     const alarm = this.dispatchAlarm(lockerId);
-    const notification = await this.notify(unauthorized);
-    unauthorized.notification_status = notification.status;
-    return [opened, unauthorized, { interface: 'ALARM_ON', result: alarm }, { interface: 'TELEGRAM', result: notification }];
+    // Notification delivery is deliberately detached from the alarm path. A
+    // slow provider must never hold ALARM_ON in the Node-RED MQTT outbox.
+    Promise.resolve(this.notify(unauthorized)).then((notification) => {
+      unauthorized.notification_status = notification.status;
+      this.notificationStatus(notification);
+    }).catch(() => {
+      const notification = {
+        schema_version: 1, event_id: unauthorized.event_id, channel: 'telegram',
+        status: 'failed', attempts: 1, attempted_at: new Date(this.now()).toISOString(),
+        error: { code: 'TELEGRAM_DELIVERY_FAILED', message: 'Telegram delivery failed' },
+      };
+      unauthorized.notification_status = notification.status;
+      this.notificationStatus(notification);
+    });
+    return [opened, unauthorized, { interface: 'ALARM_ON', result: alarm },
+      { interface: 'TELEGRAM', event_id: unauthorized.event_id, delivery: 'asynchronous' }];
   }
 
-  event(eventType, lockerId, state, authorized, occurredAt, observedAt, commandId = null) {
+  event(eventType, lockerId, state, authorized, occurredAt, observedAt, commandId = null,
+    metadata = {}) {
     return normalizedEvent({ eventType, lockerId, state, source: 'sensor', result: 'observed',
       authorized, commandId, occurredAt, recordedAt: observedAt, uuid: this.uuid,
       principal: eventType === 'UNAUTHORIZED_OPEN' ? 'system:unauthorized-detector' : null,
-      metadata: { detector: 'authorized-window-v1' } });
+      metadata: { detector: 'authorized-window-v1', ...metadata } });
   }
 }
 
