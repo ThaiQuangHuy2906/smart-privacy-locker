@@ -874,7 +874,7 @@ Node-RED flow phải được tổ chức thành tab/subflow có trách nhiệm 
 
 Các bullet CB1/MC-38 cần phần cứng thật vẫn là `MUST` cho final release, nhưng khi hardware chưa có chúng được theo dõi bằng P2-M01/P2-M02 và Section 9 với nhãn `DEFERRED — HARDWARE-FINAL-GATE`; simulator/unit/broker evidence không thay thế physical verification.
 
-- [ ] **[MUST]** Re-audit Phase 1 handoff và khóa contract bổ sung cho Phase 3.
+- [x] **[MUST]** Re-audit Phase 1 handoff và khóa contract bổ sung cho Phase 3.
   - File/module dự kiến: `docs/mqtt-contract.md`, `docs/event-contract.md`, fixtures dùng chung.
   - Kết quả phải đạt: Phase 2 không phá payload v1; normalized event, history request/response và alarm request có schema rõ.
   - Cách kiểm tra: producer/consumer walkthrough; contract fixture validation; audit change log.
@@ -886,13 +886,13 @@ Các bullet CB1/MC-38 cần phần cứng thật vẫn là `MUST` cho final rele
   - Cách kiểm tra: automated debounce/boot-state tests và MANUAL reed switch đóng/mở liên tục. Test UNKNOWN bằng boot trước stable sample và Node-RED Offline/stale/invalid-payload scenarios, không dùng tháo dây làm bằng chứng broken-wire detection.
   - Điều kiện được tick: OPEN/CLOSED đúng trên board; UNKNOWN đúng các untrusted-state cases trong Section 4; telemetry/cache/Dashboard đúng contract và evidence đầy đủ.
 
-- [ ] **[MUST]** Xây Node-RED MQTT ingress/egress và payload validation.
+- [x] **[MUST]** Xây Node-RED MQTT ingress/egress và payload validation.
   - File/module dự kiến: MQTT/config tab, validation subflows, fixtures.
   - Kết quả phải đạt: subscribe đúng locker topics; reject schema/type/locker/enum sai; không để invalid payload cập nhật cache/UI/persistence.
   - Cách kiểm tra: automated inject valid/invalid ACK/state/door/availability và broker integration test.
   - Điều kiện được tick: validation branches có test/evidence và error log không lộ payload nhạy cảm.
 
-- [ ] **[MUST]** Xây live-state cache và availability/staleness handling.
+- [x] **[MUST]** Xây live-state cache và availability/staleness handling.
   - File/module dự kiến: telemetry/cache subflow, context schema, Dashboard state adapter.
   - Kết quả phải đạt: cache theo locker gồm state/source/timestamps/stale; phân biệt MQTT disconnected và device offline. Sau Node-RED restart cache bắt đầu empty/stale, controls disabled cho đến khi MQTT + availability + full state fresh; chỉ lưu boot ID/sequence nếu firmware cung cấp nhất quán (`SHOULD`).
   - Cách kiểm tra: inject retained state, LWT, invalid/missing state, late/duplicate message; restart Node-RED và assert cache stale/controls disabled, MQTT reconnect, retained state/GET_STATE reconciliation rồi mới enable.
@@ -916,13 +916,13 @@ Các bullet CB1/MC-38 cần phần cứng thật vẫn là `MUST` cho final rele
   - Cách kiểm tra: automated matrix cho missing/malformed/expired Bearer token, spoofed `user_id`, User A–Locker B và valid owner; MANUAL FlowFuse request; broker capture xác nhận deny không publish.
   - Điều kiện được tick: unauthenticated nhận 401, wrong owner 403, session expired disable UI, không có bypass hoặc auth mechanism song song và transport khớp tài liệu.
 
-- [ ] **[MUST]** Xây command dispatcher, command ID generation và pending-command store.
+- [x] **[MUST]** Xây command dispatcher, command ID generation và pending-command store.
   - File/module dự kiến: command dispatcher subflow, pending context, Dashboard response adapter.
   - Kết quả phải đạt: user request kiểm tra auth/ownership/MQTT/device/stale/conflict; trusted YC6 automation chỉ đi qua internal allowlisted entrypoint; sinh UUID/timestamp/requested_by; publish đúng topic; lưu deadline.
   - Cách kiểm tra: automated matrix cho từng user gate, attempt gọi automation entrypoint từ ngoài, internal ALARM_ON, concurrent domains và conflicting actions; inspect broker output.
   - Điều kiện được tick: chỉ user/internal request đủ điều kiện được publish, không có public auth bypass, mỗi request có command ID duy nhất và control pending đúng domain.
 
-- [ ] **[MUST]** Xây ACK processor, matching, timeout, duplicate/late ACK handling và reconciliation.
+- [x] **[MUST]** Xây ACK processor, matching, timeout, duplicate/late ACK handling và reconciliation.
   - File/module dự kiến: ACK subflow, timeout scheduler, completed-command cache.
   - Kết quả phải đạt: match ID/locker/action/schema; cancel đúng timer; wrong/late ACK không báo success; timeout ghi event interface và GET_STATE một lần. Restart clear pending, không restore/replay command; ACK cũ sau restart không thể báo success.
   - Cách kiểm tra: automated valid ACK, wrong ID, wrong locker/state, duplicate, late ACK, no ACK; restart với command pending rồi feed ACK cũ và kiểm tra GET_STATE/state reconciliation.
@@ -934,13 +934,13 @@ Các bullet CB1/MC-38 cần phần cứng thật vẫn là `MUST` cho final rele
   - Cách kiểm tra: MANUAL desktop/mobile và automated state-model inputs khi khả thi.
   - Điều kiện được tick: UI không hiển thị stale data như live, không success trước ACK và CB1 end-to-end có evidence.
 
-- [ ] **[MUST]** Triển khai authorized-unlock window và unauthorized-open detector của YC6.
+- [x] **[MUST]** Triển khai authorized-unlock window và unauthorized-open detector của YC6.
   - File/module dự kiến: security detector subflow, per-locker window/episode state, test fixtures.
   - Kết quả phải đạt: window chỉ mở bởi valid UNLOCK ACK; consume/expire/cancel đúng; Node-RED restart clear window và không restore; door locked/lock UNKNOWN/outside window tạo authorized=false một lần.
   - Cách kiểm tra: automated timeline gồm boundary, duplicate telemetry, restart sau valid UNLOCK ACK rồi OPEN, lock ACK và multiple lockers.
   - Điều kiện được tick: classification deterministic theo Section 4 và không có repeated alert trong cùng door-open episode.
 
-- [ ] **[MUST]** Phát `UNAUTHORIZED_OPEN` interface và `ALARM_ON` request mà không nhận ownership CB3/YC4.
+- [x] **[MUST]** Phát `UNAUTHORIZED_OPEN` interface và `ALARM_ON` request mà không nhận ownership CB3/YC4.
   - File/module dự kiến: event emitter/dispatcher adapter, `docs/event-contract.md`.
   - Kết quả phải đạt: event đủ source/result/authorized/state/time; alarm đi qua cùng dispatcher/pending/ACK contract; có hook cho Phase 3.
   - Cách kiểm tra: automated contract consumer/harness xác nhận event và command output; không tuyên bố buzzer/persistence thật.
@@ -952,13 +952,13 @@ Các bullet CB1/MC-38 cần phần cứng thật vẫn là `MUST` cho final rele
   - Cách kiểm tra: MANUAL bot thật cho success/invalid token/network failure; automated duplicate episode/rate-limit tests.
   - Điều kiện được tick: một cảnh báo/episode theo policy, delivery status hiện rõ, failure có evidence và không làm mất normalized event.
 
-- [ ] **[MUST]** Triển khai YC8 classifier, live-state/history routing và Gemini grounding.
+- [x] **[MUST]** Triển khai YC8 classifier, live-state/history routing và Gemini grounding.
   - File/module dự kiến: chatbot subflows, history adapter, prompt/context builder, `docs/chatbot-grounding.md`.
   - Kết quả phải đạt: câu live lấy cache; câu history dùng adapter Supabase; Node-RED tính facts/counts; context không có JWT/secret; Gemini chỉ diễn đạt.
   - Cách kiểm tra: automated route/context snapshots, verify Node-RED facts/counts xuất hiện đúng trong structured context, missing-data/provider-error fixtures; MANUAL Gemini live credential. Numeric-token validator tinh vi chỉ là `OPTIONAL`.
   - Điều kiện được tick: live query thật đạt; history adapter contract đạt; no-data/failure trả lời kiểm soát; prompt buộc Gemini chỉ diễn đạt facts, không tự tạo số liệu. Không cần blocker là một validator phức tạp.
 
-- [ ] **[MUST]** Hoàn thiện Phase 2 documentation, regression và handoff Phase 3.
+- [x] **[MUST]** Hoàn thiện Phase 2 documentation, regression và handoff Phase 3.
   - File/module dự kiến: Node-RED/Supabase/dashboard docs, test evidence/index, `PLAN.md`.
   - Kết quả phải đạt: Thùy có thể nối buzzer, event persistence, chart/email/final Dashboard mà không sửa ngầm contract.
   - Cách kiểm tra: tái tạo key tests khi khả thi, final diff/secret/generated-flow audit và Phase 1 regression.
@@ -995,39 +995,39 @@ Các bullet CB1/MC-38 cần phần cứng thật vẫn là `MUST` cho final rele
 
 Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có thể còn `Pending` khi Phase 2 handoff nếu credential/dependency thật chưa sẵn sàng, nhưng implementation/contract test tương ứng phải đạt và test thật bắt buộc hoàn tất trước final release. `SHOULD`/`OPTIONAL` không block acceptance.
 
-- [ ] Phase 1 regression còn đạt và shared contract không bị đổi một phía.
-- [ ] **[SOFTWARE-GATE]** Device simulator/broker matrix chứng minh CB1 telemetry OPEN/CLOSED/UNKNOWN, retained/non-retained, reconnect và consumer handling theo frozen contract; không gọi đây là MC-38/ESP32 evidence.
+- [x] Phase 1 regression còn đạt và shared contract không bị đổi một phía.
+- [x] **[SOFTWARE-GATE]** Device simulator/broker matrix chứng minh CB1 telemetry OPEN/CLOSED/UNKNOWN, retained/non-retained, reconnect và consumer handling theo frozen contract; không gọi đây là MC-38/ESP32 evidence.
 - [ ] **[DEFERRED — HARDWARE-FINAL-GATE]** CB1 đọc/debounce/publish OPEN/CLOSED với MC-38/ESP32 thật; UNKNOWN dùng đúng cho boot/uninitialized/Offline/stale/invalid state, không tuyên bố phát hiện dây đứt ngoài khả năng phần cứng.
-- [ ] Node-RED validate mọi MQTT ingress trước cache/UI/event side effect.
+- [x] Node-RED validate mọi MQTT ingress trước cache/UI/event side effect.
 - [ ] YC9 register/login/logout/session/JWT, frozen Supabase access-token transport, ownership/claim và RLS hoạt động với hai user; verified token là nguồn user ID duy nhất; service-role key không ở frontend.
-- [ ] Command dispatcher kiểm tra auth/ownership cho user request; internal YC6 entrypoint không public, allowlisted/audited; cả hai kiểm tra MQTT, device freshness và pending conflict trước publish.
-- [ ] ACK matching, wrong ID, timeout, duplicate/late ACK và GET_STATE reconciliation đạt; Node-RED restart clear pending/cache freshness và ACK cũ không tạo success.
-- [ ] Authorized window đúng 30 giây mặc định/cấu hình; Node-RED restart không restore window; unauthorized event phát một lần/episode.
-- [ ] YC6 phát đúng `UNAUTHORIZED_OPEN` và `ALARM_ON` interface; Telegram adapter, payload, dedupe/rate-limit và controlled failure có automated/integration evidence. P2-M06/P2-M07 với dịch vụ thật có thể còn `FINAL-GATE` nhưng phải hoàn tất trước final release.
-- [ ] Tài liệu nói rõ actual buzzer CB3 và Supabase persistence YC4 chưa được Phase 2 tuyên bố hoàn tất.
-- [ ] YC8 live route, history adapter contract, structured context do Node-RED tính facts, no-data và controlled Gemini failure đạt; model được giới hạn ở diễn đạt dữ liệu, không phụ thuộc numeric validator tinh vi. P2-M08 dùng Gemini thật có thể còn `FINAL-GATE` nhưng phải hoàn tất trước final release.
-- [ ] Event/history/alarm interfaces có contract/fixture/documentation đủ để Phase 3 bắt đầu mà không đổi interface ngầm.
-- [ ] Không có secret, production mock data, token/JWT trong log/evidence hoặc implementation result giả.
+- [x] Command dispatcher kiểm tra auth/ownership cho user request; internal YC6 entrypoint không public, allowlisted/audited; cả hai kiểm tra MQTT, device freshness và pending conflict trước publish.
+- [x] ACK matching, wrong ID, timeout, duplicate/late ACK và GET_STATE reconciliation đạt; Node-RED restart clear pending/cache freshness và ACK cũ không tạo success.
+- [x] Authorized window đúng 30 giây mặc định/cấu hình; Node-RED restart không restore window; unauthorized event phát một lần/episode.
+- [x] YC6 phát đúng `UNAUTHORIZED_OPEN` và `ALARM_ON` interface; Telegram adapter, payload, dedupe/rate-limit và controlled failure có automated/integration evidence. P2-M06/P2-M07 với dịch vụ thật có thể còn `FINAL-GATE` nhưng phải hoàn tất trước final release.
+- [x] Tài liệu nói rõ actual buzzer CB3 và Supabase persistence YC4 chưa được Phase 2 tuyên bố hoàn tất.
+- [x] YC8 live route, history adapter contract, structured context do Node-RED tính facts, no-data và controlled Gemini failure đạt; model được giới hạn ở diễn đạt dữ liệu, không phụ thuộc numeric validator tinh vi. P2-M08 dùng Gemini thật có thể còn `FINAL-GATE` nhưng phải hoàn tất trước final release.
+- [x] Event/history/alarm interfaces có contract/fixture/documentation đủ để Phase 3 bắt đầu mà không đổi interface ngầm.
+- [x] Không có secret, production mock data, token/JWT trong log/evidence hoặc implementation result giả.
 
 ### Git Checklist
 
-- [ ] **Terra/owner:** Pull `develop` mới nhất bằng fast-forward-only; xác minh Phase 1 `COMPLETED`, Phase 2 `ACTIVE` và P1 hardware final gates vẫn deferred.
-- [ ] **Terra/owner:** Xác nhận owner Nguyễn Văn Minh và switch/tạo `phase/2-minh-security-orchestration` từ `develop`.
-- [ ] **Terra/owner:** Build/test phù hợp đã chạy; firmware regression + Node-RED/Auth/RLS/dispatcher/YC6/YC8 contract tests được ghi đúng.
-- [ ] **Terra/owner:** Manual service/account gates có environment sẵn sàng có evidence đã che token, PII và credential; MC-38/ESP32 tests thiếu hardware giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` khác ghi `Pending`, không giả PASS.
-- [ ] **Terra/owner:** Chạy final diff/source/secret/generated-flow audit; không nhận ownership CB3/YC4 và không đổi frozen contract thiếu version/evidence.
-- [ ] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary.
+- [x] **Terra/owner:** Pull `develop` mới nhất bằng fast-forward-only; xác minh Phase 1 `COMPLETED`, Phase 2 `ACTIVE` và P1 hardware final gates vẫn deferred.
+- [x] **Terra/owner:** Xác nhận owner Nguyễn Văn Minh và switch/tạo `phase/2-minh-security-orchestration` từ `develop`.
+- [x] **Terra/owner:** Build/test phù hợp đã chạy; firmware regression + Node-RED/Auth/RLS/dispatcher/YC6/YC8 contract tests được ghi đúng.
+- [x] **Terra/owner:** Manual service/account gates có environment sẵn sàng có evidence đã che token, PII và credential; MC-38/ESP32 tests thiếu hardware giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` khác ghi `Pending`, không giả PASS.
+- [x] **Terra/owner:** Chạy final diff/source/secret/generated-flow audit; không nhận ownership CB3/YC4 và không đổi frozen contract thiếu version/evidence.
+- [x] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary.
 - [ ] **Terra/owner:** Push Phase branch lên GitHub; nếu không có quyền, giữ Phase `ACTIVE` và ghi exact command.
 - [ ] **Terra/owner:** Khi SOFTWARE-GATE `PASS`, fast-forward merge Phase branch vào `develop` và push `develop`; không rewrite history hoặc force push.
 - [ ] **Terra/owner:** Chỉ sau integration push thành công, chuyển Phase 2 `ACTIVE → COMPLETED`, Phase 3 `NOT_STARTED → ACTIVE`, tạo `phase/3-thuy-data-integration` từ `develop`, push branch rồi dừng.
-- [ ] **Terra/owner:** Xác nhận Phase 1/2 hardware final gates vẫn `[ ]` và nằm trong Final Release checklist.
+- [x] **Terra/owner:** Xác nhận Phase 1/2 hardware final gates vẫn `[ ]` và nằm trong Final Release checklist.
 
 ### Handoff
 
 - Người nhận tiếp theo: **Mai Phương Thùy — 24127249**.
 - Phase tiếp theo: **Phase 3 — CB3, YC4, YC5, YC7 và final integration**.
 - Contract phải đọc: MQTT v1; normalized event; alarm request/ACK; Supabase Auth Transport + ownership; Node-RED restart recovery; state cache; history adapter; timezone/counting; Telegram status.
-- Những phần đã hoàn thành: khi handoff liệt kê đúng evidence cho CB1/YC9/dispatcher/YC6 logic/YC8 routing; baseline hiện chưa có implementation.
+- Những phần đã hoàn thành: implementation/evidence software đã có cho CB1 contract/debounce, secure dispatcher/cache/ACK/timeout/restart, YC9 schema/auth middleware/Dashboard source, YC6 logic/Telegram adapter và YC8 routing/grounding; YC9 live project gates vẫn pending nên chưa handoff/merge Phase 3.
 - Những phần còn MANUAL: liệt kê `FINAL-GATE` Telegram/Gemini nếu credential chưa có; actual CB3 buzzer, YC4 insert/RLS, actual history route, chart/email/full load/final demo thuộc Phase 3. Không dùng pending external credential để giả integration đã pass.
 - Dependency được mở khóa: door telemetry; secure dispatcher; pending/ACK/timeout; cache; auth/RLS; unauthorized event + ALARM_ON; Telegram; chatbot context adapter.
 - Dependency Phase 3 phải hoàn thiện: CB3 firmware/hardware, event schema/persistence, history query thật, YC6 full integration, YC5, YC7, final Dashboard/docs/regression.
@@ -1037,15 +1037,16 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 ### Phase Completion Summary
 
 - Status: ACTIVE
-- Implementation: Pending
-- Automated tests: Pending
-- Manual HARD-GATE tests: Pending
-- Manual FINAL-GATE tests remaining: Pending
-- Known issues: Pending
-- Deferred SHOULD/OPTIONAL items: Pending
-- Branch: `phase/2-minh-security-orchestration`, tạo từ `develop`; chưa có Phase 2 functionality trong phiên workflow transition.
-- Commit: Pending
-- Integration into `develop`: Pending cho đến khi Phase 2 SOFTWARE-GATE đạt.
+- Implementation: Phase 2 software source hiện có cho CB1 debounce/telemetry; authenticated local TCP device simulator; modular Node-RED MQTT validation/live cache/dispatcher/ACK/timeout/restart recovery; Supabase profiles/lockers/RLS/atomic claim migrations; canonical Bearer middleware; Phase 2 Dashboard auth/claim/state/control/chat surface; authorized window/unauthorized episodes; normalized event, `ALARM_ON`, notification và history contracts; Telegram/Gemini adapters. Actual CB3 và YC4/history backend production vẫn thuộc Phase 3.
+- Automated tests: PASS hiện tại — PlatformIO native 10/10 (gồm Phase 1 regression 7/7 và P2-A01 3/3); clean ESP32 build PASS; Node contract/artifact suite 38/38; P2-S01 memory fault matrix 14 scenario/8 assertion + authenticated local TCP MQTT broker/Phase2Runtime 13 assertion; npm/secret-config audit 0 finding. Corrective regression bao phủ GET_STATE không tự tái reconcile, MQTT connection generation freshness, alarm không chờ Telegram, Telegram transport timeout, event/notification contract, history-unavailable và Gemini key header. Evidence: `tests/evidence/phase-2/automated-results.md`.
+- Manual HARD-GATE tests: P2-M03–P2-M05 `[ ] Pending`. Environment hiện không có Supabase URL/key/project, FlowFuse deployment hoặc User A/User B thật; static SQL/adapter tests không được dùng thay database/browser evidence. Đây là blocker ngăn Phase 2 chuyển `COMPLETED` và ngăn merge `develop`.
+- Manual FINAL-GATE tests remaining: P2-M06/P2-M07 Telegram và P2-M08 Gemini `[ ] Pending` vì không có test credential/service configuration. Automated adapter success/failure/dedupe/grounding đã PASS nhưng không thay live service evidence.
+- Hardware final gates: P2-M01/P2-M02 `[ ] DEFERRED — HARDWARE-FINAL-GATE`; không có ESP32/MC-38, không tuyên bố GPIO/polarity/debounce/hardware verified. P1-M01–P1-M11 vẫn giữ nguyên deferred.
+- Known issues: Flash mặc định 83.9% (1,099,117/1,310,720 bytes), còn khoảng 16.1%; FlowFuse import/deploy và Supabase migrations chưa được chạy trên project thật; service/hardware gates nêu trên chưa có môi trường. Node-RED runtime phải do FlowFuse cung cấp ở phiên bản `>=4.1.13 <5`; project không vendor runtime/palette-manager npm thừa. Không có Critical/High dependency advisory trong dependency tree đã cài của project.
+- Deferred SHOULD/OPTIONAL items: MQTT ACL nâng cao; `boot_id`/sequence; persistent/distributed cache; numeric-output validator nâng cao. Không mục nào thay thế MUST.
+- Branch: `phase/2-minh-security-orchestration`, xác minh tạo đúng từ `develop`; push còn `Pending` vì quyền thực thi mạng cho `git push` không được cấp trong môi trường hiện tại. Lệnh bàn giao còn lại: `git push origin phase/2-minh-security-orchestration`.
+- Commits: `d7e1c95` — Phase 2 implementation; `9cea590` — ghi implementation evidence; `10ceb08` — corrective review fixes cho reconciliation, reconnect freshness, YC6/event/notification contracts, Dashboard, Supabase test và broker/runtime evidence.
+- Integration into `develop`: Blocked bởi P2-M03–P2-M05 manual HARD-GATE chưa có environment/evidence; giữ Phase 2 `ACTIVE`, không merge/push `develop` và không tạo Phase 3 branch.
 - Next phase: Phase 3 `NOT_STARTED`.
 
 ## 7. Phase 3 — Mai Phương Thùy

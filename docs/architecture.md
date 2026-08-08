@@ -1,15 +1,15 @@
-# Phase 1 architecture
+# Phase 1–2 architecture
 
 ## Boundary
 
-Phase 1 is an ESP32 firmware foundation. The eventual command path is:
+Phase 1 supplies the ESP32 firmware foundation. Phase 2 implements the trust boundary in the command path:
 
 ```text
 Authenticated Dashboard -> Node-RED policy/dispatcher -> authenticated MQTT broker -> ESP32
 ESP32 -> ACK/state/availability -> MQTT broker -> Node-RED
 ```
 
-Dashboard code must not contain MQTT credentials or publish directly to the ESP32. Node-RED authentication, ownership, dispatcher, dashboard, Supabase, CB1, YC6, YC8, YC9, CB3, YC4, YC5, and YC7 are explicitly outside this branch.
+Dashboard code contains no MQTT credential and never publishes to ESP32. Node-RED verifies the Supabase Bearer token, derives identity, checks ownership/readiness, and is the only MQTT command egress. Phase 2 implements CB1, YC6 logic/Telegram adapter, YC8 routing/grounding, and YC9. Actual CB3 and YC4/YC5/YC7 remain Phase 3.
 
 The YC1 path is deliberately local:
 
@@ -33,6 +33,12 @@ There is no temperature/humidity MQTT publisher in the source.
 | `environment_monitor` | YC1 DHT22 | 2.5-second polling with a valid/error reading |
 | `display_controller` | YC1 OLED | local value/error render plus Wi-Fi/MQTT status |
 | `time_utils` | NTP plausibility guard | stale check only after time sync; no invented timestamp if unsynced |
+| `door_sensor` | CB1 stable MC-38 debounce | boot UNKNOWN; stable OPEN/CLOSED; transition-only output |
+
+Node-RED responsibilities are split across `contracts`, `live-state`, `auth`,
+`dispatcher`, `security`, `telegram`, `chatbot`, and `dashboard-state`. Runtime
+restart clears pending commands, completed IDs, unlock windows, and cache
+freshness. Supabase RLS independently protects profiles/owned lockers.
 
 ## Cooperative loop
 

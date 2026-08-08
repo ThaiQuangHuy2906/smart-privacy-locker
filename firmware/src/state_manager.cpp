@@ -65,6 +65,8 @@ void StateManager::setWifiConnected(bool connected) { state_.wifiConnected = con
 
 void StateManager::setMqttConnected(bool connected) { state_.mqttConnected = connected; }
 
+void StateManager::setDoor(DoorState state) { state_.door = state; }
+
 void StateManager::setLock(LockState state) { state_.lock = state; }
 
 void StateManager::setLed(LedState state) { state_.led = state; }

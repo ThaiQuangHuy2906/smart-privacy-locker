@@ -10,6 +10,7 @@ class StateManager {
   void resetForColdBoot();
   void setWifiConnected(bool connected);
   void setMqttConnected(bool connected);
+  void setDoor(DoorState state);
   void setLock(LockState state);
   void setLed(LedState state);
 

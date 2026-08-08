@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Smart Privacy Locker — Phase 2</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header><h1>Smart Privacy Locker</h1><p id="session-label">Chưa đăng nhập</p></header>
+    <section id="auth-card" class="card">
+      <h2>Tài khoản</h2>
+      <form id="auth-form">
+        <label>Email test <input id="email" type="email" autocomplete="username" required></label>
+        <label>Mật khẩu <input id="password" type="password" autocomplete="current-password" minlength="8" required></label>
+        <div class="row"><button data-mode="login">Đăng nhập</button><button data-mode="register" class="secondary">Đăng ký</button></div>
+      </form>
+      <button id="logout" class="danger" hidden>Đăng xuất</button>
+      <p id="auth-message" role="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>Tủ sở hữu</h2>
+      <form id="claim-form" class="row"><input id="locker-code" value="LOCKER-001" aria-label="Mã tủ"><button>Claim một lần</button></form>
+      <label>Locker ID <input id="locker-id" value="LOCKER-001"></label>
+    </section>
+
+    <section class="card state-grid" aria-live="polite">
+      <h2>Trạng thái trực tiếp</h2>
+      <div><span>MQTT</span><strong id="mqtt">DISCONNECTED</strong></div>
+      <div><span>ESP32</span><strong id="device">OFFLINE</strong></div>
+      <div><span>Cửa</span><strong id="door">UNKNOWN</strong></div>
+      <div><span>Khóa</span><strong id="lock">UNKNOWN — chưa xác nhận</strong></div>
+      <div><span>Cập nhật</span><strong id="updated">—</strong></div>
+      <div><span>Cảnh báo mới nhất</span><strong id="alert">—</strong></div>
+      <p id="state-message" role="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>Điều khiển qua Node-RED</h2>
+      <div class="controls">
+        <button data-action="LOCK" data-domain="lock">Khóa</button><button data-action="UNLOCK" data-domain="lock">Mở khóa</button>
+        <button data-action="LED_ON" data-domain="led">Bật LED</button><button data-action="LED_OFF" data-domain="led">Tắt LED</button>
+      </div>
+      <p id="command-message" role="status">Success chỉ xuất hiện sau ACK hợp lệ.</p>
+    </section>
+
+    <section class="card">
+      <h2>Chatbot YC8</h2>
+      <form id="chat-form"><label>Câu hỏi <input id="question" value="Cửa tủ hiện tại đang mở hay đóng?"></label><button>Gửi</button></form>
+      <pre id="answer" aria-live="polite"></pre>
+    </section>
+  </main>
+  <script src="app.js" defer></script>
+</body>
+</html>

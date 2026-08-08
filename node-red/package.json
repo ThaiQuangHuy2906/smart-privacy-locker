@@ -1,0 +1,26 @@
+{
+  "name": "smart-privacy-locker-phase2",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Phase 2 Node-RED orchestration and contract tests",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:simulator": "node ../tools/device-simulator/run-matrix.js",
+    "test:broker": "node ../tools/device-simulator/run-live-broker.js",
+    "audit": "node scripts/audit-config.js"
+  },
+  "dependencies": {
+    "@flowfuse/node-red-dashboard": "1.29.0"
+  },
+  "devDependencies": {
+    "aedes": "1.1.1",
+    "mqtt": "5.15.2"
+  },
+  "peerDependencies": {
+    "node-red": ">=4.1.13 <5"
+  },
+  "peerDependenciesMeta": {
+    "node-red": { "optional": true }
+  }
+}

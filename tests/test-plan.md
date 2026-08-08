@@ -1,4 +1,4 @@
-# Phase 1 test plan
+# Phase 1 regression and Phase 2 test plan
 
 ## Automated checks
 
@@ -13,7 +13,7 @@ The exact executed results are in `evidence/phase-1/automated-results.md`. The l
 
 ## Deferred HARDWARE-FINAL-GATE tests
 
-All P1-M01–P1-M11 rows remain `[ ] DEFERRED — HARDWARE-FINAL-GATE` until a real tester with ESP32 hardware, modules, phone, and broker completes the procedure and stores the requested redacted evidence. They are mandatory before final release/demo; under the SOFTWARE-FIRST workflow they do not block Phase 1 from moving to `READY_FOR_REVIEW` after its SOFTWARE-GATE evidence is complete. They are not PASS or VERIFIED.
+All P1-M01–P1-M11 rows remain `[ ] DEFERRED — HARDWARE-FINAL-GATE` until a real tester with ESP32 hardware, modules, phone, and broker completes the procedure and stores the requested redacted evidence. They are mandatory before final release/demo; under the SOFTWARE-FIRST workflow they did not block the accepted Phase 1 software handoff. They are not PASS or VERIFIED.
 
 | ID | Procedure | Expected result | Evidence |
 |---|---|---|---|
@@ -51,3 +51,35 @@ git check-ignore -v .env firmware/include/secrets.h firmware/.pio
 ```
 
 The `rg` command may find harmless variable names in `.env.example` or documentation; inspect each match. A real value, private key, JWT, Wi-Fi password, or unredacted broker credential is a stop-and-rotate incident, not a suppressible warning.
+
+## Phase 2 automated SOFTWARE-GATE
+
+| ID | Executed command/suite | Coverage | Expected |
+|---|---|---|---|
+| P2-A01 | `platformio test -e native` (`test_door_sensor`) | boot UNKNOWN, 50 ms boundary, bounce, wrap-safe time | one stable edge, 3/3 pass |
+| P2-S01 | `npm run test:broker` + `node tools/device-simulator/run-matrix.js` | authenticated local TCP broker passes availability/state/door/ACK through `Phase2Runtime`; deterministic fault matrix adds success/error/duplicate/delay/no ACK/wrong/malformed/reconnect/GET_STATE | broker runtime integration and matrix pass; simulator label retained |
+| P2-A02 | Node `contracts.test.js` | JSON/schema/topic/locker/enum/time/ACK validation | invalid input has no accepted side effect |
+| P2-A03 | Node `auth-dispatch.test.js` | Bearer, expired/missing/spoofed user, wrong owner, readiness | 401/403/503 and zero denied publish |
+| P2-A04/A05 | Node dispatcher tests | server UUID/time/requester, pending domains | valid publish; conflict rejected |
+| P2-A06/A07 | Node ACK/restart tests | match/wrong/duplicate/late ACK, restart | only current exact pending succeeds |
+| P2-A08 | Node virtual-clock timeout | 5000 ms, no actuator retry, one GET_STATE; expire the reconciliation command too | controlled timeout with no recursive GET_STATE |
+| P2-A09/A10 | Node security timeline | window boundary/consume/restart, unauthorized OPEN | deterministic classification + ALARM_ON |
+| P2-A11 | Node Telegram/security tests | episode dedupe, rate limit, failure, provider stall | one attempt/episode; ALARM_ON does not wait for Telegram |
+| P2-A12/A13 | Node chatbot tests | live/missing/provider error/history counts/context | grounded whitelist, controlled failures |
+| YC9 static | Node artifact tests | ordered SQL, RLS clauses, atomic claim/no owner update policy | contract assertions pass |
+| Secret/dependency | `npm audit --audit-level=high`, `npm run audit` | installed Dashboard dependency and committed source/config | 0 vulnerabilities; 0 secret/config findings |
+
+Exact output is recorded in `evidence/phase-2/automated-results.md`.
+
+## Phase 2 manual gates
+
+- [ ] P2-M01/P2-M02 — `DEFERRED — HARDWARE-FINAL-GATE`: no ESP32/MC-38 is attached; simulator cannot replace polarity, GPIO, physical debounce, retained/non-retained broker capture, or Dashboard hardware evidence.
+- [ ] P2-M03 — `MANUAL — HARD-GATE Pending`: no `SUPABASE_URL`/anon project and no FlowFuse deployment/session are configured on this workstation.
+- [ ] P2-M04 — `MANUAL — HARD-GATE Pending`: User A/User B and Locker A/Locker B must be created in a disposable Supabase project and tested through UI/direct API plus broker spy.
+- [ ] P2-M05 — `MANUAL — HARD-GATE Pending`: first/double claim must be executed against that real project; static SQL assertions are not database runtime evidence.
+- [ ] P2-M06/P2-M07 — `MANUAL — FINAL-GATE Pending`: Telegram token/chat ID are absent. Automated adapter success/failure/dedupe is PASS only at contract level.
+- [ ] P2-M08 — `MANUAL — FINAL-GATE Pending`: Gemini key/model are absent. Automated provider error/grounding is PASS only at contract level.
+
+Phase 2 stays `ACTIVE` while P2-M03–P2-M05 are pending. It must not be merged to
+`develop`, marked `COMPLETED`, or used to activate Phase 3 until those hard gates
+have real sanitized evidence.

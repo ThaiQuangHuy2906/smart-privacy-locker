@@ -1,6 +1,6 @@
-# ESP32 firmware — Phase 1
+# ESP32 firmware — Phase 1 baseline + Phase 2 CB1
 
-This is a PlatformIO project for the ESP32 Dev Module profile `esp32dev`. It is intentionally limited to the firmware foundation plus CB2, YC1, YC3, and YC12.
+This is a PlatformIO project for the ESP32 Dev Module profile `esp32dev`. It contains the accepted Phase 1 foundation (CB2, YC1, YC3, YC12) and Phase 2 CB1 MC-38 monitoring. It still does not implement Phase 3 CB3 buzzer hardware.
 
 ## Pinned toolchain
 
@@ -82,7 +82,13 @@ To clear only Wi-Fi configuration, open the USB serial monitor and send a single
 - MQTT reconnect is bounded from 1 second up to 30 seconds. With PubSubClient 2.8, a broker connection becomes operational only after the `command` SUBSCRIBE packet is sent successfully by the local transport. That return value is not broker confirmation: the library does not wait for or expose a SUBACK grant/rejection. The firmware then publishes retained `ONLINE` and retained full state before the next MQTT callback can process a command. If the local/send-level `subscribe()` call returns false, it sets MQTT state false, publishes retained `OFFLINE` when possible, disconnects, and waits for the bounded retry; it does not publish a false `ONLINE` state.
 - PubSubClient publishes at QoS 0. The design therefore uses correlated ACKs, bounded duplicate cache, Node-RED timeout, and `GET_STATE` reconciliation instead of claiming delivery exactly once.
 - The servo is **not attached at boot**. `lock=UNKNOWN` remains until a new valid `LOCK` or `UNLOCK` action finishes.
+- GPIO27 is sampled with `INPUT_PULLUP` through a 50 ms non-blocking stable debounce. Door remains `UNKNOWN` until the first full stable interval. A later stable edge publishes one non-retained `telemetry/door` message and updates retained full state. Unsynchronized telemetry uses `timestamp:null,time_synced:false`.
 - `ALARM_ON`/`ALARM_OFF` parse as valid shared-contract actions but return a deterministic `ACTUATION_FAILED` ACK. GPIO 26 and CB3 are not configured in Phase 1.
 - DHT22 readings are rendered only to OLED. No DHT telemetry topic exists.
 
 The authoritative payload and state rules are [../docs/mqtt-contract.md](../docs/mqtt-contract.md).
+
+The committed electrical mapping (`LOW` with the reed closed to ground) is a
+candidate software configuration. P2-M01/P2-M02 must verify polarity, physical
+magnet placement, pull-up, debounce, and retained/non-retained behavior on a
+real ESP32/MC-38. A simple two-wire input does not detect a broken wire.
