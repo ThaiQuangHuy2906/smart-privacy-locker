@@ -1044,8 +1044,8 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Hardware final gates: P2-M01/P2-M02 `[ ] DEFERRED — HARDWARE-FINAL-GATE`; không có ESP32/MC-38, không tuyên bố GPIO/polarity/debounce/hardware verified. P1-M01–P1-M11 vẫn giữ nguyên deferred.
 - Known issues: Flash mặc định 83.9% (1,099,117/1,310,720 bytes), còn khoảng 16.1%; FlowFuse import/deploy và Supabase migrations chưa được chạy trên project thật; service/hardware gates nêu trên chưa có môi trường. Node-RED runtime phải do FlowFuse cung cấp ở phiên bản `>=4.1.13 <5`; project không vendor runtime/palette-manager npm thừa. Không có Critical/High dependency advisory trong dependency tree đã cài của project.
 - Deferred SHOULD/OPTIONAL items: MQTT ACL nâng cao; `boot_id`/sequence; persistent/distributed cache; numeric-output validator nâng cao. Không mục nào thay thế MUST.
-- Branch: `phase/2-minh-security-orchestration`, xác minh tạo đúng từ `develop`; implementation commit đã tạo cục bộ, trạng thái remote được cập nhật sau khi push thành công.
-- Commit: `d7e1c95` — Phase 2 implementation, automated evidence và software-gate documentation.
+- Branch: `phase/2-minh-security-orchestration`, xác minh tạo đúng từ `develop`; push còn `Pending` vì quyền thực thi mạng cho `git push` không được cấp trong môi trường hiện tại. Lệnh bàn giao còn lại: `git push origin phase/2-minh-security-orchestration`.
+- Commits: `d7e1c95` — Phase 2 implementation, automated evidence và software-gate documentation; `9cea590` — ghi implementation evidence vào kế hoạch.
 - Integration into `develop`: Blocked bởi P2-M03–P2-M05 manual HARD-GATE chưa có environment/evidence; giữ Phase 2 `ACTIVE`, không merge/push `develop` và không tạo Phase 3 branch.
 - Next phase: Phase 3 `NOT_STARTED`.
 
