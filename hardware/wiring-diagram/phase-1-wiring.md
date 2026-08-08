@@ -26,6 +26,7 @@ ESP32 GPIO25 --- 330–470 ohm --- WS2812B DIN
 ESP32 GPIO4  --- DHT22 data (10 kΩ pull-up to module VCC if absent)
 ESP32 GPIO21 --- OLED SDA
 ESP32 GPIO22 --- OLED SCL
+ESP32 GPIO27 --- MC-38 reed switch --- common GND (Phase 2, INPUT_PULLUP)
 ```
 
 `*` Consult the exact OLED and DHT22 module marking before choosing 3.3 V or 5 V VCC. ESP32 GPIO signal levels remain 3.3 V. A level shifter for WS2812B is conditional: add a proper 3.3 V→5 V buffer only if a real test proves the first pixel data is unreliable. Do not add arbitrary components without documenting the result.
@@ -37,7 +38,7 @@ ESP32 GPIO22 --- OLED SCL
 3. Keep servo/LED load leads short and adequately sized. Route their high-current path separately from sensitive signal wiring where possible.
 4. Place the WS2812B bulk capacitor at the strip input and series resistor in the data lead close to that input.
 5. Check polarity, continuity, and exposed conductors before applying power. Disconnect power immediately for heat, smell, brownout/reboot, or unstable rail.
-6. GPIO 26/buzzer and GPIO 27/MC-38 are shown only as reserved in `pin-map.md`; do not wire/enable them as proof of Phase 1 functionality.
+6. GPIO26/buzzer remains reserved for Phase 3. GPIO27/MC-38 is active Phase 2 scope, but its candidate polarity is not hardware-verified until P2-M01/P2-M02.
 
 ## Preliminary budget—not measurement evidence
 

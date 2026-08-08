@@ -23,4 +23,8 @@ constexpr uint8_t WS2812_PIXEL_COUNT = 1;
 constexpr uint8_t WS2812_BRIGHTNESS = 32;
 constexpr uint16_t WIFI_PORTAL_TIMEOUT_SECONDS = 180;
 constexpr char WIFI_PORTAL_AP_NAME[] = "Locker-Setup";
+constexpr uint32_t DOOR_DEBOUNCE_MS = 50;
+// MC-38 is wired from GPIO27 to ground with INPUT_PULLUP. A closed reed
+// therefore reads LOW when the magnet is in the verified closed position.
+constexpr bool MC38_CLOSED_LEVEL_HIGH = false;
 }  // namespace AppConfig

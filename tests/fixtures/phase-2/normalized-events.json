@@ -1,0 +1,40 @@
+[
+  {
+    "schema_version": 1,
+    "event_id": "30000000-0000-4000-8000-000000000001",
+    "event_type": "DOOR_OPENED",
+    "locker_id": "LOCKER-001",
+    "device": "door",
+    "action": null,
+    "source": "sensor",
+    "result": "observed",
+    "authorized": false,
+    "command_id": null,
+    "device_state": {"door":"OPEN","lock":"LOCKED","alarm":"INACTIVE","led":"OFF"},
+    "error": null,
+    "occurred_at": "2026-08-08T08:00:00.000Z",
+    "recorded_at": "2026-08-08T08:00:00.100Z",
+    "principal": null,
+    "notification_status": null,
+    "metadata": {"detector":"authorized-window-v1"}
+  },
+  {
+    "schema_version": 1,
+    "event_id": "30000000-0000-4000-8000-000000000002",
+    "event_type": "UNAUTHORIZED_OPEN",
+    "locker_id": "LOCKER-001",
+    "device": "door",
+    "action": null,
+    "source": "sensor",
+    "result": "observed",
+    "authorized": false,
+    "command_id": null,
+    "device_state": {"door":"OPEN","lock":"LOCKED","alarm":"INACTIVE","led":"OFF"},
+    "error": null,
+    "occurred_at": "2026-08-08T08:00:00.000Z",
+    "recorded_at": "2026-08-08T08:00:00.100Z",
+    "principal": "system:unauthorized-detector",
+    "notification_status": "delivered",
+    "metadata": {"episode_key":"LOCKER-001:2026-08-08T08:00:00.000Z"}
+  }
+]

@@ -1,12 +1,13 @@
 # Firmware automated tests
 
-`test/test_command_contract/test_main.cpp` covers the Phase 1 behavior that does not need an ESP32 or live broker:
+The native environments cover Phase 1 command behavior plus Phase 2 door debounce without an ESP32 or live broker:
 
 - valid command fields and allowed actions;
 - malformed versus correlatable invalid messages;
 - locker/action/staleness validation;
 - duplicate ACK replay that preserves the original state; and
 - cold-boot `UNKNOWN` lock state.
+- CB1 boot `UNKNOWN`, exact debounce boundary, bounce suppression, wrap-safe timing, and stable OPEN/CLOSED mapping.
 
 Run it from `firmware/`:
 

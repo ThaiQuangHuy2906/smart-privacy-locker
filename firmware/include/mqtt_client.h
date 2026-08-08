@@ -18,6 +18,8 @@ class MqttClient {
   bool isConnected();
   bool publishAck(const AckRecord& record, bool duplicate, const char* timestamp);
   bool publishState(const DeviceState& state, bool retained = true);
+  bool publishDoorTransition(DoorState previous, DoorState current,
+                             const char* timestamp, bool timeSynced);
   void disconnectGracefully();
 
  private:

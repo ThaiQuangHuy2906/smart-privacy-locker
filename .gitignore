@@ -17,6 +17,8 @@ node-red/.node-red/
 node-red/flows_*.json
 node-red/*.cred.json
 node-red/*.credentials.json
+node_modules/
+.tools/
 
 # Logs, captures, caches, and temporary evidence
 *.log

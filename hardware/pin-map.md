@@ -9,7 +9,7 @@
 | WS2812B data (YC3) | 25 | active | install 330–470 Ω series resistor near the first pixel data input |
 | OLED SDA (YC1) | 21 | active | proposed I2C default |
 | OLED SCL (YC1) | 22 | active | proposed I2C default |
-| MC-38 door sensor (CB1) | 27 | reserved only | not configured or read until Phase 2 |
+| MC-38 door sensor (CB1) | 27 | active in Phase 2 (`INPUT_PULLUP`) | candidate LOW=CLOSED mapping; verify reed polarity/placement in P2-M01/M02 |
 | Active buzzer control (CB3) | 26 | reserved only | not configured or driven until Phase 3 |
 
 GPIO 0, 2, 12, and 15 are not allocated by this plan because they can affect ESP32 boot strapping. GPIO 34–39 are input-only and are likewise not used for a driven peripheral. Do not assume a board clone labels every pin identically: verify the actual board label, serial upload, and voltage before connecting a load.

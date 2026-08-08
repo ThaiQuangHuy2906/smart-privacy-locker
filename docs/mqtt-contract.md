@@ -1,8 +1,8 @@
-# MQTT contract v1 — Phase 1 submission
+# MQTT contract v1 — frozen Phase 2 baseline
 
 **Schema version:** `1`
 
-**Status:** implemented by Phase 1 firmware; **pending required review/freeze by Nguyễn Văn Minh**. Do not change topics, enum strings, fields, timeout semantics, or error behavior unilaterally.
+**Status:** implemented by Phase 1 firmware and reviewed/frozen by Nguyễn Văn Minh for Phase 2 on 2026-08-08. No schema, topic, enum, retained behavior, ACK, QoS, or timeout semantic changed during the freeze.
 
 This document transcribes the Phase 1 shared contract from `PLAN.md` Section 4 and records the actual firmware constraint that PubSubClient publishes at QoS 0.
 
@@ -15,7 +15,7 @@ Base topic: `locker/{locker_id}`. The `locker_id` in topic and payload must matc
 | `locker/{locker_id}/command` | Node-RED | ESP32 | no | broker/client configured maximum; ESP32 receives no retained command | actuator/`GET_STATE` request |
 | `locker/{locker_id}/ack` | ESP32 | Node-RED | no | 0 | correlated command result |
 | `locker/{locker_id}/state` | ESP32 | Node-RED | yes | 0 | latest complete device state |
-| `locker/{locker_id}/telemetry/door` | ESP32 (Phase 2) | Node-RED | no | 0 when added | debounced transition; not a replay log |
+| `locker/{locker_id}/telemetry/door` | ESP32 | Node-RED | no | 0 | Phase 2 debounced transition; not a replay log |
 | `locker/{locker_id}/availability` | ESP32/LWT | Node-RED | yes | 0 | current online/offline indication |
 
 PubSubClient has no QoS 1 publish API in this implementation. Node-RED must wait for a valid ACK and use timeout plus `GET_STATE` reconciliation; it must not infer success from broker publish alone.
@@ -105,8 +105,12 @@ Reconnect starts at 1 second and doubles to a maximum of 30 seconds without a bu
 
 ## Node-RED obligations (Phase 2)
 
-Generate UUID v4 server-side; maintain pending request/domain/deadline; disable conflicting controls; accept ACK only when schema, pending ID, locker, and expected action/state are valid. Default timeout is 5000 ms: show controlled timeout, do not retry an actuator, issue one `GET_STATE` if connected. Restart clears pending commands and unlock windows; only fresh availability plus state enables controls. These obligations are not implemented in Phase 1 firmware.
+Generate UUID v4 server-side; maintain pending request/domain/deadline; disable conflicting controls; accept ACK only when schema, pending ID, locker, and expected action/state are valid. Default timeout is 5000 ms: show controlled timeout, do not retry an actuator, issue one `GET_STATE` if connected. Restart clears pending commands and unlock windows; only fresh availability plus state enables controls. The Phase 2 implementation is in `node-red/lib/` and the modular export is `node-red/flows.json`.
 
 ## Compatibility/test fixtures
 
 Breaking changes require a new schema version and same-change updates to producers, consumers, fixtures, and migration notes. The implementation fixtures are in `firmware/test/test_command_contract/test_main.cpp`; current evidence is in `tests/evidence/phase-1/`.
+
+## Phase 2 review/change log
+
+- `2026-08-08` — Nguyễn Văn Minh reviewed producer/consumer fields, frozen v1 unchanged, implemented MC-38 telemetry producer and Node-RED validators. Additive non-MQTT normalized event/history/notification contracts are versioned separately in `event-contract.md`.

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "locker_id": "LOCKER-001",
+  "clock": "2026-08-08T08:00:00.000Z",
+  "command": {
+    "schema_version": 1,
+    "command_id": "10000000-0000-4000-8000-000000000001",
+    "locker_id": "LOCKER-001",
+    "action": "GET_STATE",
+    "issued_at": "2026-08-08T08:00:00.000Z",
+    "requested_by": "20000000-0000-4000-8000-000000000001"
+  },
+  "modes": ["success", "error", "duplicate", "delayed", "no_ack", "wrong_id", "wrong_locker", "wrong_action", "wrong_state", "malformed"]
+}

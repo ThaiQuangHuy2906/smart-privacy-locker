@@ -1,0 +1,22 @@
+{
+  "request": {
+    "schema_version": 1,
+    "request_id": "40000000-0000-4000-8000-000000000001",
+    "locker_id": "LOCKER-001",
+    "question": "Trong 7 ngày có bao nhiêu lần mở tủ?",
+    "requested_by": "20000000-0000-4000-8000-000000000001",
+    "requested_at": "2026-08-08T08:00:00.000Z"
+  },
+  "response": {
+    "schema_version": 1,
+    "request_id": "40000000-0000-4000-8000-000000000001",
+    "locker_id": "LOCKER-001",
+    "range": {"from":"2026-08-01T00:00:00.000Z","to":"2026-08-08T00:00:00.000Z"},
+    "events": [
+      {"event_type":"DOOR_OPENED","occurred_at":"2026-08-07T08:00:00.000Z","authorized":true},
+      {"event_type":"DOOR_OPENED","occurred_at":"2026-08-07T09:00:00.000Z","authorized":false},
+      {"event_type":"UNAUTHORIZED_OPEN","occurred_at":"2026-08-07T09:00:00.000Z","authorized":false}
+    ],
+    "source": "phase2-contract-fixture"
+  }
+}

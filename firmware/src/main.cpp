@@ -6,10 +6,12 @@
 #include "ack_publisher.h"
 #include "command_handler.h"
 #include "display_controller.h"
+#include "door_sensor.h"
 #include "environment_monitor.h"
 #include "led_controller.h"
 #include "lock_controller.h"
 #include "mqtt_client.h"
+#include "pin_map.h"
 #include "runtime_config.h"
 #include "state_manager.h"
 #include "time_utils.h"
@@ -23,6 +25,7 @@ LockController lockController;
 LedController ledController;
 EnvironmentMonitor environmentMonitor;
 DisplayController displayController;
+DoorSensor doorSensor(AppConfig::DOOR_DEBOUNCE_MS, AppConfig::MC38_CLOSED_LEVEL_HIGH);
 RecentCommandCache recentCommands(AppConfig::RECENT_COMMAND_CACHE_SIZE);
 
 AckRecord inFlightLockAck;
@@ -185,6 +188,8 @@ void processUsbMaintenanceCommand() {
 void setup() {
   Serial.begin(115200);
   stateManager.resetForColdBoot();
+  pinMode(static_cast<int>(PinMap::MC38_DOOR_SENSOR), INPUT_PULLUP);
+  doorSensor.reset();
   lockController.begin();
   ledController.begin();
   environmentMonitor.begin();
@@ -213,4 +218,17 @@ void loop() {
 
   environmentMonitor.tick(now);
   displayController.tick(now, environmentMonitor.latest(), stateManager.current());
+
+  DoorTransition doorTransition;
+  if (doorSensor.sample(digitalRead(static_cast<int>(PinMap::MC38_DOOR_SENSOR)) == HIGH,
+                        now, &doorTransition)) {
+    stateManager.setDoor(doorTransition.current);
+    if (!doorTransition.initialStableSample) {
+      char timestamp[25] = {};
+      const bool timeSynced = formatUtcTimestamp(timestamp, sizeof(timestamp));
+      mqttClient.publishDoorTransition(doorTransition.previous, doorTransition.current,
+                                       timeSynced ? timestamp : nullptr, timeSynced);
+    }
+    mqttClient.publishState(stateManager.current(), true);
+  }
 }

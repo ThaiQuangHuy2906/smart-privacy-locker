@@ -1,0 +1,4 @@
+[
+  {"schema_version":1,"event_id":"30000000-0000-4000-8000-000000000002","channel":"telegram","status":"delivered","attempts":1,"attempted_at":"2026-08-08T08:00:00.200Z","error":null},
+  {"schema_version":1,"event_id":"30000000-0000-4000-8000-000000000003","channel":"telegram","status":"failed","attempts":1,"attempted_at":"2026-08-08T08:01:00.200Z","error":{"code":"HTTP_401","message":"Provider rejected the request"}}
+]

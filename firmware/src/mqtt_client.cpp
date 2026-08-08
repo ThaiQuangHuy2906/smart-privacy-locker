@@ -107,6 +107,36 @@ bool MqttClient::publishState(const DeviceState& state, bool retained) {
   return mqtt_.publish(topic, payload, retained);
 }
 
+bool MqttClient::publishDoorTransition(DoorState previous, DoorState current,
+                                       const char* timestamp, bool timeSynced) {
+  if (!mqtt_.connected() || previous == DoorState::UNKNOWN ||
+      (current != DoorState::OPEN && current != DoorState::CLOSED)) {
+    return false;
+  }
+  JsonDocument document;
+  document["schema_version"] = 1;
+  document["locker_id"] = AppConfig::LOCKER_ID;
+  document["previous_state"] = toString(previous);
+  document["state"] = toString(current);
+  if (timeSynced && timestamp != nullptr) {
+    document["timestamp"] = timestamp;
+  } else {
+    document["timestamp"] = nullptr;
+  }
+  document["time_synced"] = timeSynced;
+
+  char topic[112] = {};
+  char payload[256] = {};
+  makeTopic("telemetry/door", topic, sizeof(topic));
+  if (serializeJson(document, payload, sizeof(payload)) >= sizeof(payload)) {
+    Serial.println("Door telemetry serialization failed");
+    return false;
+  }
+  // Door transitions are deliberately non-retained. Full state is published
+  // separately so a new consumer never replays an old door-open episode.
+  return mqtt_.publish(topic, payload, false);
+}
+
 void MqttClient::disconnectGracefully() {
   if (mqtt_.connected()) {
     publishAvailability("OFFLINE", true);

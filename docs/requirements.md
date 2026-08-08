@@ -1,4 +1,4 @@
-# Requirement traceability — Phase 1 implementation
+# Requirement traceability — Phase 1 and active Phase 2
 
 | Requirement | Owner | Phase | Module(s) | Verification route | Current evidence status |
 |---|---|---|---|---|---|
@@ -9,4 +9,14 @@
 
 Shared Phase 1 foundation is `mqtt_client`, `state_manager`, `command_handler`, and `ack_publisher`. It supports the frozen v1 action allowlist, including alarm actions needed later, but it does not actuate the Phase 3 buzzer.
 
-The following are intentionally not implemented in this branch: CB1, CB3, YC4, YC5, YC6, YC7, YC8, YC9. Their ownership and phase assignment remain exactly as recorded in `PLAN.md`.
+Phase 2 does not implement actual CB3, YC4 persistence/history backend, YC5, or YC7. Their ownership and phase assignment remain exactly as recorded in `PLAN.md`.
+
+| Requirement | Owner | Phase 2 module(s) | Verification | Current evidence |
+|---|---|---|---|---|
+| CB1 | Nguyễn Văn Minh — 24127205 | `door_sensor`, MQTT telemetry, cache/Dashboard | P2-A01/P2-S01; P2-M01/M02 | automated/simulator PASS; hardware deferred |
+| YC6 | Nguyễn Văn Minh — 24127205 | `security`, dispatcher internal entry, events, Telegram | P2-A09–A11 | automated PASS; live Telegram final-gate pending |
+| YC8 | Nguyễn Văn Minh — 24127205 | `chatbot`, history adapter/context | P2-A12/A13 | automated PASS; Gemini final-gate pending |
+| YC9 | Nguyễn Văn Minh — 24127205 | auth gate, Dashboard session, migrations/RLS/claim | P2-A03 + P2-M03–M05 | automated contract PASS; manual hard-gate pending |
+
+CB3 and YC4 remain owned by Mai Phương Thùy in Phase 3. Phase 2 provides only
+the `ALARM_ON` and normalized event/history consumer contracts.

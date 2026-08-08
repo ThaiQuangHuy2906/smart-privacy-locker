@@ -1,0 +1,22 @@
+{
+  "command": {
+    "schema_version": 1,
+    "command_id": "10000000-0000-4000-8000-000000000201",
+    "locker_id": "LOCKER-001",
+    "action": "ALARM_ON",
+    "issued_at": "2026-08-08T08:00:00.000Z",
+    "requested_by": "system:unauthorized-detector"
+  },
+  "ack": {
+    "schema_version": 1,
+    "command_id": "10000000-0000-4000-8000-000000000201",
+    "locker_id": "LOCKER-001",
+    "action": "ALARM_ON",
+    "result": "success",
+    "device_state": {"door":"OPEN","lock":"LOCKED","alarm":"ACTIVE","led":"OFF"},
+    "error": null,
+    "duplicate": false,
+    "timestamp": "2026-08-08T08:00:01.000Z"
+  },
+  "phase_3_note": "ACK success becomes real only after Phase 3 implements CB3; this is a consumer fixture, not hardware evidence."
+}

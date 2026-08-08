@@ -11,7 +11,7 @@ constexpr gpio_num_t WS2812B_DATA = GPIO_NUM_25;
 constexpr gpio_num_t OLED_SDA = GPIO_NUM_21;
 constexpr gpio_num_t OLED_SCL = GPIO_NUM_22;
 
-// Reserved only for later owner phases; this firmware does not configure them.
-constexpr gpio_num_t MC38_RESERVED = GPIO_NUM_27;
+constexpr gpio_num_t MC38_DOOR_SENSOR = GPIO_NUM_27;
+// Reserved for Phase 3; this firmware does not configure or drive it.
 constexpr gpio_num_t BUZZER_RESERVED = GPIO_NUM_26;
 }  // namespace PinMap
