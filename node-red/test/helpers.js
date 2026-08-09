@@ -24,7 +24,7 @@ function availability(lockerId = LOCKER_A, status = 'ONLINE') {
   return { schema_version: 1, locker_id: lockerId, status, sent_at: '2026-08-08T08:00:00.000Z' };
 }
 
-function makeRuntime({ history, provider, telegramTransport } = {}) {
+function makeRuntime({ history, provider, telegramTransport, runtimeOptions = {}, telegramOptions = {} } = {}) {
   const clock = { value: Date.parse('2026-08-08T08:00:00.000Z') };
   const publications = [];
   const authAdapter = {
@@ -40,14 +40,15 @@ function makeRuntime({ history, provider, telegramTransport } = {}) {
     async claim(_token, code) { return { locker_code: code, owner_id: USER_A }; },
   };
   const telegram = new TelegramAdapter({ transport: telegramTransport || (async () => {}),
-    dashboardUrl: 'https://dashboard.example.test', now: () => clock.value, rateLimitMs: 1000 });
+    dashboardUrl: 'https://dashboard.example.test', now: () => clock.value, rateLimitMs: 1000,
+    ...telegramOptions });
   const runtime = new Phase2Runtime({ authGate: new AuthGate(authAdapter),
     publish: (topic, payload, options) => publications.push({ topic, payload, options }),
     history: history || { async query(request) { return { schema_version: 1,
       request_id: request.request_id, locker_id: request.locker_id, range: { from: '2026-08-01T00:00:00.000Z', to: '2026-08-08T00:00:00.000Z' },
       source: 'fixture', events: [] }; } },
     telegram, gemini: provider || null, timeoutMs: 5000, windowMs: 30000,
-    staleAfterMs: 30000, now: () => clock.value, uuid: uuidSequence() });
+    staleAfterMs: 30000, now: () => clock.value, uuid: uuidSequence(), ...runtimeOptions });
   return { runtime, clock, publications };
 }
 

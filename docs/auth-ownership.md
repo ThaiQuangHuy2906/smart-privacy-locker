@@ -3,7 +3,7 @@
 **Owner:** Nguyễn Văn Minh — 24127205
 
 **Canonical transport:** `Authorization: Bearer <Supabase access_token>`
-**Status:** implementation frozen at schema version 1; P2-M03 live FlowFuse/Supabase evidence remains `MANUAL — HARD-GATE Pending` because this workstation has no Supabase project configuration.
+**Status:** implementation frozen at schema version 1; development FlowFuse and Supabase configuration exists and provisional auth/claim checks are expected, but the final generated bundle and sanitized P2-M03–P2-M05 two-user evidence remain `MANUAL — HARD-GATE Pending`.
 
 ## Trust boundary
 
@@ -32,7 +32,13 @@ side effects, or settings work.
 
 Missing/malformed/expired/revoked token returns `401`. A verified user who does
 not own the selected locker returns `403`. Auth/ownership provider failure
-returns `503`; it is fail-closed. Claim conflict returns `409`. CORS should allow
+or malformed provider success returns `503`; each Node-RED provider request,
+including successful response-body parsing, has a bounded five-second timeout,
+the complete authorization gate has a 9-second
+aggregate deadline (shorter than the browser's 15-second deadline), and failures
+are fail-closed and never
+reclassified as an invalid session. Claim conflict returns `409`; a successful
+table-returning claim RPC is normalized to its single locker row. CORS should allow
 only the deployed Dashboard origin when the static Dashboard and API are on
 different origins. The default deployment serves both from Node-RED, so no
 cross-origin API exception is required; Supabase project allowed origins must
@@ -41,17 +47,32 @@ include the Dashboard URL.
 ## Session lifecycle
 
 The Dashboard obtains `access_token`, `refresh_token`, and `expires_at` from
-Supabase `/auth/v1/signup` or `/auth/v1/token?grant_type=password`. It stores the
+Supabase `/auth/v1/signup`, `/auth/v1/token?grant_type=password`, or the
+configured implicit-flow callback fragment. A callback fragment is parsed and
+removed with `history.replaceState` before the first asynchronous startup
+request, so tokens do not remain visible in the address bar. The app stores the
 session in browser `sessionStorage`, restores it on reload, refreshes about 60
 seconds before expiry through `grant_type=refresh_token`, and clears local state
-on refresh failure or any protected `401`. Logout calls `/auth/v1/logout`, clears
-the session, disables controls, and removes sensitive UI state. The refresh
-token never travels to Node-RED; only the current access token does.
+on a rejected refresh or a protected `401` that still belongs to the current
+session. Late authentication/claim completions cannot unlock a newer session's
+pending form, and a late `401` from an older token cannot clear a newer login. A network/provider refresh failure
+keeps the local session, leaves protected APIs fail-closed, and schedules one
+later retry. Logout calls `/auth/v1/logout`, clears
+the session immediately, disables controls, and removes sensitive UI state even
+if the remote logout request stalls or fails. Browser HTTP requests have a
+bounded 15-second timeout and periodic state polls are serialized. A physical
+command timeout is treated as an ambiguous result that must be reconciled with
+fresh state; the browser does not retry it automatically. The refresh token
+never travels to Node-RED; only the current access token does.
 
 ## Claim and RLS
 
-Migrations create `profiles`, `lockers`, constraints, owner-only SELECT RLS, and
-`claim_locker(text)`. No client policy permits `lockers.owner_id` INSERT/UPDATE.
+Registration sends the required full name as Supabase user metadata; the Auth
+trigger copies it into `profiles.full_name`. Migrations create `profiles`, `lockers`, constraints, owner-only SELECT RLS, and
+`claim_locker(text)`. Explicit grants let `authenticated` select RLS-visible
+rows, update only its own `profiles.full_name`, and execute the claim RPC;
+`anon` has no protected-table/RPC access. No client policy or table privilege
+permits `lockers.owner_id` INSERT/UPDATE.
 The authenticated RPC performs one atomic conditional update where
 `owner_id IS NULL`; a second user or repeat claim is rejected. The function has
 a fixed search path, is executable only by `authenticated`, and rejects missing

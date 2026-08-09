@@ -38,14 +38,17 @@ class CommandDispatcher {
     if (service !== 'system:unauthorized-detector' || !INTERNAL_ACTIONS.has(action)) {
       return { ok: false, status: 403, code: 'INTERNAL_ACTION_DENIED' };
     }
-    return this.dispatch({ lockerId, action, requestedBy: service, caller: 'trusted_internal_automation' });
+    return this.dispatch({ lockerId, action, requestedBy: service,
+      caller: 'trusted_internal_automation', requireReady: action !== 'GET_STATE' });
   }
 
-  dispatch({ lockerId, action, requestedBy, caller }) {
+  dispatch({ lockerId, action, requestedBy, caller, requireReady = true }) {
     const snapshot = this.cache.snapshot(lockerId, this.now());
     if (!snapshot.mqtt_connected) return { ok: false, status: 503, code: 'MQTT_DISCONNECTED' };
-    if (snapshot.availability !== 'ONLINE') return { ok: false, status: 503, code: 'DEVICE_OFFLINE' };
-    if (!snapshot.fresh) return { ok: false, status: 409, code: 'STATE_UNTRUSTED' };
+    if (requireReady && snapshot.availability !== 'ONLINE') {
+      return { ok: false, status: 503, code: 'DEVICE_OFFLINE' };
+    }
+    if (requireReady && !snapshot.fresh) return { ok: false, status: 409, code: 'STATE_UNTRUSTED' };
     const actuatorDomain = domain(action);
     if ([...this.pending.values()].some((item) => item.lockerId === lockerId && item.domain === actuatorDomain)) {
       return { ok: false, status: 409, code: 'PENDING_CONFLICT' };
@@ -98,6 +101,18 @@ class CommandDispatcher {
         reconciliation = this.dispatchInternal({ lockerId: pending.lockerId, action: 'GET_STATE' });
       }
       const result = { ok: false, code: 'COMMAND_TIMEOUT', pending, reconciliation };
+      this.onResult(result);
+      results.push(result);
+    }
+    return results;
+  }
+
+  cancelPending(code = 'MQTT_DISCONNECTED') {
+    const results = [];
+    for (const [id, pending] of this.pending) {
+      this.pending.delete(id);
+      this.remember(id, { ...pending, result: 'cancelled', code });
+      const result = { ok: false, code, pending, reconciliation: null };
       this.onResult(result);
       results.push(result);
     }

@@ -7,9 +7,10 @@
 | P2-S01 authenticated local TCP broker + simulator matrix | Simulator/Broker SOFTWARE-GATE PASS | `automated-results.md`; not hardware evidence |
 | Dependency/secret/config audits | Automated PASS | `automated-results.md` |
 | P2-M01/P2-M02 | `[ ] DEFERRED — HARDWARE-FINAL-GATE` | blocked by absent ESP32/MC-38 |
-| P2-M03–P2-M05 | `[ ] MANUAL — HARD-GATE Pending` | blocked by absent Supabase/FlowFuse environment and test accounts |
-| P2-M06/P2-M07 | `[ ] MANUAL — FINAL-GATE Pending` | absent Telegram test token/chat |
-| P2-M08 | `[ ] MANUAL — FINAL-GATE Pending` | absent Gemini key/model/quota |
+| P2-M03 | Manual HARD-GATE PASS | `live-service-results.md`; public signup, profile, login/session/callback/reload/logout/PII/Bearer checks and cleanup all pass |
+| P2-M04/P2-M05 | Manual HARD-GATE PASS | `live-service-results.md`; complete two-user UI/API/RLS/broker and 200/409/409 claim evidence |
+| P2-M06/P2-M07 | Manual FINAL-GATE PASS | `live-service-results.md`; delivered, controlled failure, ACK, cleanup, and restore evidence |
+| P2-M08 | Manual FINAL-GATE PASS | `live-service-results.md`; grounded success, controlled provider failure, cleanup, and restore evidence |
 
 Raw captures that may contain identifiers/tokens belong in ignored `private/`.
 Only sanitized evidence may be committed. No simulator row is an ESP32, MC-38,

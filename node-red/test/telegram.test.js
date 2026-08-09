@@ -49,3 +49,18 @@ test('Telegram HTTP transport aborts a stalled provider with a controlled timeou
   await assert.rejects(() => transport({ text: 'test' }),
     (error) => error.code === 'TELEGRAM_TIMEOUT');
 });
+
+test('Telegram dedupe and per-locker rate-limit state remain bounded', async () => {
+  let now = 1000;
+  const adapter = new TelegramAdapter({ transport: async () => {}, dashboardUrl: 'x',
+    now: () => now, rateLimitMs: 0, dedupeLimit: 2, lockerLimit: 2 });
+  for (let index = 1; index <= 3; index += 1) {
+    await adapter.notify({ ...event,
+      event_id: `10000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      locker_id: `LOCKER-00${index}` });
+    now += 1;
+  }
+  assert.equal(adapter.delivered.size, 2);
+  assert.equal(adapter.lastByLocker.size, 2);
+  assert.equal(adapter.delivered.has('10000000-0000-4000-8000-000000000001'), false);
+});

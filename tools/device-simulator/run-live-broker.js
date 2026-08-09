@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
 const { createRequire } = require('node:module');
@@ -15,6 +16,13 @@ const username = 'phase2_test_user';
 const password = 'phase2_test_password';
 const lockerId = 'LOCKER-001';
 const messages = [];
+
+function exportedFunction(id) {
+  const flows = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'node-red', 'flows.json'), 'utf8'));
+  const flowNode = flows.find((node) => node.id === id);
+  if (!flowNode?.func) throw new Error(`Missing exported Function node: ${id}`);
+  return new Function('msg', 'global', 'node', 'env', flowNode.func);
+}
 
 function waitFor(predicate, timeoutMs = 3000) {
   return new Promise((resolve, reject) => {
@@ -91,11 +99,19 @@ async function main() {
     `locker/${lockerId}/availability`, `locker/${lockerId}/state`,
     `locker/${lockerId}/ack`, `locker/${lockerId}/telemetry/door`,
   ]);
-  runtime.setMqttConnected(true);
+  const flowValues = new Map([['splRuntime', runtime], ['splOutbox', []]]);
+  exportedFunction('mqtt_status_fn')(
+    { status: { fill: 'green', shape: 'dot', text: 'node-red:common.status.connected' } },
+    { get: (key) => flowValues.get(key), set: (key, value) => flowValues.set(key, value) },
+    { error: (message) => { throw new Error(message); } },
+    { get: (key) => key === 'LOCKER_ID' ? lockerId : undefined },
+  );
+  assert.equal(runtime.cache.mqttConnected, true);
   simulator.connect();
   await waitFor(() => messages.some((item) => item.topic.endsWith('/state'))
     && messages.some((item) => item.payload?.status === 'ONLINE'));
   await waitFor(() => runtime.cache.snapshot(lockerId).fresh);
+  await waitFor(() => runtime.dispatcher.pending.size === 0);
 
   simulator.door('OPEN');
   await waitFor(() => messages.some((item) => item.topic.endsWith('/telemetry/door')));
@@ -129,9 +145,10 @@ async function main() {
   await waitFor(() => runtime.cache.snapshot(lockerId).fresh);
   assert.equal(runtimeErrors.length, 0);
 
-  const summary = { result: 'PASS', assertions: 13, transport: url.replace(/:\d+$/, ':ephemeral'),
+  const summary = { result: 'PASS', assertions: 15, transport: url.replace(/:\d+$/, ':ephemeral'),
     authentication: 'test username/password accepted; anonymous connection rejected',
-    scenarios: ['retained availability/state', 'Node-RED runtime cache ingestion',
+    scenarios: ['exported Node-RED 4.1.13 MQTT status handling and bootstrap',
+      'retained availability/state', 'Node-RED runtime cache ingestion',
       'non-retained door and unauthorized detector', 'fresh subscriber',
       'runtime-dispatched GET_STATE ACK/state', 'LWT OFFLINE', 'reconnect ONLINE/state'],
     note: 'Local TCP broker/simulator/Phase2Runtime evidence only; not imported FlowFuse or ESP32/MC-38 hardware evidence.' };

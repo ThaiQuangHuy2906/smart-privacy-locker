@@ -67,6 +67,9 @@ never fields. Failure does not discard normalized events or crash/retry forever.
 Notification delivery is asynchronous from the alarm path: `ALARM_ON` enters
 MQTT egress without waiting for Telegram. The completed delivery status is a
 separate Phase 3 hook and may update the in-memory latest event status.
+Runtime event/diagnostic/status buffers and Telegram event/locker dedupe maps
+are bounded; eviction affects only old in-memory operational evidence, not the
+normalized event handed to the Phase 3 persistence interface.
 
 ## Compatibility log
 

@@ -10,10 +10,20 @@ const { TelegramAdapter, telegramHttpTransport } = require('./telegram');
 const { GeminiAdapter, ChatbotRouter } = require('./chatbot');
 const { dashboardState } = require('./dashboard-state');
 
+function positiveInteger(value, fallback) {
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function pushBounded(items, value, limit) {
+  items.push(value);
+  if (items.length > limit) items.splice(0, items.length - limit);
+}
+
 class Phase2Runtime {
   constructor({ authGate, publish, history, telegram, gemini = null,
     staleAfterMs = 30_000, timeoutMs = 5000, windowMs = 30_000,
-    now = Date.now, uuid = randomUUID }) {
+    eventLimit = 256, notificationLimit = 128, diagnosticLimit = 128,
+    commandStatusLimit = 64, now = Date.now, uuid = randomUUID }) {
     this.authGate = authGate;
     this.publish = publish;
     this.now = now;
@@ -21,11 +31,15 @@ class Phase2Runtime {
     this.notificationStatuses = [];
     this.diagnostics = [];
     this.commandStatus = new Map();
+    this.eventLimit = positiveInteger(eventLimit, 256);
+    this.notificationLimit = positiveInteger(notificationLimit, 128);
+    this.diagnosticLimit = positiveInteger(diagnosticLimit, 128);
+    this.commandStatusLimit = positiveInteger(commandStatusLimit, 64);
     this.cache = new LiveStateCache({ staleAfterMs });
     this.telegram = telegram;
     this.dispatcher = new CommandDispatcher({ cache: this.cache, publish, timeoutMs, now, uuid,
       onResult: (result) => {
-        this.commandStatus.set(result.pending.lockerId, {
+        this.recordCommandStatus(result.pending.lockerId, {
           command_id: result.pending.commandId, action: result.pending.action,
           status: result.code, completed_at: new Date(this.now()).toISOString(),
         });
@@ -33,9 +47,9 @@ class Phase2Runtime {
       } });
     this.detector = new UnauthorizedDetector({ windowMs, now, uuid,
       dispatchAlarm: (lockerId) => this.dispatcher.dispatchInternal({ lockerId, action: 'ALARM_ON' }),
-      emit: (event) => this.events.push(event),
+      emit: (event) => pushBounded(this.events, event, this.eventLimit),
       notify: (event) => this.telegram.notify(event),
-      notificationStatus: (status) => this.notificationStatuses.push(status),
+      notificationStatus: (status) => pushBounded(this.notificationStatuses, status, this.notificationLimit),
       latestAlert: (lockerId, event) => this.cache.setLatestAlert(lockerId, event),
     });
     this.chatbot = new ChatbotRouter({ cache: this.cache, history, provider: gemini, now, uuid });
@@ -46,10 +60,30 @@ class Phase2Runtime {
     this.dispatcher.restart();
     this.detector.restart();
     this.commandStatus.clear();
+    this.events.length = 0;
     this.notificationStatuses.length = 0;
+    this.diagnostics.length = 0;
   }
 
-  setMqttConnected(connected) { this.cache.setMqttConnected(connected); }
+  setMqttConnected(connected, lockerIds = []) {
+    const next = Boolean(connected);
+    const wasConnected = this.cache.mqttConnected;
+    this.cache.setMqttConnected(next);
+    const cancelled = !next && wasConnected ? this.dispatcher.cancelPending() : [];
+    const bootstrap = next && !wasConnected
+      ? [...new Set(lockerIds)].filter((lockerId) => typeof lockerId === 'string' && lockerId.length > 0)
+        .map((lockerId) => this.dispatcher.dispatchInternal({ lockerId, action: 'GET_STATE' }))
+      : [];
+    return { connected: next, changed: next !== wasConnected, cancelled, bootstrap };
+  }
+
+  recordCommandStatus(lockerId, value) {
+    if (this.commandStatus.has(lockerId)) this.commandStatus.delete(lockerId);
+    this.commandStatus.set(lockerId, value);
+    while (this.commandStatus.size > this.commandStatusLimit) {
+      this.commandStatus.delete(this.commandStatus.keys().next().value);
+    }
+  }
 
   async ingest(topic, payload, observedAt = this.now()) {
     let validation;
@@ -59,7 +93,9 @@ class Phase2Runtime {
     else if (topic.endsWith('/ack')) validation = validateAck(topic, payload);
     else validation = { ok: false, code: 'UNEXPECTED_TOPIC' };
     if (!validation.ok) {
-      this.diagnostics.push({ code: validation.code, topic, observed_at: new Date(observedAt).toISOString() });
+      pushBounded(this.diagnostics,
+        { code: validation.code, topic, observed_at: new Date(observedAt).toISOString() },
+        this.diagnosticLimit);
       return { accepted: false, code: validation.code };
     }
 
@@ -91,12 +127,14 @@ class Phase2Runtime {
     return { accepted: true, type: 'door', outputs };
   }
 
-  async protectedCommand({ headers, body }) {
+  async protectedCommand({ headers, body, isAborted = () => false }) {
+    if (isAborted()) return { ok: false, status: 499, code: 'REQUEST_ABORTED' };
     const authorization = await this.authGate.authorize(headers, body?.locker_id);
     if (!authorization.ok) return authorization;
+    if (isAborted()) return { ok: false, status: 499, code: 'REQUEST_ABORTED' };
     const result = this.dispatcher.dispatchUser({ principal: authorization.principal,
       lockerId: body.locker_id, action: body.action });
-    if (result.ok) this.commandStatus.set(body.locker_id, { command_id: result.command.command_id,
+    if (result.ok) this.recordCommandStatus(body.locker_id, { command_id: result.command.command_id,
       action: body.action, status: 'PENDING', completed_at: null });
     return result;
   }
@@ -114,7 +152,10 @@ class Phase2Runtime {
     try {
       return { ok: true, status: 200, locker: await this.authGate.adapter.claim(authentication.accessToken, body?.locker_code) };
     } catch (error) {
-      return { ok: false, status: error.status || 409, code: 'CLAIM_REJECTED' };
+      const status = error.status === 401 ? 401 : error.status === 503 ? 503 : 409;
+      const code = status === 401 ? 'INVALID_SESSION'
+        : status === 503 ? 'CLAIM_UNAVAILABLE' : 'CLAIM_REJECTED';
+      return { ok: false, status, code };
     }
   }
 

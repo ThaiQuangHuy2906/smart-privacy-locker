@@ -56,17 +56,17 @@ The `rg` command may find harmless variable names in `.env.example` or documenta
 
 | ID | Executed command/suite | Coverage | Expected |
 |---|---|---|---|
-| P2-A01 | `platformio test -e native` (`test_door_sensor`) | boot UNKNOWN, 50 ms boundary, bounce, wrap-safe time | one stable edge, 3/3 pass |
-| P2-S01 | `npm run test:broker` + `node tools/device-simulator/run-matrix.js` | authenticated local TCP broker passes availability/state/door/ACK through `Phase2Runtime`; deterministic fault matrix adds success/error/duplicate/delay/no ACK/wrong/malformed/reconnect/GET_STATE | broker runtime integration and matrix pass; simulator label retained |
+| P2-A01 | `platformio test -e native` (`test_door_sensor`, `test_mqtt_retry_timer`) | boot UNKNOWN, 50 ms boundary, sensor-time wrap; MQTT retry deadline across 32-bit `millis()` wrap | one stable edge plus bounded wrap-safe reconnect; 7/7 Phase 2 firmware tests pass |
+| P2-S01 | `npm run test:broker` + `node tools/device-simulator/run-matrix.js` | exported Node-RED 4.1.13 MQTT status Function, reconnect bootstrap, authenticated local TCP traffic through `Phase2Runtime`; deterministic fault matrix adds success/error/duplicate/delay/no ACK/wrong/malformed/reconnect/GET_STATE | exported status path, broker runtime integration and matrix pass; simulator label retained |
 | P2-A02 | Node `contracts.test.js` | JSON/schema/topic/locker/enum/time/ACK validation | invalid input has no accepted side effect |
-| P2-A03 | Node `auth-dispatch.test.js` | Bearer, expired/missing/spoofed user, wrong owner, readiness | 401/403/503 and zero denied publish |
+| P2-A03 | Node `auth-dispatch.test.js` | Bearer, expired/missing/spoofed user, wrong owner, readiness, 5 s provider deadline through response-body parsing, 9 s aggregate authorization deadline, request-abort suppression, transport/5xx/malformed response and table-returning claim RPC | invalid session 401; ownership deny 403; timeout/failure 503; one claim row normalized; zero denied/aborted publish |
 | P2-A04/A05 | Node dispatcher tests | server UUID/time/requester, pending domains | valid publish; conflict rejected |
-| P2-A06/A07 | Node ACK/restart tests | match/wrong/duplicate/late ACK, restart | only current exact pending succeeds |
+| P2-A06/A07 | Node ACK/restart tests | match/wrong/duplicate/late ACK, restart, disconnect cancellation and reconnect GET_STATE | only current exact pending succeeds; disconnect cannot leave stale pending; each connection generation bootstraps once |
 | P2-A08 | Node virtual-clock timeout | 5000 ms, no actuator retry, one GET_STATE; expire the reconciliation command too | controlled timeout with no recursive GET_STATE |
 | P2-A09/A10 | Node security timeline | window boundary/consume/restart, unauthorized OPEN | deterministic classification + ALARM_ON |
-| P2-A11 | Node Telegram/security tests | episode dedupe, rate limit, failure, provider stall | one attempt/episode; ALARM_ON does not wait for Telegram |
-| P2-A12/A13 | Node chatbot tests | live/missing/provider error/history counts/context | grounded whitelist, controlled failures |
-| YC9 static | Node artifact tests | ordered SQL, RLS clauses, atomic claim/no owner update policy | contract assertions pass |
+| P2-A11 | Node Telegram/security tests | episode dedupe, rate limit, failure, provider stall, bounded runtime/provider maps and delivery status contract | one attempt/episode; ALARM_ON does not wait for Telegram; memory state remains bounded |
+| P2-A12/A13 | Node chatbot tests | all six canonical questions, safe canonical intent/question, live/missing/provider error/history counts/context/transport failure | grounded whitelist without raw user secret text; controlled failures |
+| YC9 static | Node artifact/SQL tests | full-name signup metadata, ordered SQL, RLS clauses, atomic claim/no owner update policy, least-privilege grants and pgTAP runner envelope | contract assertions pass; live database gate remains manual |
 | Secret/dependency | `npm audit --audit-level=high`, `npm run audit` | installed Dashboard dependency and committed source/config | 0 vulnerabilities; 0 secret/config findings |
 
 Exact output is recorded in `evidence/phase-2/automated-results.md`.
@@ -74,12 +74,13 @@ Exact output is recorded in `evidence/phase-2/automated-results.md`.
 ## Phase 2 manual gates
 
 - [ ] P2-M01/P2-M02 — `DEFERRED — HARDWARE-FINAL-GATE`: no ESP32/MC-38 is attached; simulator cannot replace polarity, GPIO, physical debounce, retained/non-retained broker capture, or Dashboard hardware evidence.
-- [ ] P2-M03 — `MANUAL — HARD-GATE Pending`: no `SUPABASE_URL`/anon project and no FlowFuse deployment/session are configured on this workstation.
-- [ ] P2-M04 — `MANUAL — HARD-GATE Pending`: User A/User B and Locker A/Locker B must be created in a disposable Supabase project and tested through UI/direct API plus broker spy.
-- [ ] P2-M05 — `MANUAL — HARD-GATE Pending`: first/double claim must be executed against that real project; static SQL assertions are not database runtime evidence.
-- [ ] P2-M06/P2-M07 — `MANUAL — FINAL-GATE Pending`: Telegram token/chat ID are absent. Automated adapter success/failure/dedupe is PASS only at contract level.
-- [ ] P2-M08 — `MANUAL — FINAL-GATE Pending`: Gemini key/model are absent. Automated provider error/grounding is PASS only at contract level.
+- [x] P2-M03 — `MANUAL — HARD-GATE PASS`: with custom SMTP and a controlled nonce-bearing test-mailbox template, the final deployed UI passed public signup HTTP 200, exact user/profile creation, confirmed-account login, Bearer transport, fragment cleanup, reload persistence, local/server logout, PII cleanup, logged-out reload, and disposable-resource cleanup (12/12).
+- [x] P2-M04 — `MANUAL — HARD-GATE PASS`: two disposable users/lockers passed cross-owner UI denial, direct state/command 403, zero-row Supabase RLS read, and a broker spy observed zero command messages.
+- [x] P2-M05 — `MANUAL — HARD-GATE PASS`: final deployed claim feedback produced 200/409/409, kept owner/timestamp immutable, and rejected authenticated `owner_id` update with 403.
+- [x] P2-M06/P2-M07 — `MANUAL — FINAL-GATE PASS`: a real Telegram delivery reached `delivered`; a controlled invalid destination reached `failed` while detector/`ALARM_ON`/ACK stayed operational; valid configuration was restored and reverified.
+- [x] P2-M08 — `MANUAL — FINAL-GATE PASS`: deployed API/UI grounded a real Gemini answer in trusted `LOCKED` MQTT state; a controlled invalid model produced a safe 503 UI path without corrupting state; valid configuration was restored and reverified.
 
-Phase 2 stays `ACTIVE` while P2-M03–P2-M05 are pending. It must not be merged to
-`develop`, marked `COMPLETED`, or used to activate Phase 3 until those hard gates
-have real sanitized evidence.
+All available non-hardware Phase 2 manual service gates now pass. Phase 2 stays
+`ACTIVE` only until its corrective working tree is committed, pushed, and
+fast-forward integrated into `develop` with explicit Git authorization. The
+deferred ESP32/MC-38 rows remain hardware final gates and are not relabeled.

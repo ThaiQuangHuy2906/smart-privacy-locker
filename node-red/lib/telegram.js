@@ -2,14 +2,22 @@
 
 class TelegramAdapter {
   constructor({ transport, dashboardUrl, timezone = 'Asia/Ho_Chi_Minh',
-    rateLimitMs = 30_000, now = Date.now }) {
+    rateLimitMs = 30_000, dedupeLimit = 1024, lockerLimit = 256, now = Date.now }) {
     this.transport = transport;
     this.dashboardUrl = dashboardUrl;
     this.timezone = timezone;
     this.rateLimitMs = rateLimitMs;
+    this.dedupeLimit = Number.isInteger(dedupeLimit) && dedupeLimit > 0 ? dedupeLimit : 1024;
+    this.lockerLimit = Number.isInteger(lockerLimit) && lockerLimit > 0 ? lockerLimit : 256;
     this.now = now;
-    this.delivered = new Set();
+    this.delivered = new Map();
     this.lastByLocker = new Map();
+  }
+
+  remember(map, key, value, limit) {
+    if (map.has(key)) map.delete(key);
+    map.set(key, value);
+    while (map.size > limit) map.delete(map.keys().next().value);
   }
 
   async notify(event, locker = {}) {
@@ -20,8 +28,8 @@ class TelegramAdapter {
     if (this.delivered.has(event.event_id)) return result('duplicate_suppressed', 0);
     const last = this.lastByLocker.get(event.locker_id) || 0;
     if (last && this.now() - last < this.rateLimitMs) return result('rate_limited', 0);
-    this.delivered.add(event.event_id);
-    this.lastByLocker.set(event.locker_id, this.now());
+    this.remember(this.delivered, event.event_id, this.now(), this.dedupeLimit);
+    this.remember(this.lastByLocker, event.locker_id, this.now(), this.lockerLimit);
     const displayTime = new Intl.DateTimeFormat('vi-VN', {
       timeZone: this.timezone, dateStyle: 'short', timeStyle: 'medium',
     }).format(new Date(event.occurred_at));

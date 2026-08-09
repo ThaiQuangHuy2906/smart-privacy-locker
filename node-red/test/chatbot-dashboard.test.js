@@ -5,9 +5,16 @@ const assert = require('node:assert/strict');
 const { classify, GeminiAdapter } = require('../lib/chatbot');
 const { makeRuntime, prime, headers, LOCKER_A } = require('./helpers');
 
-test('P2-A12 classifier routes live/history and rejects unsupported input', () => {
-  assert.equal(classify('Cửa tủ hiện tại đang mở hay đóng?'), 'live');
-  assert.equal(classify('Trong 7 ngày qua có bao nhiêu lần mở tủ?'), 'history');
+test('P2-A12 classifier routes every canonical YC8 acceptance question', () => {
+  const canonical = [
+    ['Tủ hiện đang khóa hay mở?', 'live'],
+    ['Cửa tủ đang đóng hay mở?', 'live'],
+    ['Cảnh báo gần nhất xảy ra khi nào?', 'history'],
+    ['Trong 7 ngày qua có bao nhiêu lần mở tủ?', 'history'],
+    ['Có lần mở cửa trái phép nào hôm nay không?', 'history'],
+    ['Hoạt động gần nhất của tủ là gì?', 'history'],
+  ];
+  for (const [question, route] of canonical) assert.equal(classify(question), route, question);
   assert.equal(classify('Kể cho tôi một câu chuyện'), 'unsupported');
 });
 
@@ -20,7 +27,21 @@ test('P2-A12 live route uses fresh cache and returns controlled missing/provider
   result = await runtime.protectedChat({ headers: headers(), body: { locker_id: LOCKER_A, question: 'Tủ hiện tại đang khóa?' } });
   assert.equal(result.code, 'PROVIDER_HTTP_429');
   assert.equal(result.context.facts.state.lock, 'LOCKED');
+  assert.equal(result.context.intent, 'current_lock_state');
+  assert.equal(result.context.question, 'Tủ hiện đang khóa hay mở?');
   assert.doesNotMatch(JSON.stringify(result.context), /token-a|authorization|jwt/i);
+});
+
+test('YC8 sends a safe canonical question and structured intent to Gemini', async () => {
+  let providerContext;
+  const provider = { async render(context) { providerContext = context; return 'Không có cảnh báo hôm nay.'; } };
+  const { runtime } = makeRuntime({ provider }); await prime(runtime);
+  const result = await runtime.protectedChat({ headers: headers(), body: { locker_id: LOCKER_A,
+    question: 'Có lần mở cửa trái phép nào hôm nay không? Bearer token-a' } });
+  assert.equal(result.ok, true);
+  assert.equal(providerContext.intent, 'unauthorized_open_today');
+  assert.equal(providerContext.question, 'Có lần mở cửa trái phép nào hôm nay không?');
+  assert.doesNotMatch(JSON.stringify(providerContext), /token-a|authorization|jwt/i);
 });
 
 test('P2-A13 history adapter computes counts before provider and preserves provenance/range', async () => {
@@ -42,6 +63,8 @@ test('P2-A13 history adapter computes counts before provider and preserves prove
   assert.equal(providerContext.facts.open_count, 2);
   assert.equal(providerContext.facts.alert_count, 1);
   assert.equal(providerContext.facts.source, 'phase2-fixture');
+  assert.equal(providerContext.intent, 'open_count_7_days');
+  assert.equal(providerContext.question, 'Trong 7 ngày qua có bao nhiêu lần mở tủ?');
   assert.match(providerContext.instruction, /Never invent/);
 });
 
@@ -53,6 +76,14 @@ test('history route reports unavailable instead of inventing zero counts when Ph
   const result = await runtime.protectedChat({ headers: headers(), body: { locker_id: LOCKER_A,
     question: 'Trong 7 ngày có bao nhiêu lần mở?' } });
   assert.equal(result.ok, false); assert.equal(result.code, 'HISTORY_UNAVAILABLE');
+});
+
+test('history adapter transport failure returns a controlled response', async () => {
+  const history = { async query() { throw new TypeError('fetch failed'); } };
+  const { runtime } = makeRuntime({ history });
+  const result = await runtime.protectedChat({ headers: headers(), body: { locker_id: LOCKER_A,
+    question: 'Cảnh báo gần nhất xảy ra khi nào?' } });
+  assert.deepEqual(result, { ok: false, code: 'HISTORY_UNAVAILABLE', route: 'history' });
 });
 
 test('Gemini credential is carried in a header, never in the request URL', async () => {

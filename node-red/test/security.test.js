@@ -104,3 +104,25 @@ test('unsynced door events use receive time metadata and non-applicable authoriz
   assert.equal(closed.outputs[0].authorized, null);
   assert.equal(closed.outputs[0].metadata.device_time_unsynced, true);
 });
+
+test('runtime event, diagnostic, notification, and command status collections are bounded and restart-clean', async () => {
+  const { runtime } = makeRuntime({ runtimeOptions: {
+    eventLimit: 2, diagnosticLimit: 2, notificationLimit: 2, commandStatusLimit: 2,
+  } });
+  for (let index = 0; index < 3; index += 1) {
+    runtime.detector.emit({ event_id: `event-${index}` });
+    runtime.detector.notificationStatus({ event_id: `notification-${index}` });
+    await runtime.ingest(`locker/${LOCKER_A}/unexpected`, {}, index);
+    runtime.recordCommandStatus(`LOCKER-00${index + 1}`, { status: 'PENDING' });
+  }
+  assert.deepEqual(runtime.events.map((item) => item.event_id), ['event-1', 'event-2']);
+  assert.deepEqual(runtime.notificationStatuses.map((item) => item.event_id),
+    ['notification-1', 'notification-2']);
+  assert.equal(runtime.diagnostics.length, 2);
+  assert.equal(runtime.commandStatus.size, 2);
+  runtime.restart();
+  assert.equal(runtime.events.length, 0);
+  assert.equal(runtime.notificationStatuses.length, 0);
+  assert.equal(runtime.diagnostics.length, 0);
+  assert.equal(runtime.commandStatus.size, 0);
+});

@@ -3,55 +3,228 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071118">
+  <meta name="description" content="Bảng điều khiển bảo mật Phase 2 cho Smart Privacy Locker.">
   <title>Smart Privacy Locker — Phase 2</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main>
-    <header><h1>Smart Privacy Locker</h1><p id="session-label">Chưa đăng nhập</p></header>
-    <section id="auth-card" class="card">
-      <h2>Tài khoản</h2>
-      <form id="auth-form">
-        <label>Email test <input id="email" type="email" autocomplete="username" required></label>
-        <label>Mật khẩu <input id="password" type="password" autocomplete="current-password" minlength="8" required></label>
-        <div class="row"><button data-mode="login">Đăng nhập</button><button data-mode="register" class="secondary">Đăng ký</button></div>
-      </form>
-      <button id="logout" class="danger" hidden>Đăng xuất</button>
-      <p id="auth-message" role="status"></p>
-    </section>
+  <a class="skip-link" href="#main-content">Bỏ qua đến nội dung chính</a>
 
-    <section class="card">
-      <h2>Tủ sở hữu</h2>
-      <form id="claim-form" class="row"><input id="locker-code" value="LOCKER-001" aria-label="Mã tủ"><button>Claim một lần</button></form>
-      <label>Locker ID <input id="locker-id" value="LOCKER-001"></label>
-    </section>
-
-    <section class="card state-grid" aria-live="polite">
-      <h2>Trạng thái trực tiếp</h2>
-      <div><span>MQTT</span><strong id="mqtt">DISCONNECTED</strong></div>
-      <div><span>ESP32</span><strong id="device">OFFLINE</strong></div>
-      <div><span>Cửa</span><strong id="door">UNKNOWN</strong></div>
-      <div><span>Khóa</span><strong id="lock">UNKNOWN — chưa xác nhận</strong></div>
-      <div><span>Cập nhật</span><strong id="updated">—</strong></div>
-      <div><span>Cảnh báo mới nhất</span><strong id="alert">—</strong></div>
-      <p id="state-message" role="status"></p>
-    </section>
-
-    <section class="card">
-      <h2>Điều khiển qua Node-RED</h2>
-      <div class="controls">
-        <button data-action="LOCK" data-domain="lock">Khóa</button><button data-action="UNLOCK" data-domain="lock">Mở khóa</button>
-        <button data-action="LED_ON" data-domain="led">Bật LED</button><button data-action="LED_OFF" data-domain="led">Tắt LED</button>
+  <main id="main-content" class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true"><span></span></div>
+        <div>
+          <p class="eyebrow">Node-RED security console</p>
+          <h1>Smart Privacy <span>Locker</span></h1>
+          <p class="topbar-copy">Xác thực danh tính, kiểm tra trạng thái và gửi lệnh có ACK.</p>
+        </div>
       </div>
-      <p id="command-message" role="status">Success chỉ xuất hiện sau ACK hợp lệ.</p>
+
+      <div class="session-panel" aria-label="Trạng thái phiên đăng nhập">
+        <span class="session-indicator" aria-hidden="true"></span>
+        <div>
+          <span class="micro-label">Phiên bảo mật</span>
+          <p id="session-label" role="status" aria-live="polite">Chưa đăng nhập</p>
+        </div>
+        <span class="phase-badge">Phase 2</span>
+      </div>
+    </header>
+
+    <div class="identity-grid">
+      <section id="auth-card" class="card auth-card" aria-labelledby="auth-title">
+        <div class="section-heading">
+          <span class="section-index" aria-hidden="true">01</span>
+          <div>
+            <p class="section-kicker">Identity perimeter</p>
+            <h2 id="auth-title">Tài khoản</h2>
+            <p class="section-copy">Đăng nhập bằng Supabase để mọi yêu cầu bảo vệ mang Bearer token của chính bạn.</p>
+          </div>
+        </div>
+
+        <form id="auth-form" class="form-stack" data-pending="false" aria-busy="false">
+          <label class="field" for="full-name">
+            <span class="field-label">Họ và tên</span>
+            <span class="field-hint">Chỉ bắt buộc khi đăng ký tài khoản mới.</span>
+            <input id="full-name" type="text" autocomplete="name" maxlength="120" placeholder="Nguyễn Văn A">
+          </label>
+
+          <label class="field" for="email">
+            <span class="field-label">Email test</span>
+            <input id="email" type="email" autocomplete="username" inputmode="email" placeholder="name@example.com" required>
+          </label>
+
+          <label class="field" for="password">
+            <span class="field-label">Mật khẩu</span>
+            <input id="password" type="password" autocomplete="current-password" minlength="8" placeholder="Tối thiểu 8 ký tự" required>
+          </label>
+
+          <div class="auth-actions">
+            <button type="submit" data-mode="login" class="button button--primary">Đăng nhập</button>
+            <button type="submit" data-mode="register" class="button button--secondary">Đăng ký</button>
+          </div>
+        </form>
+
+        <div class="auth-footer">
+          <button id="logout" type="button" class="button button--danger" hidden>Đăng xuất an toàn</button>
+          <p id="auth-message" class="message" role="status" aria-live="polite" aria-atomic="true"></p>
+        </div>
+      </section>
+
+      <section class="card ownership-card" aria-labelledby="ownership-title">
+        <div class="section-heading">
+          <span class="section-index" aria-hidden="true">02</span>
+          <div>
+            <p class="section-kicker">Ownership gate</p>
+            <h2 id="ownership-title">Tủ sở hữu</h2>
+            <p class="section-copy">Liên kết mã tủ một lần, sau đó chọn đúng tủ cho live state và command.</p>
+          </div>
+        </div>
+
+        <form id="claim-form" class="claim-form" data-pending="false" aria-busy="false">
+          <label class="field" for="locker-code">
+            <span class="field-label">Mã claim</span>
+            <span class="field-hint">Mỗi tủ chỉ thuộc về một tài khoản.</span>
+            <input id="locker-code" value="LOCKER-001" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          </label>
+          <button id="claim-button" type="submit" class="button button--claim">Claim một lần</button>
+        </form>
+        <p id="claim-message" class="message message--claim" data-state="idle" role="status" aria-live="polite" aria-atomic="true"></p>
+
+        <div class="locker-selector">
+          <label class="field" for="locker-id">
+            <span class="field-label">Locker ID đang thao tác</span>
+            <input id="locker-id" value="LOCKER-001" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="locker-id-hint">
+          </label>
+          <p id="locker-id-hint" class="field-hint locker-hint">Node-RED luôn kiểm tra ownership trước khi đọc hoặc gửi lệnh.</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="card status-console state-grid" aria-labelledby="live-title">
+      <div class="status-header">
+        <div class="section-heading">
+          <span class="section-index" aria-hidden="true">03</span>
+          <div>
+            <p class="section-kicker">Verified signal rail</p>
+            <h2 id="live-title">Trạng thái trực tiếp</h2>
+            <p class="section-copy">Chỉ dữ liệu mới, hợp lệ và đã xác nhận mới mở khóa điều khiển.</p>
+          </div>
+        </div>
+        <div class="freshness-key"><span aria-hidden="true"></span> Poll mỗi 2 giây</div>
+      </div>
+
+      <div class="status-rail" aria-label="Trạng thái kết nối và tủ">
+        <article class="status-cell status-cell--transport">
+          <div class="status-cell-top"><span class="status-code">NET·01</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-label">MQTT</span>
+          <strong id="mqtt">DISCONNECTED</strong>
+        </article>
+        <article class="status-cell status-cell--device">
+          <div class="status-cell-top"><span class="status-code">DEV·02</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-label">ESP32</span>
+          <strong id="device">OFFLINE</strong>
+        </article>
+        <article class="status-cell status-cell--door">
+          <div class="status-cell-top"><span class="status-code">SNS·03</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-label">Cửa</span>
+          <strong id="door">UNKNOWN</strong>
+        </article>
+        <article class="status-cell status-cell--lock">
+          <div class="status-cell-top"><span class="status-code">SEC·04</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-label">Khóa</span>
+          <strong id="lock">UNKNOWN — chưa xác nhận</strong>
+        </article>
+      </div>
+
+      <div class="status-meta-grid">
+        <article class="status-meta">
+          <span class="status-label">Cập nhật gần nhất</span>
+          <strong id="updated">—</strong>
+        </article>
+        <article class="status-meta status-meta--alert">
+          <span class="status-label">Cảnh báo mới nhất</span>
+          <strong id="alert">—</strong>
+        </article>
+      </div>
+
+      <p id="state-message" class="message message--state" role="status" aria-live="polite" aria-atomic="true">Chưa có dữ liệu live đã xác nhận.</p>
     </section>
 
-    <section class="card">
-      <h2>Chatbot YC8</h2>
-      <form id="chat-form"><label>Câu hỏi <input id="question" value="Cửa tủ hiện tại đang mở hay đóng?"></label><button>Gửi</button></form>
-      <pre id="answer" aria-live="polite"></pre>
-    </section>
+    <div class="action-grid">
+      <section class="card control-card" aria-labelledby="control-title">
+        <div class="section-heading">
+          <span class="section-index" aria-hidden="true">04</span>
+          <div>
+            <p class="section-kicker">ACK-controlled actions</p>
+            <h2 id="control-title">Điều khiển qua Node-RED</h2>
+            <p class="section-copy">Lệnh chỉ thành công sau khi ESP32 trả ACK hợp lệ.</p>
+          </div>
+        </div>
+
+        <div class="controls" aria-describedby="command-message">
+          <div class="control-group">
+            <span class="control-group-label">Cơ cấu khóa</span>
+            <div class="control-buttons">
+              <button type="button" data-action="LOCK" data-domain="lock" class="control-button" disabled>
+                <span class="control-code">LOCK</span><span>Khóa tủ</span>
+              </button>
+              <button type="button" data-action="UNLOCK" data-domain="lock" class="control-button control-button--open" disabled>
+                <span class="control-code">UNLOCK</span><span>Mở khóa</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <span class="control-group-label">Đèn bên trong</span>
+            <div class="control-buttons">
+              <button type="button" data-action="LED_ON" data-domain="led" class="control-button" disabled>
+                <span class="control-code">LED·ON</span><span>Bật LED</span>
+              </button>
+              <button type="button" data-action="LED_OFF" data-domain="led" class="control-button control-button--open" disabled>
+                <span class="control-code">LED·OFF</span><span>Tắt LED</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p id="command-message" class="message message--command" role="status" aria-live="polite" aria-atomic="true">Success chỉ xuất hiện sau ACK hợp lệ.</p>
+      </section>
+
+      <section class="card chat-card" aria-labelledby="chat-title">
+        <div class="section-heading">
+          <span class="section-index" aria-hidden="true">05</span>
+          <div>
+            <p class="section-kicker">Grounded assistant · YC8</p>
+            <h2 id="chat-title">Hỏi trạng thái tủ</h2>
+            <p class="section-copy">Chatbot chỉ diễn đạt từ live state và context đã được Node-RED kiểm soát.</p>
+          </div>
+        </div>
+
+        <form id="chat-form" class="chat-form" data-pending="false" aria-busy="false">
+          <label class="field" for="question">
+            <span class="field-label">Câu hỏi</span>
+            <textarea id="question" rows="3">Cửa tủ hiện tại đang mở hay đóng?</textarea>
+          </label>
+          <button id="chat-submit" type="submit" class="button button--primary chat-submit">
+            <span>Gửi câu hỏi</span><span class="button-arrow" aria-hidden="true">→</span>
+          </button>
+        </form>
+
+        <div class="answer-shell">
+          <span class="micro-label">Phản hồi được kiểm chứng</span>
+          <pre id="answer" aria-live="polite" aria-atomic="true" tabindex="0">Chưa có câu trả lời.</pre>
+        </div>
+      </section>
+    </div>
+
+    <footer class="page-footer">
+      <p>Smart Privacy Locker · Secure orchestration baseline</p>
+      <p>Phase 2 không lưu MQTT credential trong trình duyệt.</p>
+    </footer>
   </main>
+
   <script src="app.js" defer></script>
 </body>
 </html>

@@ -107,6 +107,15 @@ Reconnect starts at 1 second and doubles to a maximum of 30 seconds without a bu
 
 Generate UUID v4 server-side; maintain pending request/domain/deadline; disable conflicting controls; accept ACK only when schema, pending ID, locker, and expected action/state are valid. Default timeout is 5000 ms: show controlled timeout, do not retry an actuator, issue one `GET_STATE` if connected. Restart clears pending commands and unlock windows; only fresh availability plus state enables controls. The Phase 2 implementation is in `node-red/lib/` and the modular export is `node-red/flows.json`.
 
+The deployment uses distinct broker principals. Node-RED is the trusted
+multi-locker policy boundary and needs Publish + Subscribe on `locker/+/#` so
+its concrete subscriptions `locker/+/+` and `locker/+/telemetry/door` are
+authorized. Each ESP32 remains limited to `locker/<LOCKER_ID>/#`. Reusing the
+device-scoped permission for Node-RED is invalid: authentication can succeed
+while the broker rejects the wildcard subscriptions, leaving the cache offline
+and preventing ACK/security processing. The broader Node-RED secret remains in
+the FlowFuse credential store and is never shipped to firmware or the browser.
+
 ## Compatibility/test fixtures
 
 Breaking changes require a new schema version and same-change updates to producers, consumers, fixtures, and migration notes. The implementation fixtures are in `firmware/test/test_command_contract/test_main.cpp`; current evidence is in `tests/evidence/phase-1/`.

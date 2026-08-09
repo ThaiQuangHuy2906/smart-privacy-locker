@@ -31,12 +31,20 @@ class LiveStateCache {
     this.mqttConnected = next;
   }
 
+  ingressGeneration() {
+    // MQTT nodes can deliver retained messages immediately before their
+    // connected Status event reaches the flow. Assign those observations to
+    // the next generation; old observations from the previous connection keep
+    // their old generation and cannot become trusted after reconnect.
+    return this.mqttConnected ? this.connectionGeneration : this.connectionGeneration + 1;
+  }
+
   ingestAvailability(lockerId, value, observedAt) {
     const item = this.entry(lockerId);
     if (observedAt < item.availabilityObservedAt) return false;
     item.availability = value.status;
     item.availabilityObservedAt = observedAt;
-    item.availabilityGeneration = this.connectionGeneration;
+    item.availabilityGeneration = this.ingressGeneration();
     return true;
   }
 
@@ -51,7 +59,7 @@ class LiveStateCache {
     item.stateObservedAt = observedAt;
     item.stateDeviceAt = value.timestamp;
     item.stateSource = source;
-    item.stateGeneration = this.connectionGeneration;
+    item.stateGeneration = this.ingressGeneration();
     item.doorObservedAt = observedAt;
     item.doorDeviceAt = value.timestamp;
     item.doorSource = source;

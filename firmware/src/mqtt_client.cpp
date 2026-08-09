@@ -17,6 +17,7 @@ void MqttClient::begin(MqttMessageCallback messageCallback) {
   activeInstance_ = this;
   messageCallback_ = messageCallback;
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
+  retryTimer_.clear();
   mqtt_.setBufferSize(MQTT_MAX_PACKET_SIZE);
   mqtt_.setCallback(dispatchMessage);
 
@@ -42,7 +43,7 @@ void MqttClient::tick(unsigned long now, StateManager& state) {
   }
 
   state.setMqttConnected(false);
-  if (now < nextAttemptAt_) {
+  if (!retryTimer_.due(static_cast<uint32_t>(now))) {
     return;
   }
   if (!configured()) {
@@ -206,7 +207,7 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
   // Callbacks run from a later mqtt_.loop(), after ONLINE and full state.
   state.setMqttConnected(true);
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
-  nextAttemptAt_ = 0;
+  retryTimer_.clear();
   publishAvailability("ONLINE", true);
   publishState(state.current(), true);
   Serial.println("MQTT command SUBSCRIBE packet sent successfully; availability and full state published");
@@ -249,7 +250,8 @@ bool MqttClient::configured() const {
 }
 
 void MqttClient::scheduleRetry(unsigned long now) {
-  nextAttemptAt_ = now + reconnectDelayMs_;
+  retryTimer_.schedule(static_cast<uint32_t>(now),
+                       static_cast<uint32_t>(reconnectDelayMs_));
   if (reconnectDelayMs_ >= AppConfig::MQTT_RECONNECT_MAX_MS / 2) {
     reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_MAX_MS;
   } else {

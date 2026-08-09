@@ -1,5 +1,35 @@
 #pragma once
 
+#include <stdint.h>
+
+class MqttRetryTimer {
+ public:
+  void schedule(uint32_t now, uint32_t delayMs) {
+    scheduledAt_ = now;
+    delayMs_ = delayMs;
+    scheduled_ = true;
+  }
+
+  void clear() {
+    scheduledAt_ = 0;
+    delayMs_ = 0;
+    scheduled_ = false;
+  }
+
+  bool due(uint32_t now) const {
+    // Unsigned elapsed time remains valid when the 32-bit millis counter wraps;
+    // configured retry delays are many orders of magnitude below one full wrap.
+    return !scheduled_ || static_cast<uint32_t>(now - scheduledAt_) >= delayMs_;
+  }
+
+ private:
+  uint32_t scheduledAt_ = 0;
+  uint32_t delayMs_ = 0;
+  bool scheduled_ = false;
+};
+
+#ifdef ARDUINO
+
 #include <PubSubClient.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
@@ -35,9 +65,11 @@ class MqttClient {
   WiFiClientSecure secureClient_;
   PubSubClient mqtt_;
   MqttMessageCallback messageCallback_ = nullptr;
-  unsigned long nextAttemptAt_ = 0;
+  MqttRetryTimer retryTimer_;
   unsigned long reconnectDelayMs_ = 0;
   bool configurationWarningPrinted_ = false;
 
   static MqttClient* activeInstance_;
 };
+
+#endif

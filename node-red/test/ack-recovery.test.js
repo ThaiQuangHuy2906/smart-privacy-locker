@@ -94,3 +94,40 @@ test('MQTT reconnect requires availability and full state from the new connectio
   await runtime.ingest(`locker/${LOCKER_A}/state`, state(), clock.value);
   assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, true);
 });
+
+test('retained availability/state arriving just before connected status belong to the next generation', async () => {
+  const { runtime, clock } = makeRuntime();
+  await runtime.ingest(`locker/${LOCKER_A}/availability`, { schema_version: 1,
+    locker_id: LOCKER_A, status: 'ONLINE', sent_at: new Date(clock.value).toISOString() }, clock.value);
+  await runtime.ingest(`locker/${LOCKER_A}/state`, state(), clock.value);
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, false);
+  runtime.setMqttConnected(true);
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, true);
+
+  runtime.setMqttConnected(false);
+  runtime.setMqttConnected(true);
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, false);
+});
+
+test('MQTT connect bootstraps GET_STATE once without requiring an already-fresh cache', () => {
+  const { runtime, publications } = makeRuntime();
+  const first = runtime.setMqttConnected(true, [LOCKER_A]);
+  assert.equal(first.bootstrap.length, 1);
+  assert.equal(first.bootstrap[0].ok, true);
+  assert.equal(publications.length, 1);
+  assert.equal(publications[0].payload.action, 'GET_STATE');
+  assert.equal(runtime.setMqttConnected(true, [LOCKER_A]).bootstrap.length, 0);
+});
+
+test('MQTT disconnect fails pending commands and reconnect emits a fresh bootstrap', async () => {
+  const { runtime, publications } = makeRuntime(); await prime(runtime);
+  const dispatched = runtime.dispatcher.dispatchInternal({ lockerId: LOCKER_A, action: 'GET_STATE' });
+  assert.equal(dispatched.ok, true);
+  const disconnected = runtime.setMqttConnected(false);
+  assert.equal(disconnected.cancelled.length, 1);
+  assert.equal(disconnected.cancelled[0].code, 'MQTT_DISCONNECTED');
+  assert.equal(runtime.dispatcher.pending.size, 0);
+  const reconnected = runtime.setMqttConnected(true, [LOCKER_A]);
+  assert.equal(reconnected.bootstrap[0].ok, true);
+  assert.equal(publications.filter((item) => item.payload.action === 'GET_STATE').length, 2);
+});
