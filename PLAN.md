@@ -1016,7 +1016,7 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - [x] **Terra/owner:** Build/test phù hợp đã chạy; firmware regression + Node-RED/Auth/RLS/dispatcher/YC6/YC8 contract tests được ghi đúng.
 - [x] **Terra/owner:** Manual service/account gates có environment sẵn sàng đã có sanitized live evidence: P2-M03 custom-SMTP signup/session/logout/Bearer 12/12 và P2-M04–P2-M08 đều PASS. MC-38/ESP32 tests thiếu hardware giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; không giả PASS.
 - [x] **Terra/owner:** Chạy final diff/source/secret/generated-flow audit; không nhận ownership CB3/YC4 và không đổi frozen contract thiếu version/evidence.
-- [ ] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary. Corrective working tree hiện đã cập nhật nhưng chưa commit.
+- [x] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật `5eef94b` vào Phase Completion Summary.
 - [ ] **Terra/owner:** Push Phase branch lên GitHub; nếu không có quyền, giữ Phase `ACTIVE` và ghi exact command.
 - [ ] **Terra/owner:** Khi SOFTWARE-GATE `PASS`, fast-forward merge Phase branch vào `develop` và push `develop`; không rewrite history hoặc force push.
 - [ ] **Terra/owner:** Chỉ sau integration push thành công, chuyển Phase 2 `ACTIVE → COMPLETED`, Phase 3 `NOT_STARTED → ACTIVE`, tạo `phase/3-thuy-data-integration` từ `develop`, push branch rồi dừng.
@@ -1044,8 +1044,8 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Hardware final gates: P2-M01/P2-M02 `[ ] DEFERRED — HARDWARE-FINAL-GATE`; không có ESP32/MC-38, không tuyên bố GPIO/polarity/debounce/hardware verified. P1-M01–P1-M11 vẫn giữ nguyên deferred.
 - Known issues: Playwright CLI 0.1.18 abort với libuv `UV_HANDLE_CLOSING` trên Node v24.14.1 nên live UI evidence dùng Chrome DevTools fallback. Xtensa Windows toolchain không xử lý ổn định đường dẫn workspace tiếng Việt nên clean ESP32 build dùng temporary ASCII `Z:` alias rồi xóa alias. Node-RED runtime phải do FlowFuse cung cấp ở phiên bản `>=4.1.13 <5`; project không vendor runtime/palette-manager npm thừa. Không có Critical/High dependency advisory trong dependency tree đã cài của project.
 - Deferred SHOULD/OPTIONAL items: MQTT ACL nâng cao; `boot_id`/sequence; persistent/distributed cache; numeric-output validator nâng cao. Không mục nào thay thế MUST.
-- Branch: `phase/2-minh-security-orchestration`; remote hiện ở `43f2efc`. Corrective working tree sau audit chưa commit/push; không tuyên bố remote đã chứa các sửa này.
-- Commits hiện có trên remote: `d7e1c95` — Phase 2 implementation; `9cea590` — implementation evidence; `10ceb08` — corrective review fixes; `43f2efc` — review documentation. Corrective working tree hiện tại chưa có hash commit.
+- Branch: `phase/2-minh-security-orchestration`; corrective implementation/evidence commit: `5eef94b`. Push/integration state is tracked by the Git Checklist and is not inferred ahead of remote verification.
+- Commits: `d7e1c95` — Phase 2 implementation; `9cea590` — implementation evidence; `10ceb08` — corrective review fixes; `43f2efc` — review documentation; `5eef94b` — complete secure orchestration acceptance.
 - Integration into `develop`: Technical SOFTWARE-GATE is complete; Phase 2 remains `ACTIVE` only because the corrective working tree is not yet committed/pushed/integrated. Explicit Git authorization is required before commit, push, fast-forward merge, lifecycle update, or Phase 3 branch creation.
 - Next phase: Phase 3 `NOT_STARTED`.
 
