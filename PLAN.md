@@ -52,8 +52,8 @@ Có **12 requirement** phải được triển khai đầy đủ; `Owner chính`
 | Phase | Thành viên | MSSV | Owner chính | Trạng thái hiện tại |
 |---|---|---|---|---|
 | 1 | Thái Quang Huy | 24127177 | CB2, YC1, YC3, YC12 | **COMPLETED** |
-| 2 | Nguyễn Văn Minh | 24127205 | CB1, YC6, YC8, YC9 | **ACTIVE** |
-| 3 | Mai Phương Thùy | 24127249 | CB3, YC4, YC5, YC7 | **NOT_STARTED** |
+| 2 | Nguyễn Văn Minh | 24127205 | CB1, YC6, YC8, YC9 | **COMPLETED** |
+| 3 | Mai Phương Thùy | 24127249 | CB3, YC4, YC5, YC7 | **ACTIVE** |
 
 ### Phase lifecycle và ranh giới quyền hạn
 
@@ -823,9 +823,9 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 
 ### Phase Goal
 
-**Status: ACTIVE. Owner: Nguyễn Văn Minh — 24127205.**
+**Status: COMPLETED. Owner: Nguyễn Văn Minh — 24127205.**
 
-Phase này đã `ACTIVE` vì Phase 1 `COMPLETED` cho dependency purposes trên `develop`; P1 hardware final gates vẫn deferred. Triển khai CB1; nền tảng Node-RED authentication/authorization/command orchestration; YC9; logic YC6 và Telegram; YC8 routing/grounding. Tạo interface rõ để Thùy nối actual buzzer và event persistence ở Phase 3, không nhận ownership CB3 hoặc YC4.
+Phase này đã `COMPLETED` sau khi Phase 1 mở dependency trên `develop`; P1/P2 hardware final gates vẫn deferred. Baseline đã triển khai CB1; nền tảng Node-RED authentication/authorization/command orchestration; YC9; logic YC6 và Telegram; YC8 routing/grounding. Interface cho actual buzzer và event persistence được bàn giao sang Phase 3, không chuyển ownership YC6 hoặc YC8.
 
 ### Minimum Required Completion Path
 
@@ -1017,9 +1017,10 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - [x] **Terra/owner:** Manual service/account gates có environment sẵn sàng đã có sanitized live evidence: P2-M03 custom-SMTP signup/session/logout/Bearer 12/12 và P2-M04–P2-M08 đều PASS. MC-38/ESP32 tests thiếu hardware giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; không giả PASS.
 - [x] **Terra/owner:** Chạy final diff/source/secret/generated-flow audit; không nhận ownership CB3/YC4 và không đổi frozen contract thiếu version/evidence.
 - [x] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật `5eef94b` vào Phase Completion Summary.
-- [ ] **Terra/owner:** Push Phase branch lên GitHub; nếu không có quyền, giữ Phase `ACTIVE` và ghi exact command.
-- [ ] **Terra/owner:** Khi SOFTWARE-GATE `PASS`, fast-forward merge Phase branch vào `develop` và push `develop`; không rewrite history hoặc force push.
-- [ ] **Terra/owner:** Chỉ sau integration push thành công, chuyển Phase 2 `ACTIVE → COMPLETED`, Phase 3 `NOT_STARTED → ACTIVE`, tạo `phase/3-thuy-data-integration` từ `develop`, push branch rồi dừng.
+- [x] **Terra/owner:** Push Phase branch lên GitHub; `origin/phase/2-minh-security-orchestration` đã được push tại `478864e`.
+- [x] **Terra/owner:** SOFTWARE-GATE `PASS`; Phase branch đã được fast-forward merge vào `develop` và `origin/develop` đã được push tại `478864e`, không merge commit, rewrite history hoặc force push.
+- [x] **Terra/owner:** Sau integration push thành công, chuyển Phase 2 `ACTIVE → COMPLETED` và Phase 3 `NOT_STARTED → ACTIVE`.
+- [ ] **Terra/owner:** Tạo `phase/3-thuy-data-integration` từ lifecycle HEAD trên `develop`, push branch rồi dừng; chỉ tick sau khi remote ref được xác minh.
 - [x] **Terra/owner:** Xác nhận Phase 1/2 hardware final gates vẫn `[ ]` và nằm trong Final Release checklist.
 
 ### Handoff
@@ -1031,12 +1032,12 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Những phần còn MANUAL: không còn Phase 2 non-hardware service gate; actual CB3 buzzer, YC4 insert/RLS, actual history route, chart/email/full load/final demo thuộc Phase 3. Phase 1/2 hardware final gates vẫn deferred.
 - Dependency được mở khóa: door telemetry; secure dispatcher; pending/ACK/timeout; cache; auth/RLS; unauthorized event + ALARM_ON; Telegram; chatbot context adapter.
 - Dependency Phase 3 phải hoàn thiện: CB3 firmware/hardware, event schema/persistence, history query thật, YC6 full integration, YC5, YC7, final Dashboard/docs/regression.
-- Khi SOFTWARE-GATE Phase 2 đủ, commit/push Phase branch, fast-forward merge/push `develop`, đặt Phase 2 `COMPLETED`, Phase 3 `ACTIVE`, tạo/push `phase/3-thuy-data-integration` từ `develop` và dừng.
+- SOFTWARE-GATE, commit/push Phase branch và fast-forward integration vào `develop` đã hoàn tất. Bước bàn giao còn lại là tạo/push `phase/3-thuy-data-integration` từ lifecycle HEAD trên `develop` rồi dừng, không triển khai functionality Phase 3 trong phiên chuyển giao này.
 - Hardware final gates của Phase 1/2 vẫn pending và không đổi owner YC6/YC8 sang Thùy.
 
 ### Phase Completion Summary
 
-- Status: ACTIVE
+- Status: COMPLETED — SOFTWARE-GATE, live service gates và Git integration đều PASS; P1/P2 hardware final gates vẫn deferred và tiếp tục block final release/demo.
 - Implementation: Phase 2 software source hiện có cho CB1 debounce/telemetry; authenticated local TCP device simulator; modular Node-RED MQTT validation/live cache/dispatcher/ACK/timeout/restart/reconnect recovery; real Node-RED status-key handling + GET_STATE bootstrap; Supabase profiles/lockers/RLS/atomic claim migrations với explicit least-privilege Data API grants; full-name signup; canonical Bearer middleware với 401/503 và bounded provider timeout; normalized claim row; responsive Phase 2 Dashboard auth/claim/state/control/chat + Telegram delivery status, implicit-flow URL cleanup, local-first logout, bounded/serialized requests; bounded runtime/provider buffers; authorized window/unauthorized episodes; normalized event, `ALARM_ON`, notification và history contracts; đủ sáu YC8 canonical question với safe question/intent; Telegram/Gemini adapters. Actual CB3 và YC4/history backend production vẫn thuộc Phase 3.
 - Automated tests: PASS hiện tại — PlatformIO native 14/14 (gồm Phase 1 regression 7/7, P2 door debounce 3/3 và MQTT retry wrap-around 4/4); clean ESP32 build PASS qua temporary ASCII drive alias (RAM 16,2%, Flash 84,2%); Node contract/artifact/Dashboard/export suite 85/85; P2-S01 memory fault matrix 14 scenario/8 assertion + authenticated local TCP MQTT broker/exported-status/Phase2Runtime 15 assertion; npm audit 0 vulnerability và secret/config audit 0 finding. Corrective regression bao phủ MQTT status/reconnect/bootstrap, pre-status retained-message generation, disconnect pending cancellation, auth outage/timeout/malformed/RPC normalization (kể cả response body bị treo), aggregate deadline/aborted-request suppression, bounded buffers, đủ sáu YC8 questions + context/history failure, Dashboard callback/logout/claim/poll/concurrency/late-401/locker-context/pending-generation/timeout behavior, claim feedback không bị live-state poll ghi đè, pgTAP test envelope, public-signup real-domain template guard và deterministic FlowFuse export. Evidence: `tests/evidence/phase-2/automated-results.md`.
 - Manual HARD-GATE tests: **PASS**. P2-M03 custom-SMTP signup/user/profile/login/session/callback/reload/logout/PII/Bearer/cleanup đạt 12/12; P2-M04/P2-M05 đạt sanitized two-user UI/API/RLS/broker evidence và claim 200/409/409 + immutable owner evidence.
@@ -1044,18 +1045,18 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Hardware final gates: P2-M01/P2-M02 `[ ] DEFERRED — HARDWARE-FINAL-GATE`; không có ESP32/MC-38, không tuyên bố GPIO/polarity/debounce/hardware verified. P1-M01–P1-M11 vẫn giữ nguyên deferred.
 - Known issues: Playwright CLI 0.1.18 abort với libuv `UV_HANDLE_CLOSING` trên Node v24.14.1 nên live UI evidence dùng Chrome DevTools fallback. Xtensa Windows toolchain không xử lý ổn định đường dẫn workspace tiếng Việt nên clean ESP32 build dùng temporary ASCII `Z:` alias rồi xóa alias. Node-RED runtime phải do FlowFuse cung cấp ở phiên bản `>=4.1.13 <5`; project không vendor runtime/palette-manager npm thừa. Không có Critical/High dependency advisory trong dependency tree đã cài của project.
 - Deferred SHOULD/OPTIONAL items: MQTT ACL nâng cao; `boot_id`/sequence; persistent/distributed cache; numeric-output validator nâng cao. Không mục nào thay thế MUST.
-- Branch: `phase/2-minh-security-orchestration`; corrective implementation/evidence commit: `5eef94b`. Push/integration state is tracked by the Git Checklist and is not inferred ahead of remote verification.
-- Commits: `d7e1c95` — Phase 2 implementation; `9cea590` — implementation evidence; `10ceb08` — corrective review fixes; `43f2efc` — review documentation; `5eef94b` — complete secure orchestration acceptance.
-- Integration into `develop`: Technical SOFTWARE-GATE is complete; Phase 2 remains `ACTIVE` only because the corrective working tree is not yet committed/pushed/integrated. Explicit Git authorization is required before commit, push, fast-forward merge, lifecycle update, or Phase 3 branch creation.
-- Next phase: Phase 3 `NOT_STARTED`.
+- Branch: `phase/2-minh-security-orchestration`; accepted implementation/evidence commit `5eef94b`; final Phase 2 documentation commit `478864e`; remote Phase branch verified at `478864e`.
+- Commits: `d7e1c95` — Phase 2 implementation; `9cea590` — implementation evidence; `10ceb08` — corrective review fixes; `43f2efc` — review documentation; `5eef94b` — complete secure orchestration acceptance; `478864e` — record Phase 2 acceptance commit.
+- Integration into `develop`: `origin/develop` was fast-forwarded and pushed to `478864e`; no merge commit, history rewrite or force push. The lifecycle transition is recorded by the following documentation commit; Phase 3 branch creation/push remains separately tracked until its remote ref is verified.
+- Next phase: Phase 3 `ACTIVE`; create/push `phase/3-thuy-data-integration` from the lifecycle HEAD on `develop`.
 
 ## 7. Phase 3 — Mai Phương Thùy
 
 ### Phase Goal
 
-**Status: NOT_STARTED. Owner: Mai Phương Thùy — 24127249.**
+**Status: ACTIVE. Owner: Mai Phương Thùy — 24127249.**
 
-Chỉ chuyển Phase này sang `ACTIVE` sau khi Phase 2 đã `COMPLETED` và được tích hợp/push trên `develop`; Phase 1/2 hardware final gates có thể vẫn deferred. Triển khai CB3, YC4, YC5, YC7; nối actual buzzer và Supabase persistence vào YC6; nối history thật vào YC8; hoàn thiện Dashboard, full-system integration, regression, tài liệu, demo và release checklist. Không nhận ownership YC6/YC8 từ Minh.
+Phase này đã `ACTIVE` vì Phase 2 `COMPLETED` và đã được tích hợp/push trên `develop`; Phase 1/2 hardware final gates vẫn deferred. Triển khai CB3, YC4, YC5, YC7; nối actual buzzer và Supabase persistence vào YC6; nối history thật vào YC8; hoàn thiện Dashboard, full-system integration, regression, tài liệu, demo và release checklist. Không nhận ownership YC6/YC8 từ Minh.
 
 ### Minimum Required Completion Path
 

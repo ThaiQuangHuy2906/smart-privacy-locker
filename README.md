@@ -1,6 +1,6 @@
 # Smart Privacy Locker
 
-ESP32/Node-RED foundation for an IoT privacy locker, delivered in three gated phases. **Phase 1 is completed and Phase 2 is active** on `phase/2-minh-security-orchestration`. Phase 2 adds CB1, YC6 logic/Telegram interfaces, YC8 routing/grounding, YC9, secure orchestration, and the required Dashboard surface.
+ESP32/Node-RED foundation for an IoT privacy locker, delivered in three gated phases. **Phase 1 and Phase 2 are completed; Phase 3 is active.** The accepted Phase 2 baseline adds CB1, YC6 logic/Telegram interfaces, YC8 routing/grounding, YC9, secure orchestration, and the required Dashboard surface.
 
 The source PDFs are read-only project records. Do not edit, move, or replace them.
 
@@ -61,4 +61,4 @@ Actual CB3 buzzer, YC4 production persistence/history, YC5 charts, and YC7 email
 
 ## Evidence and status
 
-Automated results and manual gates are indexed under `tests/evidence/`. P1-M01–P1-M11 and P2-M01–P2-M02 remain `[ ] DEFERRED — HARDWARE-FINAL-GATE`. The final FlowFuse deployment has sanitized live PASS evidence for P2-M03 signup/session/logout/Bearer transport, P2-M04/P2-M05 cross-owner and one-time-claim gates, P2-M06/P2-M07 Telegram success/failure/restore, and P2-M08 grounded Gemini success/failure/restore. The M03 runner requires local-only `PHASE2_SIGNUP_TEST_EMAIL_TEMPLATE` plus custom SMTP and rejects example/test domains. Phase 2 remains `ACTIVE` only until its corrective working tree is committed, pushed, and integrated into `develop` with explicit Git authorization.
+Automated results and manual gates are indexed under `tests/evidence/`. P1-M01–P1-M11 and P2-M01–P2-M02 remain `[ ] DEFERRED — HARDWARE-FINAL-GATE`. The final FlowFuse deployment has sanitized live PASS evidence for P2-M03 signup/session/logout/Bearer transport, P2-M04/P2-M05 cross-owner and one-time-claim gates, P2-M06/P2-M07 Telegram success/failure/restore, and P2-M08 grounded Gemini success/failure/restore. The M03 runner requires local-only `PHASE2_SIGNUP_TEST_EMAIL_TEMPLATE` plus custom SMTP and rejects example/test domains. Phase 2 has been fast-forward integrated and pushed to `develop`; Phase 3 is active. Deferred hardware gates remain mandatory before final release/demo.
