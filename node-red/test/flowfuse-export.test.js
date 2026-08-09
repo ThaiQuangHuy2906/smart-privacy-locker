@@ -14,7 +14,9 @@ const flowPath = path.join(nodeRedRoot, 'flows.flowfuse.json');
 const readFlow = () => JSON.parse(fs.readFileSync(flowPath, 'utf8'));
 
 test('FlowFuse export is generated deterministically from the tested sources', () => {
-  assert.equal(fs.readFileSync(flowPath, 'utf8'), serializeFlowFuseFlow());
+  const generated = serializeFlowFuseFlow();
+  assert.doesNotMatch(generated, /\r/, 'generated export must use canonical LF line endings');
+  assert.equal(fs.readFileSync(flowPath, 'utf8'), generated);
 });
 
 test('FlowFuse runtime bootstrap executes without settings.js or local filesystem imports', () => {

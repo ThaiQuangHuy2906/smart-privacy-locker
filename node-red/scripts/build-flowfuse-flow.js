@@ -22,7 +22,7 @@ const runtimeEnvironmentKeys = Object.freeze([
 ]);
 
 function readText(target) {
-  return fs.readFileSync(target, 'utf8');
+  return fs.readFileSync(target, 'utf8').replace(/\r\n?/g, '\n');
 }
 
 function readJson(target) {
