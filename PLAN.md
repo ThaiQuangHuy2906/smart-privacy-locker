@@ -1020,7 +1020,7 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - [x] **Terra/owner:** Push Phase branch lên GitHub; `origin/phase/2-minh-security-orchestration` đã được push tại `478864e`.
 - [x] **Terra/owner:** SOFTWARE-GATE `PASS`; Phase branch đã được fast-forward merge vào `develop` và `origin/develop` đã được push tại `478864e`, không merge commit, rewrite history hoặc force push.
 - [x] **Terra/owner:** Sau integration push thành công, chuyển Phase 2 `ACTIVE → COMPLETED` và Phase 3 `NOT_STARTED → ACTIVE`.
-- [ ] **Terra/owner:** Tạo `phase/3-thuy-data-integration` từ lifecycle HEAD trên `develop`, push branch rồi dừng; chỉ tick sau khi remote ref được xác minh.
+- [x] **Terra/owner:** Đã tạo và push `phase/3-thuy-data-integration` từ lifecycle commit `a05ca06` trên `develop`; remote ref được xác minh trước khi ghi nhận.
 - [x] **Terra/owner:** Xác nhận Phase 1/2 hardware final gates vẫn `[ ]` và nằm trong Final Release checklist.
 
 ### Handoff
@@ -1032,7 +1032,7 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Những phần còn MANUAL: không còn Phase 2 non-hardware service gate; actual CB3 buzzer, YC4 insert/RLS, actual history route, chart/email/full load/final demo thuộc Phase 3. Phase 1/2 hardware final gates vẫn deferred.
 - Dependency được mở khóa: door telemetry; secure dispatcher; pending/ACK/timeout; cache; auth/RLS; unauthorized event + ALARM_ON; Telegram; chatbot context adapter.
 - Dependency Phase 3 phải hoàn thiện: CB3 firmware/hardware, event schema/persistence, history query thật, YC6 full integration, YC5, YC7, final Dashboard/docs/regression.
-- SOFTWARE-GATE, commit/push Phase branch và fast-forward integration vào `develop` đã hoàn tất. Bước bàn giao còn lại là tạo/push `phase/3-thuy-data-integration` từ lifecycle HEAD trên `develop` rồi dừng, không triển khai functionality Phase 3 trong phiên chuyển giao này.
+- SOFTWARE-GATE, commit/push Phase branch và fast-forward integration vào `develop` đã hoàn tất. `phase/3-thuy-data-integration` đã được tạo/push từ lifecycle commit `a05ca06`; bàn giao lifecycle hoàn tất mà không triển khai functionality Phase 3 trong phiên chuyển giao này.
 - Hardware final gates của Phase 1/2 vẫn pending và không đổi owner YC6/YC8 sang Thùy.
 
 ### Phase Completion Summary
@@ -1047,8 +1047,8 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Deferred SHOULD/OPTIONAL items: MQTT ACL nâng cao; `boot_id`/sequence; persistent/distributed cache; numeric-output validator nâng cao. Không mục nào thay thế MUST.
 - Branch: `phase/2-minh-security-orchestration`; accepted implementation/evidence commit `5eef94b`; final Phase 2 documentation commit `478864e`; remote Phase branch verified at `478864e`.
 - Commits: `d7e1c95` — Phase 2 implementation; `9cea590` — implementation evidence; `10ceb08` — corrective review fixes; `43f2efc` — review documentation; `5eef94b` — complete secure orchestration acceptance; `478864e` — record Phase 2 acceptance commit.
-- Integration into `develop`: `origin/develop` was fast-forwarded and pushed to `478864e`; no merge commit, history rewrite or force push. The lifecycle transition is recorded by the following documentation commit; Phase 3 branch creation/push remains separately tracked until its remote ref is verified.
-- Next phase: Phase 3 `ACTIVE`; create/push `phase/3-thuy-data-integration` from the lifecycle HEAD on `develop`.
+- Integration into `develop`: Phase 2 was fast-forwarded and pushed to `origin/develop` at `478864e`; the lifecycle transition was then committed/pushed at `a05ca06`. No merge commit, history rewrite or force push was used.
+- Next phase: Phase 3 `ACTIVE` on `phase/3-thuy-data-integration`, created and pushed from lifecycle commit `a05ca06`.
 
 ## 7. Phase 3 — Mai Phương Thùy
 

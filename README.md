@@ -1,6 +1,6 @@
 # Smart Privacy Locker
 
-ESP32/Node-RED foundation for an IoT privacy locker, delivered in three gated phases. **Phase 1 and Phase 2 are completed; Phase 3 is active.** The accepted Phase 2 baseline adds CB1, YC6 logic/Telegram interfaces, YC8 routing/grounding, YC9, secure orchestration, and the required Dashboard surface.
+ESP32/Node-RED foundation for an IoT privacy locker, delivered in three gated phases. **Phase 1 and Phase 2 are completed; Phase 3 is active** on `phase/3-thuy-data-integration`. The accepted Phase 2 baseline adds CB1, YC6 logic/Telegram interfaces, YC8 routing/grounding, YC9, secure orchestration, and the required Dashboard surface.
 
 The source PDFs are read-only project records. Do not edit, move, or replace them.
 
