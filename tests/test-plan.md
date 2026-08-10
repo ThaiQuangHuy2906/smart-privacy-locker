@@ -84,3 +84,29 @@ All available non-hardware Phase 2 manual service gates now pass. Phase 2 stays
 `ACTIVE` only until its corrective working tree is committed, pushed, and
 fast-forward integrated into `develop` with explicit Git authorization. The
 deferred ESP32/MC-38 rows remain hardware final gates and are not relabeled.
+
+## Phase 3 automated SOFTWARE-GATE
+
+| ID | Command/suite | Coverage | Current result |
+|---|---|---|---|
+| P3-A01 | alarm controller native test + host smoke compile | active-high/low, safe boot, idempotent ON/OFF, missing output writer | PASS for host smoke; full PlatformIO suite must be rerun where package download is available |
+| P3-A02/P3-A03 | `npm test` Phase 3 data tests | every canonical event mapping, idempotent insert, safe 503, persistence health | PASS |
+| P3-A04 | `npm test` statistics/time tests | 7/30 local boundaries, zero buckets, open/alert counts | PASS |
+| P3-A05/P3-A06 | `npm test` report tests | previous local day, rendered facts, settings ownership, delivery reservation and duplicate suppression | PASS |
+| Integration | `npm run test:simulator` | deterministic command/ACK/state matrix including alarm contract | PASS — 8 assertions / 14 scenarios |
+| Broker | `npm run test:broker` | authenticated loopback MQTT, retained state/recovery and unauthorized alarm path | PASS — 15 assertions |
+| Security | `npm run audit`, `npm audit --audit-level=high` | committed config/secret patterns and dependency advisories | PASS — 0 findings / 0 vulnerabilities |
+
+Exact reproducible software results are recorded in
+`evidence/phase-3/automated-results.md`. They do not assert a real ESP32,
+buzzer, Supabase project, Gmail mailbox or deployed FlowFuse instance.
+
+## Phase 3 manual gates still pending
+
+- P3-M01/P3-M02/P3-M03/P3-M11/P3-M12: hardware/full E2E evidence is pending.
+- P3-M04/P3-M05: apply the migration and run sanitized User A/User B RLS plus
+  real history/chart UI boundary checks.
+- P3-M06: send through the selected SMTP account, inject one controlled
+  credential/config failure, restore it, and capture sanitized delivery rows.
+- P3-M07–P3-M10: deployed YC6/YC8/Dashboard success and failure recordings are
+  pending. These continue to block `FINAL_RELEASE_READY`.

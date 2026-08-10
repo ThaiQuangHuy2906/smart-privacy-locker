@@ -12,6 +12,8 @@ function dashboardState({ authenticated, ownsLocker, snapshot, pendingDomains = 
     device: snapshot.availability,
     door: snapshot.fresh ? snapshot.state.door : 'UNKNOWN',
     lock: snapshot.state.lock,
+    alarm: snapshot.state.alarm,
+    led: snapshot.state.led,
     lock_unconfirmed: snapshot.state.lock === 'UNKNOWN',
     last_updated: snapshot.observed_at,
     stale: !snapshot.fresh,

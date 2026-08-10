@@ -1,8 +1,8 @@
 {
-  "name": "smart-privacy-locker-phase2",
-  "version": "2.0.0",
+  "name": "smart-privacy-locker-phase3",
+  "version": "3.0.0",
   "private": true,
-  "description": "Phase 2 Node-RED orchestration and contract tests",
+  "description": "Phase 3 Node-RED orchestration, data integration, and contract tests",
   "engines": { "node": ">=20" },
   "scripts": {
     "build:flowfuse": "node scripts/build-flowfuse-flow.js",
@@ -12,7 +12,8 @@
     "audit": "node scripts/audit-config.js"
   },
   "dependencies": {
-    "@flowfuse/node-red-dashboard": "1.30.2"
+    "@flowfuse/node-red-dashboard": "1.30.2",
+    "nodemailer": "9.0.5"
   },
   "devDependencies": {
     "aedes": "1.1.1",

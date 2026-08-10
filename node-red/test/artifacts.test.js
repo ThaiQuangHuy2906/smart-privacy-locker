@@ -73,6 +73,24 @@ test('Supabase migrations enforce RLS, no locker update policy, and atomic uncla
   assert.match(grants, /grant execute on function public\.claim_locker\(text\) to authenticated/i);
   assert.match(grants, /revoke all privileges on function public\.create_profile_for_new_user\(\)\s+from public, anon, authenticated/i);
   assert.doesNotMatch(grants, /grant (?:insert|update|delete|all).*public\.lockers/i);
+
+  const phase3Migration = fs.readFileSync(path.join(migrationsPath,
+    '202608100001_phase3_events_notifications.sql'), 'utf8');
+  for (const table of ['device_events', 'notification_settings', 'notification_deliveries']) {
+    assert.match(phase3Migration, new RegExp(`alter table public\\.${table} enable row level security`, 'i'));
+  }
+  assert.match(phase3Migration, /event_id uuid primary key/i);
+  assert.match(phase3Migration, /unique \(locker_id, channel, report_key\)/i);
+  assert.match(phase3Migration, /device_events_locker_occurred_idx/i);
+  assert.match(phase3Migration, /owner_id = auth\.uid\(\)/i);
+  assert.match(phase3Migration, /grant select on table public\.device_events to authenticated/i);
+  assert.doesNotMatch(phase3Migration, /grant (?:insert|update|delete|all).*public\.device_events to authenticated/i);
+
+  const phase3DatabaseTest = fs.readFileSync(path.join(root, 'supabase', 'tests',
+    'phase3_data_rls.sql'), 'utf8');
+  assert.match(phase3DatabaseTest, /has_table_privilege\('authenticated', 'public\.device_events', 'SELECT'\)/i);
+  assert.match(phase3DatabaseTest, /User A can see cross-owner Phase 3 rows/i);
+  assert.match(phase3DatabaseTest, /duplicate event_id unexpectedly succeeded/i);
 });
 
 test('P2-M03 live signup uses a unique real-mailbox template and rejects blocked test domains', () => {

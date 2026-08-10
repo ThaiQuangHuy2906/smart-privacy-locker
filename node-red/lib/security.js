@@ -60,7 +60,7 @@ class UnauthorizedDetector {
     // slow provider must never hold ALARM_ON in the Node-RED MQTT outbox.
     Promise.resolve(this.notify(unauthorized)).then((notification) => {
       unauthorized.notification_status = notification.status;
-      this.notificationStatus(notification);
+      this.notificationStatus(notification, unauthorized);
     }).catch(() => {
       const notification = {
         schema_version: 1, event_id: unauthorized.event_id, channel: 'telegram',
@@ -68,7 +68,7 @@ class UnauthorizedDetector {
         error: { code: 'TELEGRAM_DELIVERY_FAILED', message: 'Telegram delivery failed' },
       };
       unauthorized.notification_status = notification.status;
-      this.notificationStatus(notification);
+      this.notificationStatus(notification, unauthorized);
     });
     return [opened, unauthorized, { interface: 'ALARM_ON', result: alarm },
       { interface: 'TELEGRAM', event_id: unauthorized.event_id, delivery: 'asynchronous' }];

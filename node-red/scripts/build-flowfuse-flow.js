@@ -10,6 +10,7 @@ const outputFlowPath = path.join(nodeRedRoot, 'flows.flowfuse.json');
 const runtimeEnvironmentKeys = Object.freeze([
   'SUPABASE_URL',
   'SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
   'TELEGRAM_BOT_TOKEN',
   'TELEGRAM_CHAT_ID',
   'DASHBOARD_BASE_URL',
@@ -19,6 +20,11 @@ const runtimeEnvironmentKeys = Object.freeze([
   'DEVICE_STALE_AFTER_SECONDS',
   'COMMAND_TIMEOUT_MS',
   'AUTHORIZED_UNLOCK_WINDOW_SECONDS',
+  'GMAIL_SMTP_HOST',
+  'GMAIL_SMTP_PORT',
+  'GMAIL_SMTP_USER',
+  'GMAIL_APP_PASSWORD',
+  'EMAIL_FROM',
 ]);
 
 function readText(target) {
@@ -60,6 +66,7 @@ function buildRuntimeBootstrap() {
     '',
     'function __splLoad(request) {',
     "  if (request === 'node:crypto' || request === 'crypto') return crypto;",
+    "  if (request === 'nodemailer') return nodemailer;",
     "  const id = String(request).replace(/\\.js$/, '');",
     '  if (__splModuleCache[id]) return __splModuleCache[id].exports;',
     '  const factory = __splModules[id];',
@@ -68,8 +75,9 @@ function buildRuntimeBootstrap() {
     '  __splModuleCache[id] = module;',
     '  const localRequire = (dependency) => {',
     "    if (dependency === 'node:crypto' || dependency === 'crypto') return crypto;",
+    "    if (dependency === 'nodemailer') return nodemailer;",
     "    if (String(dependency).startsWith('./')) return __splLoad(dependency);",
-    "    throw new Error(`External module is not allowed by the Phase 2 bundle: ${dependency}`);",
+    "    throw new Error(`External module is not allowed by the Phase 3 bundle: ${dependency}`);",
     '  };',
     '  factory(module, module.exports, localRequire);',
     '  return module.exports;',
@@ -163,7 +171,8 @@ function buildRuntimeBootstrap() {
     "const __splCreateFromEnvironment = __splLoad('./runtime').createFromEnvironment;",
     'const __splFactory = (options = {}) => __splCreateFromEnvironment({',
     '  env: __splEnvironment,',
-    '  fetchImpl: __splHttpsFetch,',
+  '  fetchImpl: __splHttpsFetch,',
+    '  nodemailerImpl: nodemailer,',
     '  uuid: () => crypto.randomUUID(),',
     '  ...options,',
     '});',
@@ -175,10 +184,10 @@ function buildRuntimeBootstrap() {
     "global.set('splOutbox', __splOutbox);",
     "global.set('splRuntime', __splRuntime);",
     '',
-    "const __splMissing = ['SUPABASE_URL', 'SUPABASE_ANON_KEY']",
+    "const __splMissing = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY']",
     '  .filter((key) => !__splEnvironment[key]);',
     'if (__splMissing.length) {',
-    "  node.warn(`Phase 2 runtime is missing deployment variables: ${__splMissing.join(', ')}`);",
+    "  node.warn(`Phase 3 runtime is missing deployment variables: ${__splMissing.join(', ')}`);",
     '}',
     "if (Boolean(__splEnvironment.GEMINI_API_KEY) !== Boolean(__splEnvironment.GEMINI_MODEL)) {",
     "  node.warn('Set both GEMINI_API_KEY and GEMINI_MODEL, or leave both empty.');",
@@ -220,6 +229,10 @@ function protectRuntimeConsumers(flows) {
     { id: 'chat_fn', outputs: 1 },
     { id: 'claim_fn', outputs: 1 },
     { id: 'state_fn', outputs: 1 },
+    { id: 'history_fn', outputs: 1 },
+    { id: 'chart_fn', outputs: 1 },
+    { id: 'settings_get_fn', outputs: 1 },
+    { id: 'settings_put_fn', outputs: 1 },
   ];
   for (const { id, outputs } of protectedFunctions) {
     const node = flows.find((candidate) => candidate.id === id);
@@ -288,6 +301,7 @@ function buildFlowFuseFlow() {
   initializer.libs = [
     { var: 'crypto', module: 'crypto' },
     { var: 'https', module: 'https' },
+    { var: 'nodemailer', module: 'nodemailer' },
   ];
 
   let settingsReferences = 0;

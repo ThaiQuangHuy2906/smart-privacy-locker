@@ -14,6 +14,8 @@ let pollRequested = 0;
 let chatRequestGeneration = 0;
 let authRequestGeneration = 0;
 let claimRequestGeneration = 0;
+let phase3RequestGeneration = 0;
+let settingsRequestGeneration = 0;
 
 const $ = (id) => document.getElementById(id);
 const lockerId = () => $('locker-id').value.trim();
@@ -36,6 +38,8 @@ function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nh�
   $('device').textContent = 'OFFLINE';
   $('door').textContent = 'UNKNOWN';
   $('lock').textContent = 'UNKNOWN — chưa xác nhận';
+  $('alarm').textContent = 'INACTIVE';
+  $('led').textContent = 'OFF';
   $('updated').textContent = '—';
   $('alert').textContent = '—';
   message('state-message', reason);
@@ -50,7 +54,12 @@ function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nh�
     $('password').value = '';
     $('question').value = defaultQuestion;
     claimMessage();
-    ['auth-form', 'claim-form', 'chat-form'].forEach((id) => {
+    $('history-list').textContent = 'Chưa tải lịch sử.';
+    $('chart-summary').textContent = 'Chưa tải dữ liệu biểu đồ.';
+    $('chart-bars').innerHTML = '';
+    message('history-message', '');
+    message('settings-message', '');
+    ['auth-form', 'claim-form', 'chat-form', 'settings-form'].forEach((id) => {
       $(id).dataset.pending = 'false';
       $(id).setAttribute('aria-busy', 'false');
     });
@@ -59,6 +68,8 @@ function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nh�
 
 function invalidateLockerContext(reason = 'Locker ID đã thay đổi; đang chờ trạng thái được xác nhận.') {
   chatRequestGeneration += 1;
+  phase3RequestGeneration += 1;
+  settingsRequestGeneration += 1;
   $('answer').textContent = '';
   $('chat-form').dataset.pending = 'false';
   $('chat-form').setAttribute('aria-busy', 'false');
@@ -210,16 +221,121 @@ function renderState(ui, targetLocker) {
   renderedSessionEpoch = sessionEpoch;
   $('mqtt').textContent = ui.mqtt; $('device').textContent = ui.device; $('door').textContent = ui.door;
   $('lock').textContent = ui.lock_unconfirmed ? 'UNKNOWN — chưa xác nhận' : ui.lock;
+  $('alarm').textContent = ui.alarm || 'UNKNOWN';
+  $('led').textContent = ui.led || 'UNKNOWN';
   $('updated').textContent = ui.last_updated || '—';
   $('alert').textContent = ui.latest_alert
     ? `${ui.latest_alert.event_type} @ ${ui.latest_alert.occurred_at} — Telegram: ${ui.latest_alert.notification_status || 'pending'}`
     : '—';
-  message('state-message', ui.stale ? 'Dữ liệu stale/untrusted; controls bị khóa.' : 'Dữ liệu live đã được xác nhận.');
+  const persistence = ui.persistence?.status === 'error'
+    ? ` Supabase: ${ui.persistence.last_error}.` : '';
+  message('state-message', (ui.stale ? 'Dữ liệu stale/untrusted; controls bị khóa.' : 'Dữ liệu live đã được xác nhận.') + persistence);
   if (ui.command_status) {
     const value = ui.command_status;
     message('command-message', `${value.action}: ${value.status} (${value.command_id.slice(0, 8)})`);
   }
   renderControls(ui);
+}
+
+function validRangeDays() {
+  return ['7', '30'].includes($('range-days').value) ? $('range-days').value : '7';
+}
+
+function renderHistory(result) {
+  const events = Array.isArray(result.events) ? result.events : [];
+  $('history-list').textContent = events.length
+    ? events.map((event) => {
+      const authorization = event.authorized == null ? '' : ` · authorized=${event.authorized}`;
+      const action = event.action ? ` · ${event.action}` : '';
+      return `${event.occurred_at} · ${event.event_type}${action}${authorization} · ${event.result}`;
+    }).join('\n')
+    : 'Không có sự kiện trong khoảng đã chọn.';
+  message('history-message', `${events.length} sự kiện · ${result.range?.from || '—'} → ${result.range?.to || '—'}`);
+}
+
+function renderChart(result) {
+  const buckets = Array.isArray(result.buckets) ? result.buckets : [];
+  const maximum = Math.max(1, ...buckets.flatMap((bucket) => [Number(bucket.opens) || 0, Number(bucket.alerts) || 0]));
+  $('chart-summary').textContent = `${result.days || validRangeDays()} ngày · ${result.timezone || 'Asia/Ho_Chi_Minh'} · `
+    + `${result.totals?.opens || 0} lần mở · ${result.totals?.alerts || 0} cảnh báo`;
+  $('chart-bars').innerHTML = buckets.map((bucket) => {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(bucket.date)) ? String(bucket.date) : 'unknown';
+    const opens = Math.max(0, Number(bucket.opens) || 0);
+    const alerts = Math.max(0, Number(bucket.alerts) || 0);
+    const openHeight = Math.max(2, Math.round((opens / maximum) * 170));
+    const alertHeight = Math.max(2, Math.round((alerts / maximum) * 170));
+    return `<div class="chart-day"><i class="chart-bar chart-bar--open" title="${opens} lần mở" style="height:${openHeight}px"></i>`
+      + `<i class="chart-bar chart-bar--alert" title="${alerts} cảnh báo" style="height:${alertHeight}px"></i>`
+      + `<span class="chart-label">${date.slice(5)}</span></div>`;
+  }).join('');
+}
+
+async function loadPhase3Data() {
+  if (!hasRenderedContext()) {
+    message('history-message', 'Cần live state của đúng locker trước khi tải dữ liệu.');
+    return;
+  }
+  const requestGeneration = ++phase3RequestGeneration;
+  const requestEpoch = sessionEpoch;
+  const targetLocker = lockerId();
+  const days = validRangeDays();
+  $('refresh-phase3').disabled = true;
+  message('history-message', 'Đang tải lịch sử và biểu đồ…');
+  try {
+    const [history, chart] = await Promise.all([
+      protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/history?days=${days}`),
+      protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/chart?days=${days}`),
+    ]);
+    if (phase3RequestGeneration !== requestGeneration || sessionEpoch !== requestEpoch
+      || lockerId() !== targetLocker) return;
+    renderHistory(history);
+    renderChart(chart);
+  } catch (error) {
+    if (phase3RequestGeneration === requestGeneration && sessionEpoch === requestEpoch) {
+      message('history-message', `Không tải được dữ liệu: ${error.message}`);
+      $('history-list').textContent = 'Dữ liệu tạm thời không khả dụng.';
+      $('chart-summary').textContent = 'Biểu đồ tạm thời không khả dụng.';
+      $('chart-bars').innerHTML = '';
+    }
+  } finally {
+    if (phase3RequestGeneration === requestGeneration) $('refresh-phase3').disabled = false;
+  }
+}
+
+function applySettings(setting) {
+  $('telegram-enabled').checked = Boolean(setting.telegram_enabled);
+  $('telegram-chat-id').value = setting.telegram_chat_id || '';
+  $('email-enabled').checked = Boolean(setting.email_enabled);
+  $('report-email').value = setting.email_address || '';
+  $('report-time').value = String(setting.report_time || '21:00').slice(0, 5);
+  $('report-timezone').value = setting.timezone || 'Asia/Ho_Chi_Minh';
+}
+
+async function loadSettings() {
+  if (!hasRenderedContext()) {
+    message('settings-message', 'Cần live state của đúng locker trước khi tải cài đặt.');
+    return;
+  }
+  const generation = ++settingsRequestGeneration;
+  const requestEpoch = sessionEpoch;
+  const targetLocker = lockerId();
+  $('settings-form').dataset.pending = 'true';
+  $('settings-form').setAttribute('aria-busy', 'true');
+  try {
+    const result = await protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/notification-settings`);
+    if (generation !== settingsRequestGeneration || requestEpoch !== sessionEpoch || targetLocker !== lockerId()) return;
+    applySettings(result.setting || {});
+    message('settings-message', 'Đã tải cài đặt báo cáo.');
+  } catch (error) {
+    if (generation === settingsRequestGeneration && requestEpoch === sessionEpoch) {
+      message('settings-message', `Không tải được cài đặt: ${error.message}`);
+    }
+  } finally {
+    if (generation === settingsRequestGeneration) {
+      $('settings-form').dataset.pending = 'false';
+      $('settings-form').setAttribute('aria-busy', 'false');
+    }
+  }
 }
 
 function pollState() {
@@ -354,6 +470,49 @@ document.querySelectorAll('[data-action]').forEach((button) => button.addEventLi
     await pollState();
   }
 }));
+
+$('refresh-phase3').addEventListener('click', loadPhase3Data);
+$('range-days').addEventListener('change', () => { if (hasRenderedContext()) loadPhase3Data(); });
+$('load-settings').addEventListener('click', loadSettings);
+
+$('settings-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!hasRenderedContext() || event.currentTarget.dataset.pending === 'true') {
+    message('settings-message', 'Cần live state của đúng locker trước khi lưu cài đặt.');
+    return;
+  }
+  const generation = ++settingsRequestGeneration;
+  const requestEpoch = sessionEpoch;
+  const targetLocker = lockerId();
+  const form = event.currentTarget;
+  form.dataset.pending = 'true';
+  form.setAttribute('aria-busy', 'true');
+  try {
+    const result = await protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/notification-settings`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        email_enabled: $('email-enabled').checked,
+        email_address: $('report-email').value.trim(),
+        report_time: $('report-time').value,
+        timezone: $('report-timezone').value.trim(),
+        telegram_enabled: $('telegram-enabled').checked,
+        telegram_chat_id: $('telegram-chat-id').value.trim() || null,
+      }),
+    });
+    if (generation !== settingsRequestGeneration || requestEpoch !== sessionEpoch || targetLocker !== lockerId()) return;
+    applySettings(result.setting || {});
+    message('settings-message', 'Đã lưu cài đặt; scheduler sẽ chống gửi trùng theo ngày báo cáo.');
+  } catch (error) {
+    if (generation === settingsRequestGeneration && requestEpoch === sessionEpoch) {
+      message('settings-message', `Không lưu được cài đặt: ${error.message}`);
+    }
+  } finally {
+    if (generation === settingsRequestGeneration) {
+      form.dataset.pending = 'false';
+      form.setAttribute('aria-busy', 'false');
+    }
+  }
+});
 
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
