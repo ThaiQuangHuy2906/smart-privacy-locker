@@ -69,4 +69,6 @@ void StateManager::setDoor(DoorState state) { state_.door = state; }
 
 void StateManager::setLock(LockState state) { state_.lock = state; }
 
+void StateManager::setAlarm(AlarmState state) { state_.alarm = state; }
+
 void StateManager::setLed(LedState state) { state_.led = state; }

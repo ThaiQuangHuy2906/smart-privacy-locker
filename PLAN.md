@@ -1103,7 +1103,7 @@ MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `
 
 Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST` cho final release, nhưng khi hardware chưa có chúng được theo dõi bằng deferred hardware-final tests và Section 9; chúng không chặn Phase 3 software handoff hoặc thay thế physical E2E.
 
-- [ ] **[MUST]** Re-audit handoff, contract và unresolved hardware/service questions trước khi chỉnh integration.
+- [x] **[MUST]** Re-audit handoff, contract và unresolved hardware/service questions trước khi chỉnh integration.
   - File/module dự kiến: `PLAN.md`, contract docs, risk/open-question log.
   - Kết quả phải đạt: Phase 3 biết rõ schema/topic/counting/timezone/pending semantics; không sửa interface âm thầm.
   - Cách kiểm tra: walkthrough dependency và chạy Phase 1/2 smoke/regression baseline.
@@ -1133,7 +1133,7 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
   - Cách kiểm tra: apply các migration có thứ tự trên dev sạch, schema diff, two-user RLS tests, duplicate insert và query thực tế. Migration framework/rollback automation/query-plan tuning nâng cao là `SHOULD/OPTIONAL`.
   - Điều kiện được tick: setup schema dev tái lập được bằng các script đơn giản, policy/contract tests đạt và không dùng production dump/secret.
 
-- [ ] **[MUST]** Xây Node-RED YC4 event persistence pipeline và failure handling.
+- [x] **[MUST]** Xây Node-RED YC4 event persistence pipeline và failure handling.
   - File/module dự kiến: event persistence subflow, error/status output và tests; không cần dead-letter infrastructure.
   - Kết quả phải đạt: insert door/lock/alarm/LED/unauthorized/device/timeout events; idempotent theo event ID; lỗi được log/surface an toàn và không crash/loop. Bounded retry nhỏ cho transient error là `SHOULD`; dead-letter queue/service và retry framework nâng cao là `OPTIONAL`.
   - Cách kiểm tra: automated event matrix, duplicate, 4xx validation failure, 5xx/network failure và recovery; MANUAL Supabase thật.
@@ -1157,31 +1157,31 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
   - Cách kiểm tra: User A/B, invalid time/timezone/address, session expiry và reload.
   - Điều kiện được tick: settings persist đúng, RLS deny cross-owner và UI không hiển thị credential backend.
 
-- [ ] **[MUST]** Triển khai YC7 scheduler, daily aggregation và email rendering.
+- [x] **[MUST]** Triển khai YC7 scheduler, daily aggregation và email rendering.
   - File/module dự kiến: scheduler/report aggregator/email subflows, email template/docs.
   - Kết quả phải đạt: đúng report period local ngày trước; số lần mở/cảnh báo/latest activity từ data; email nêu khoảng thời gian/timezone.
   - Cách kiểm tra: virtual/injected schedule automated test với deterministic events và email transport adapter; MANUAL Gmail test mailbox được theo dõi riêng ở P3-M06 `FINAL-GATE`.
   - Điều kiện được tick cho software completion: subject/body/recipient/counts, owner scope và controlled provider-failure path đạt bằng automated/integration evidence; P3-M06 có thể còn `Pending` nhưng block `FINAL_RELEASE_READY`.
 
-- [ ] **[MUST]** Chống gửi email trùng và lưu delivery log idempotent.
+- [x] **[MUST]** Chống gửi email trùng và lưu delivery log idempotent.
   - File/module dự kiến: notification delivery migration, dedupe/scheduler subflow, tests.
   - Kết quả phải đạt: unique dedupe key đơn giản theo locker + local report date + channel; trigger lặp/restart chỉ tạo một send intent/success. Distributed scheduler coordination là `OPTIONAL`.
   - Cách kiểm tra: fire scheduler hai lần, restart Node-RED giữa các bước, provider success/failure và retry policy hữu hạn nếu có.
   - Điều kiện được tick: không gửi trùng, log status/time/error đúng và retry không biến lỗi permanent thành loop.
 
-- [ ] **[MUST]** Nối YC6 với actual buzzer và event persistence mà giữ Minh là owner YC6.
+- [x] **[MUST]** Nối YC6 với actual buzzer và event persistence mà giữ Minh là owner YC6.
   - File/module dự kiến: unauthorized detector adapters, dispatcher, persistence, latest alert, Dashboard.
   - Kết quả phải đạt: unauthorized transition → one event → ALARM_ON → valid ACK/ACTIVE → Telegram/latest alert; persistence failure không ngăn cảnh báo vật lý.
   - Cách kiểm tra: deterministic/injected integration cho buzzer ACK/timeout, Telegram/Supabase success/failure và dedupe episode; MANUAL full scenario P3-M07/P3-M08 là `FINAL-GATE`.
   - Điều kiện được tick cho software completion: adapters/wiring logic và automated/integration matrix có evidence, `authorized=false` mapping đúng, không duplicate alarm/alert; P3-M07/P3-M08 có thể còn `Pending` nhưng block `FINAL_RELEASE_READY`.
 
-- [ ] **[MUST]** Nối YC8 history adapter vào Supabase thật và regression grounding.
+- [x] **[MUST]** Nối YC8 history adapter vào Supabase thật và regression grounding.
   - File/module dự kiến: history adapter, chatbot tests, Dashboard chatbot.
   - Kết quả phải đạt: live từ cache, history/counts từ query; context có provenance/time range; Gemini không nhận secret/JWT hoặc tự tính facts.
   - Cách kiểm tra: automated assertions cho query result, structured facts/provenance/time range, prompt boundary, no-data/provider error; MANUAL live Gemini P3-M09 là `FINAL-GATE`. Sophisticated numeric validator là `OPTIONAL`.
   - Điều kiện được tick cho software completion: history query/context/owner filter và deterministic no-data/error behavior đạt; P3-M09 có thể còn `Pending` nhưng block `FINAL_RELEASE_READY`; không cần output-validation framework phức tạp.
 
-- [ ] **[MUST]** Hoàn thiện toàn bộ FlowFuse Dashboard và responsive/interaction states.
+- [x] **[MUST]** Hoàn thiện toàn bộ FlowFuse Dashboard và responsive/interaction states.
   - File/module dự kiến: all Dashboard tabs/widgets, dashboard docs/assets.
   - Kết quả phải đạt: Online/Offline, OPEN/CLOSED/UNKNOWN, LOCKED/UNLOCKED, ACTIVE/INACTIVE, LED ON/OFF, pending/timeout/error, recent/history/chart/chatbot/settings.
   - Cách kiểm tra: state-model/integration checks cho auth expiry, wrong owner, broker/device offline và every control path; MANUAL desktop + phone P3-M10 là `FINAL-GATE`.
@@ -1193,7 +1193,7 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
   - Cách kiểm tra: trước software completion, audit SOFTWARE-GATE output và danh sách deferred hardware final gate/FINAL-GATE pending; trong hardware-final workflow, chạy test session với hardware/accounts thật, fault injection có kiểm soát và final evidence audit.
   - Điều kiện được tick cho software completion: plan/harness + SOFTWARE-GATE + pending record đầy đủ, không ghi giả. Các test row/acceptance hardware final/`FINAL-GATE` vẫn để unticked cho đến khi chạy thật và tiếp tục block `FINAL_RELEASE_READY`; defects được triage và affected regression rerun.
 
-- [ ] **[MUST]** Hoàn thiện user/deployment/troubleshooting/demo documents và release checklist.
+- [x] **[MUST]** Hoàn thiện user/deployment/troubleshooting/demo documents và release checklist.
   - File/module dự kiến: docs cuối, README, test traceability, `PLAN.md`.
   - Kết quả phải đạt: người khác deploy/use/demo/recover được; secret provisioning và backup/export được mô tả an toàn.
   - Cách kiểm tra: trước software completion, self-check docs với implementation và final diff; reproduction cùng rehearsal P3-M12 diễn ra ở hardware/`FINAL-GATE` workflow.
@@ -1241,11 +1241,11 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 
 ### Git Checklist
 
-- [ ] **Terra/owner:** Pull `develop` mới nhất bằng fast-forward-only; xác minh Phase 2 `COMPLETED`, Phase 3 `ACTIVE` và prior hardware final gates vẫn deferred nếu chưa có hardware.
-- [ ] **Terra/owner:** Xác nhận owner Mai Phương Thùy và switch/tạo `phase/3-thuy-data-integration` từ `develop`.
+- [x] **Terra/owner:** Pull `develop` mới nhất bằng fast-forward-only; xác minh Phase 2 `COMPLETED`, Phase 3 `ACTIVE` và prior hardware final gates vẫn deferred nếu chưa có hardware.
+- [x] **Terra/owner:** Xác nhận owner Mai Phương Thùy và switch/tạo `phase/3-thuy-data-integration` từ `develop`.
 - [ ] **Terra/owner:** Build/test SOFTWARE-GATE phù hợp đã chạy: firmware, Node-RED, migrations/RLS, aggregation và regression; non-hardware manual gates có environment sẵn sàng có evidence thật.
-- [ ] **Terra/owner:** Physical tests chưa chạy được giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` thiếu account/credential giữ `Pending`, không giả PASS và vẫn block `FINAL_RELEASE_READY`.
-- [ ] **Terra/owner:** Chạy final diff/source/secret/generated-flow/migration audit; không đổi owner YC6/YC8 hoặc frozen contract ngầm.
+- [x] **Terra/owner:** Physical tests chưa chạy được giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` thiếu account/credential giữ `Pending`, không giả PASS và vẫn block `FINAL_RELEASE_READY`.
+- [x] **Terra/owner:** Chạy final diff/source/secret/generated-flow/migration audit; không đổi owner YC6/YC8 hoặc frozen contract ngầm.
 - [ ] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary.
 - [ ] **Terra/owner:** Push Phase branch lên GitHub; nếu không có quyền, giữ Phase `ACTIVE` và ghi exact command.
 - [ ] **Terra/owner:** Khi SOFTWARE-GATE `PASS`, fast-forward merge Phase branch vào `develop` và push `develop`; không rewrite history hoặc force push.
@@ -1266,15 +1266,15 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 
 ### Phase Completion Summary
 
-- Status: Pending
-- Implementation: Pending
-- Automated tests: Pending
-- Manual HARD-GATE tests: Pending
-- Manual FINAL-GATE tests remaining: Pending
-- Known issues: Pending
-- Deferred SHOULD/OPTIONAL items: Pending
-- Branch: Pending
-- Commit: Pending
+- Status: ACTIVE — Phase 3 source implementation is present; lifecycle completion still requires the full PlatformIO gate, live database/UI HARD-GATE evidence, final audit, commit/push and `develop` integration.
+- Implementation: CB3 controller/ACK/state; YC4 migration, RLS contract, persistence/history/settings adapter; YC5 timezone aggregation/chart; YC7 SMTP report/delivery dedupe; YC6/YC8 adapters; final Dashboard and deployment/user/troubleshooting docs.
+- Automated tests: Node 92/92 PASS; simulator 8 assertions/14 scenarios PASS; authenticated loopback broker 15 assertions PASS; config/secret audit 0 findings; npm audit 0 vulnerabilities; CB3 host compiler smoke PASS. Full PlatformIO native/ESP32 run is not claimed because package download was unavailable in this execution environment.
+- Manual HARD-GATE tests: P3-M04 RLS and P3-M05 deployed chart remain Pending; migration was not applied to the supplied live project in this session.
+- Manual FINAL-GATE tests remaining: P3-M01–P3-M03 and P3-M06–P3-M12 remain Pending; no buzzer hardware, live SMTP send or final deployed UI/E2E evidence is claimed.
+- Known issues: supplied environment has no SMTP variables for YC7; browser screenshot runner lacked its Chromium binary; both are deployment/evidence gaps rather than production mock substitutions.
+- Deferred SHOULD/OPTIONAL items: history pagination, advanced retry/dead-letter infrastructure, distributed scheduler coordination and query-plan tuning.
+- Branch: `phase/3-thuy-data-integration`
+- Commit: Pending final audit/commit
 - Integration into `develop`: Pending
 - Project state after completion: `SOFTWARE_COMPLETE`; hardware workflow follows.
 

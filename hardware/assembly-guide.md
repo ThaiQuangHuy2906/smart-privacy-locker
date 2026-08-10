@@ -18,6 +18,7 @@
 6. Install latch linkage. Repeat a limited number of cycles, then inspect for collision, binding, heat, and rail sag before longer runs.
 7. When real hardware is available, execute every P1-M01–P1-M11 `DEFERRED — HARDWARE-FINAL-GATE` in `tests/test-plan.md`, capturing redacted evidence by test ID before final release/demo. These checks do not replace or invalidate the Phase 1 software handoff.
 8. For Phase 2, wire MC-38 between GPIO27 and ground only after power is removed. Verify the actual contact state with a meter, confirm the candidate LOW=CLOSED mapping, place the reed on the fixed frame and magnet on the moving door, then execute P2-M01/P2-M02. Do not describe an open circuit as reliable broken-wire detection.
+9. For Phase 3, keep power disconnected while adding the buzzer control described in `wiring-diagram/phase-3-buzzer-wiring.md`. Verify the module voltage/current and logic polarity first. GPIO26 is a signal, not a load supply. Use only the low-voltage project supply, with supervision appropriate for the lab; never connect this project to mains wiring.
 
 ## Wi-Fi reset and captive portal
 

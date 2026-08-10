@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const https = require('node:https');
+const nodemailer = require('nodemailer');
 const path = require('node:path');
 const { serializeFlowFuseFlow } = require('../scripts/build-flowfuse-flow');
 const { UUID_V4 } = require('../lib/contracts');
@@ -26,6 +27,7 @@ test('FlowFuse runtime bootstrap executes without settings.js or local filesyste
   assert.deepEqual(initializer.libs, [
     { var: 'crypto', module: 'crypto' },
     { var: 'https', module: 'https' },
+    { var: 'nodemailer', module: 'nodemailer' },
   ]);
   assert.doesNotMatch(initializer.initialize, /settings\.example|require\(['"]\.\/lib\/runtime/i);
   assert.match(initializer.initialize, /__splLoad\('\.\/runtime'\)/);
@@ -41,7 +43,7 @@ test('FlowFuse runtime bootstrap executes without settings.js or local filesyste
   const warnings = [];
   const statuses = [];
   const initialize = new Function(
-    'global', 'node', 'env', 'crypto', 'https', 'Buffer', 'URL', 'URLSearchParams',
+    'global', 'node', 'env', 'crypto', 'https', 'nodemailer', 'Buffer', 'URL', 'URLSearchParams',
     'setTimeout', 'clearTimeout', initializer.initialize,
   );
   initialize(
@@ -50,10 +52,11 @@ test('FlowFuse runtime bootstrap executes without settings.js or local filesyste
     { get: (key) => ({
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_ANON_KEY: 'publishable-test-value',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-value',
       GEMINI_API_KEY: '',
       GEMINI_MODEL: '',
     })[key] },
-    crypto, https, Buffer, URL, URLSearchParams, setTimeout, clearTimeout,
+    crypto, https, nodemailer, Buffer, URL, URLSearchParams, setTimeout, clearTimeout,
   );
 
   const runtime = store.get('splRuntime');
@@ -93,10 +96,15 @@ test('FlowFuse export self-serves the Dashboard and preserves protected API rout
     'POST /api/v1/chatbot',
     'POST /api/v1/lockers/claim',
     'GET /api/v1/lockers/:lockerId/state',
+    'GET /api/v1/lockers/:lockerId/history',
+    'GET /api/v1/lockers/:lockerId/chart',
+    'GET /api/v1/lockers/:lockerId/notification-settings',
+    'PUT /api/v1/lockers/:lockerId/notification-settings',
     'GET /api/v1/public-config',
     'GET /phase2',
   ]) assert.ok(httpRoutes.has(expected), expected);
-  for (const id of ['cmd_fn', 'chat_fn', 'claim_fn', 'state_fn']) {
+  for (const id of ['cmd_fn', 'chat_fn', 'claim_fn', 'state_fn', 'history_fn', 'chart_fn',
+    'settings_get_fn', 'settings_put_fn']) {
     assert.match(flows.find((node) => node.id === id).func, /RUNTIME_STARTING/);
   }
 });

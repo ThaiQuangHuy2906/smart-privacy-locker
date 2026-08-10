@@ -28,4 +28,8 @@ constexpr uint32_t DOOR_DEBOUNCE_MS = 50;
 // therefore is expected to read LOW when the magnet closes the candidate
 // circuit. P2-M01 must verify this polarity on the actual MC-38/board.
 constexpr bool MC38_CLOSED_LEVEL_HIGH = false;
+// Most active-buzzer driver modules used by the project are active-high. Copy
+// this complete file to ignored app_config.h and change the value only after
+// measuring the actual module/driver polarity. Boot always drives INACTIVE.
+constexpr bool BUZZER_ACTIVE_HIGH = true;
 }  // namespace AppConfig

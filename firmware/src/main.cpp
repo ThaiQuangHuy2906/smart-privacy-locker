@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "ack_publisher.h"
+#include "alarm_controller.h"
 #include "command_handler.h"
 #include "display_controller.h"
 #include "door_sensor.h"
@@ -27,6 +28,12 @@ EnvironmentMonitor environmentMonitor;
 DisplayController displayController;
 DoorSensor doorSensor(AppConfig::DOOR_DEBOUNCE_MS, AppConfig::MC38_CLOSED_LEVEL_HIGH);
 RecentCommandCache recentCommands(AppConfig::RECENT_COMMAND_CACHE_SIZE);
+
+void writeBuzzerOutput(bool high) {
+  digitalWrite(static_cast<int>(PinMap::BUZZER_CONTROL), high ? HIGH : LOW);
+}
+
+AlarmController alarmController(AppConfig::BUZZER_ACTIVE_HIGH, writeBuzzerOutput);
 
 AckRecord inFlightLockAck;
 bool lockCommandInFlight = false;
@@ -95,6 +102,18 @@ void rememberAndPublish(const AckRecord& record) {
 }
 
 void handleImmediateCommand(const Command& command) {
+  if (command.action == CommandAction::ALARM_ON || command.action == CommandAction::ALARM_OFF) {
+    const bool shouldBeActive = command.action == CommandAction::ALARM_ON;
+    if (!alarmController.setActive(shouldBeActive)) {
+      rememberAndPublish(makeAck(command, AckResult::ERROR, CommandError::ACTUATION_FAILED,
+                                 errorMessage(CommandError::ACTUATION_FAILED)));
+      return;
+    }
+    stateManager.setAlarm(shouldBeActive ? AlarmState::ACTIVE : AlarmState::INACTIVE);
+    rememberAndPublish(makeAck(command, AckResult::SUCCESS, CommandError::NONE, ""));
+    return;
+  }
+
   if (command.action == CommandAction::LED_ON || command.action == CommandAction::LED_OFF) {
     const bool shouldBeOn = command.action == CommandAction::LED_ON;
     ledController.setOn(shouldBeOn);
@@ -108,11 +127,8 @@ void handleImmediateCommand(const Command& command) {
     return;
   }
 
-  // ALARM_ON/OFF are valid shared-contract actions, but CB3 belongs to Phase
-  // 3. They receive a deterministic error ACK and never drive GPIO 26 here.
-  rememberAndPublish(
-      makeAck(command, AckResult::ERROR, CommandError::ACTUATION_FAILED,
-              "Alarm control is not available in the Phase 1 firmware"));
+  rememberAndPublish(makeAck(command, AckResult::ERROR, CommandError::INVALID_ACTION,
+                             errorMessage(CommandError::INVALID_ACTION)));
 }
 
 void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int payloadLength) {
@@ -188,6 +204,14 @@ void processUsbMaintenanceCommand() {
 void setup() {
   Serial.begin(115200);
   stateManager.resetForColdBoot();
+  // Load the safe inactive latch before enabling output. This avoids an
+  // active-low driver pulse during boot. GPIO26 only drives the external
+  // MOSFET/driver input; it never powers the 5 V buzzer load directly.
+  digitalWrite(static_cast<int>(PinMap::BUZZER_CONTROL),
+               AppConfig::BUZZER_ACTIVE_HIGH ? LOW : HIGH);
+  pinMode(static_cast<int>(PinMap::BUZZER_CONTROL), OUTPUT);
+  alarmController.begin();
+  stateManager.setAlarm(AlarmState::INACTIVE);
   pinMode(static_cast<int>(PinMap::MC38_DOOR_SENSOR), INPUT_PULLUP);
   doorSensor.reset();
   lockController.begin();
@@ -198,7 +222,7 @@ void setup() {
   }
   wifiProvisioning.begin();
   mqttClient.begin(onMqttMessage);
-  Serial.println("Phase 1 firmware started; send R on USB serial to erase Wi-Fi config");
+  Serial.println("Smart Privacy Locker firmware started; send R on USB serial to erase Wi-Fi config");
 }
 
 void loop() {

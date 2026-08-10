@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#071118">
-  <meta name="description" content="Bảng điều khiển bảo mật Phase 2 cho Smart Privacy Locker.">
-  <title>Smart Privacy Locker — Phase 2</title>
+  <meta name="description" content="Bảng điều khiển Smart Privacy Locker với lịch sử, biểu đồ và báo cáo.">
+  <title>Smart Privacy Locker</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -28,7 +28,7 @@
           <span class="micro-label">Phiên bảo mật</span>
           <p id="session-label" role="status" aria-live="polite">Chưa đăng nhập</p>
         </div>
-        <span class="phase-badge">Phase 2</span>
+        <span class="phase-badge">Phase 3</span>
       </div>
     </header>
 
@@ -136,6 +136,16 @@
           <span class="status-label">Khóa</span>
           <strong id="lock">UNKNOWN — chưa xác nhận</strong>
         </article>
+        <article class="status-cell status-cell--alarm">
+          <div class="status-cell-top"><span class="status-code">ALM·05</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-label">Còi báo động</span>
+          <strong id="alarm">INACTIVE</strong>
+        </article>
+        <article class="status-cell status-cell--led">
+          <div class="status-cell-top"><span class="status-code">LED·06</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-label">Đèn trong tủ</span>
+          <strong id="led">OFF</strong>
+        </article>
       </div>
 
       <div class="status-meta-grid">
@@ -172,6 +182,18 @@
               </button>
               <button type="button" data-action="UNLOCK" data-domain="lock" class="control-button control-button--open" disabled>
                 <span class="control-code">UNLOCK</span><span>Mở khóa</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <span class="control-group-label">Còi báo động CB3</span>
+            <div class="control-buttons">
+              <button type="button" data-action="ALARM_ON" data-domain="alarm" class="control-button control-button--alarm" disabled>
+                <span class="control-code">ALARM·ON</span><span>Test Alarm</span>
+              </button>
+              <button type="button" data-action="ALARM_OFF" data-domain="alarm" class="control-button control-button--open" disabled>
+                <span class="control-code">ALARM·OFF</span><span>Stop Alarm</span>
               </button>
             </div>
           </div>
@@ -219,9 +241,90 @@
       </section>
     </div>
 
+    <section class="phase3-grid" aria-label="Dữ liệu và báo cáo Phase 3">
+      <article class="card data-card" aria-labelledby="history-title">
+        <div class="section-heading">
+          <span class="section-index" aria-hidden="true">06</span>
+          <div>
+            <p class="section-kicker">Supabase history · YC4</p>
+            <h2 id="history-title">Sự kiện gần đây</h2>
+            <p class="section-copy">Dữ liệu mới nhất của đúng locker đang đăng nhập.</p>
+          </div>
+        </div>
+        <div class="data-toolbar">
+          <label class="field field--compact" for="range-days">
+            <span class="field-label">Khoảng dữ liệu</span>
+            <select id="range-days">
+              <option value="7">7 ngày</option>
+              <option value="30">30 ngày</option>
+            </select>
+          </label>
+          <button id="refresh-phase3" type="button" class="button button--secondary">Tải lịch sử &amp; biểu đồ</button>
+        </div>
+        <pre id="history-list" class="history-list" aria-live="polite">Chưa tải lịch sử.</pre>
+        <p id="history-message" class="message" role="status" aria-live="polite"></p>
+      </article>
+
+      <article class="card data-card" aria-labelledby="chart-title">
+        <div class="section-heading">
+          <span class="section-index" aria-hidden="true">07</span>
+          <div>
+            <p class="section-kicker">Daily aggregation · YC5</p>
+            <h2 id="chart-title">Biểu đồ mở tủ &amp; cảnh báo</h2>
+            <p class="section-copy">Đủ bucket ngày, kể cả ngày không có sự kiện.</p>
+          </div>
+        </div>
+        <p id="chart-summary" class="chart-summary">Chưa tải dữ liệu biểu đồ.</p>
+        <div id="chart-bars" class="chart-bars" role="img" aria-label="Biểu đồ số lần mở tủ và cảnh báo theo ngày"></div>
+        <div class="chart-legend"><span><i class="legend-open"></i>Mở tủ</span><span><i class="legend-alert"></i>Cảnh báo</span></div>
+      </article>
+
+      <article class="card settings-card" aria-labelledby="settings-title">
+        <div class="section-heading">
+          <span class="section-index" aria-hidden="true">08</span>
+          <div>
+            <p class="section-kicker">Daily report · YC7</p>
+            <h2 id="settings-title">Cài đặt báo cáo hằng ngày</h2>
+            <p class="section-copy">Email tổng hợp ngày trước, theo múi giờ của locker và chống gửi trùng.</p>
+          </div>
+        </div>
+        <form id="settings-form" class="settings-form" data-pending="false" aria-busy="false">
+          <label class="check-field" for="telegram-enabled">
+            <input id="telegram-enabled" type="checkbox">
+            <span>Bật thông báo Telegram</span>
+          </label>
+          <label class="field" for="telegram-chat-id">
+            <span class="field-label">Telegram chat ID</span>
+            <input id="telegram-chat-id" autocomplete="off" placeholder="Giữ trống nếu không dùng">
+          </label>
+          <label class="check-field" for="email-enabled">
+            <input id="email-enabled" type="checkbox">
+            <span>Bật báo cáo email</span>
+          </label>
+          <label class="field" for="report-email">
+            <span class="field-label">Email nhận báo cáo</span>
+            <input id="report-email" type="email" autocomplete="email" placeholder="owner@example.com">
+          </label>
+          <label class="field" for="report-time">
+            <span class="field-label">Giờ gửi</span>
+            <input id="report-time" type="time" value="21:00">
+          </label>
+          <label class="field" for="report-timezone">
+            <span class="field-label">Múi giờ</span>
+            <input id="report-timezone" value="Asia/Ho_Chi_Minh" autocomplete="off">
+          </label>
+          <div class="settings-actions">
+            <button id="load-settings" type="button" class="button button--secondary">Tải cài đặt</button>
+            <button id="save-settings" type="submit" class="button button--primary">Lưu cài đặt</button>
+          </div>
+        </form>
+        <p id="settings-message" class="message" role="status" aria-live="polite"></p>
+      </article>
+    </section>
+
     <footer class="page-footer">
-      <p>Smart Privacy Locker · Secure orchestration baseline</p>
-      <p>Phase 2 không lưu MQTT credential trong trình duyệt.</p>
+      <p>Smart Privacy Locker · Phase 3 data integration</p>
+      <p>MQTT, Supabase service-role và SMTP credential không nằm trong trình duyệt.</p>
     </footer>
   </main>
 

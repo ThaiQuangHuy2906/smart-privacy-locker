@@ -12,6 +12,7 @@ class StateManager {
   void setMqttConnected(bool connected);
   void setDoor(DoorState state);
   void setLock(LockState state);
+  void setAlarm(AlarmState state);
   void setLed(LedState state);
 
  private:

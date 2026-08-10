@@ -76,12 +76,15 @@ function liveState(overrides = {}) {
     device: 'ONLINE',
     door: 'CLOSED',
     lock: 'LOCKED',
+    alarm: 'INACTIVE',
+    led: 'OFF',
     lock_unconfirmed: false,
     last_updated: '2026-08-09T00:00:00.000Z',
     latest_alert: null,
     stale: false,
     controls: {
       lock: { enabled: true, pending: false },
+      alarm: { enabled: true, pending: false },
       led: { enabled: true, pending: false },
     },
     ...overrides,
@@ -91,8 +94,11 @@ function liveState(overrides = {}) {
 function createHarness({ hash = '', storedSession = null, fetchImpl } = {}) {
   const ids = [
     'auth-form', 'full-name', 'email', 'password', 'logout', 'session-label', 'auth-message',
-    'claim-form', 'locker-code', 'claim-message', 'locker-id', 'mqtt', 'device', 'door', 'lock', 'updated',
+    'claim-form', 'locker-code', 'claim-message', 'locker-id', 'mqtt', 'device', 'door', 'lock', 'alarm', 'led', 'updated',
     'alert', 'state-message', 'command-message', 'chat-form', 'question', 'answer',
+    'range-days', 'refresh-phase3', 'history-list', 'history-message', 'chart-summary', 'chart-bars',
+    'settings-form', 'email-enabled', 'report-email', 'report-time', 'report-timezone',
+    'load-settings', 'save-settings', 'settings-message',
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new FakeElement(id)]));
   elements['locker-code'].value = 'LOCKER-001';
@@ -100,10 +106,15 @@ function createHarness({ hash = '', storedSession = null, fetchImpl } = {}) {
   elements.email.value = 'user@example.test';
   elements.password.value = 'password-123';
   elements.question.value = 'Cửa tủ đang đóng hay mở?';
+  elements['range-days'].value = '7';
+  elements['report-time'].value = '21:00';
+  elements['report-timezone'].value = 'Asia/Ho_Chi_Minh';
 
   const actionButtons = [
     new FakeElement('lock', { dataset: { action: 'LOCK', domain: 'lock' } }),
     new FakeElement('unlock', { dataset: { action: 'UNLOCK', domain: 'lock' } }),
+    new FakeElement('alarm-on', { dataset: { action: 'ALARM_ON', domain: 'alarm' } }),
+    new FakeElement('alarm-off', { dataset: { action: 'ALARM_OFF', domain: 'alarm' } }),
     new FakeElement('led-on', { dataset: { action: 'LED_ON', domain: 'led' } }),
     new FakeElement('led-off', { dataset: { action: 'LED_OFF', domain: 'led' } }),
   ];

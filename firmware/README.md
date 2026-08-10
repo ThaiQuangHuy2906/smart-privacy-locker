@@ -1,6 +1,6 @@
-# ESP32 firmware — Phase 1 baseline + Phase 2 CB1
+# ESP32 firmware — Phase 3 CB3 integration
 
-This is a PlatformIO project for the ESP32 Dev Module profile `esp32dev`. It contains the accepted Phase 1 foundation (CB2, YC1, YC3, YC12) and Phase 2 CB1 MC-38 monitoring. It still does not implement Phase 3 CB3 buzzer hardware.
+This PlatformIO project contains the accepted Phase 1 foundation (CB2, YC1, YC3, YC12), Phase 2 CB1 monitoring, and Phase 3 CB3 active-buzzer software. GPIO26 is a control signal only; the real module polarity, current and driver circuit remain a hardware-final gate.
 
 ## Pinned toolchain
 
@@ -61,7 +61,7 @@ python -X utf8 -m platformio run -e esp32dev -t clean
 python -X utf8 -m platformio run -e esp32dev
 ```
 
-The native suite covers contract parser/validation, malformed/correlated error behavior, stale handling, duplicate ACK replay, and cold-boot state. It cannot prove a servo moves correctly, an OLED is wired, a phone opens the portal, or an ESP32 physically recovers through a broker; P1-M01–P1-M11 therefore remain `DEFERRED — HARDWARE-FINAL-GATE`. They require real evidence before final release/demo, but do not block the Phase 1 software handoff.
+The native suite covers contract parsing, stale/duplicate behavior, door debounce and the CB3 controller's active-high/active-low, safe-boot and idempotent behavior. It cannot prove a buzzer/servo moves or sounds, an OLED is wired, or an ESP32 physically recovers; physical gates remain mandatory before release/demo.
 
 ## Upload and serial monitor
 
@@ -83,7 +83,7 @@ To clear only Wi-Fi configuration, open the USB serial monitor and send a single
 - PubSubClient publishes at QoS 0. The design therefore uses correlated ACKs, bounded duplicate cache, Node-RED timeout, and `GET_STATE` reconciliation instead of claiming delivery exactly once.
 - The servo is **not attached at boot**. `lock=UNKNOWN` remains until a new valid `LOCK` or `UNLOCK` action finishes.
 - GPIO27 is sampled with `INPUT_PULLUP` through a 50 ms non-blocking stable debounce. Door remains `UNKNOWN` until the first full stable interval. A later stable edge publishes one non-retained `telemetry/door` message and updates retained full state. Unsynchronized telemetry uses `timestamp:null,time_synced:false`.
-- `ALARM_ON`/`ALARM_OFF` parse as valid shared-contract actions but return a deterministic `ACTUATION_FAILED` ACK. GPIO 26 and CB3 are not configured in Phase 1.
+- `ALARM_ON`/`ALARM_OFF` update GPIO26 through `AlarmController`, return a success ACK only after the state changes, and publish full state `ACTIVE`/`INACTIVE`. `BUZZER_ACTIVE_HIGH` supports either logic polarity. Setup writes the inactive latch before configuring the output pin to reduce boot glitches.
 - DHT22 readings are rendered only to OLED. No DHT telemetry topic exists.
 
 The authoritative payload and state rules are [../docs/mqtt-contract.md](../docs/mqtt-contract.md).

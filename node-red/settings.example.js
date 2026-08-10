@@ -2,7 +2,9 @@
 
 // Copy the relevant block into the deployment settings.js. Secrets stay in
 // deployment environment variables; they are never embedded in flows.json.
-const splRuntimeFactory = require('./lib/runtime').createFromEnvironment;
+const nodemailer = require('nodemailer');
+const createFromEnvironment = require('./lib/runtime').createFromEnvironment;
+const splRuntimeFactory = (options = {}) => createFromEnvironment({ nodemailerImpl: nodemailer, ...options });
 const splOutbox = [];
 const splRuntime = splRuntimeFactory({
   publish: (topic, payload, options) => splOutbox.push({ topic, payload, options }),
