@@ -1246,7 +1246,7 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 - [ ] **Terra/owner:** Build/test SOFTWARE-GATE phù hợp đã chạy: firmware, Node-RED, migrations/RLS, aggregation và regression; non-hardware manual gates có environment sẵn sàng có evidence thật.
 - [x] **Terra/owner:** Physical tests chưa chạy được giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` thiếu account/credential giữ `Pending`, không giả PASS và vẫn block `FINAL_RELEASE_READY`.
 - [x] **Terra/owner:** Chạy final diff/source/secret/generated-flow/migration audit; không đổi owner YC6/YC8 hoặc frozen contract ngầm.
-- [ ] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary.
+- [x] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary.
 - [ ] **Terra/owner:** Push Phase branch lên GitHub; nếu không có quyền, giữ Phase `ACTIVE` và ghi exact command.
 - [ ] **Terra/owner:** Khi SOFTWARE-GATE `PASS`, fast-forward merge Phase branch vào `develop` và push `develop`; không rewrite history hoặc force push.
 - [ ] **Terra/owner:** Chỉ sau integration push thành công, chuyển Phase 3 `ACTIVE → COMPLETED`, đặt project `SOFTWARE_COMPLETE` và dừng.
@@ -1274,8 +1274,8 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 - Known issues: supplied environment has no SMTP variables for YC7; browser screenshot runner lacked its Chromium binary; both are deployment/evidence gaps rather than production mock substitutions.
 - Deferred SHOULD/OPTIONAL items: history pagination, advanced retry/dead-letter infrastructure, distributed scheduler coordination and query-plan tuning.
 - Branch: `phase/3-thuy-data-integration`
-- Commit: Pending final audit/commit
-- Integration into `develop`: Pending
+- Commit: `70f8ca1` — local Phase 3 implementation commit; push requires explicit user approval.
+- Integration into `develop`: Pending; Phase branch push and merge were not performed.
 - Project state after completion: `SOFTWARE_COMPLETE`; hardware workflow follows.
 
 ## 8. End-to-End Test Checklist
