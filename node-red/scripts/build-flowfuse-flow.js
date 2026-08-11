@@ -12,7 +12,8 @@ const runtimeEnvironmentKeys = Object.freeze([
   'SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
   'TELEGRAM_BOT_TOKEN',
-  'TELEGRAM_CHAT_ID',
+  'TELEGRAM_BOT_USERNAME',
+  'TELEGRAM_WEBHOOK_SECRET',
   'DASHBOARD_BASE_URL',
   'REPORT_TIMEZONE',
   'GEMINI_API_KEY',
@@ -77,7 +78,7 @@ function buildRuntimeBootstrap() {
     "    if (dependency === 'node:crypto' || dependency === 'crypto') return crypto;",
     "    if (dependency === 'nodemailer') return nodemailer;",
     "    if (String(dependency).startsWith('./')) return __splLoad(dependency);",
-    "    throw new Error(`External module is not allowed by the Phase 3 bundle: ${dependency}`);",
+    "    throw new Error(`External module is not allowed by the FlowFuse bundle: ${dependency}`);",
     '  };',
     '  factory(module, module.exports, localRequire);',
     '  return module.exports;',
@@ -187,10 +188,15 @@ function buildRuntimeBootstrap() {
     "const __splMissing = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY']",
     '  .filter((key) => !__splEnvironment[key]);',
     'if (__splMissing.length) {',
-    "  node.warn(`Phase 3 runtime is missing deployment variables: ${__splMissing.join(', ')}`);",
+    "  node.warn(`Smart Locker runtime is missing deployment variables: ${__splMissing.join(', ')}`);",
     '}',
     "if (Boolean(__splEnvironment.GEMINI_API_KEY) !== Boolean(__splEnvironment.GEMINI_MODEL)) {",
     "  node.warn('Set both GEMINI_API_KEY and GEMINI_MODEL, or leave both empty.');",
+    '}',
+    "const __splTelegramKeys = ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_USERNAME', 'TELEGRAM_WEBHOOK_SECRET'];",
+    'const __splTelegramCount = __splTelegramKeys.filter((key) => Boolean(__splEnvironment[key])).length;',
+    'if (__splTelegramCount > 0 && __splTelegramCount < __splTelegramKeys.length) {',
+    "  node.warn('Set TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, and TELEGRAM_WEBHOOK_SECRET together.');",
     '}',
     "node.status({ fill: 'green', shape: 'dot', text: 'FlowFuse runtime ready' });",
   ].join('\n');
@@ -233,6 +239,10 @@ function protectRuntimeConsumers(flows) {
     { id: 'chart_fn', outputs: 1 },
     { id: 'settings_get_fn', outputs: 1 },
     { id: 'settings_put_fn', outputs: 1 },
+    { id: 'telegram_link_fn', outputs: 1 },
+    { id: 'telegram_disconnect_fn', outputs: 1 },
+    { id: 'telegram_test_fn', outputs: 1 },
+    { id: 'telegram_webhook_fn', outputs: 1 },
   ];
   for (const { id, outputs } of protectedFunctions) {
     const node = flows.find((candidate) => candidate.id === id);
@@ -247,24 +257,24 @@ function addFlowFuseDashboardRoute(flows) {
   const inlineDashboard = buildInlineDashboard();
   const uiTemplate = flows.find((node) => node.id === 'ui_template');
   if (!uiTemplate) throw new Error('Missing ui_template node');
-  uiTemplate.format = '<template><iframe title="Smart Privacy Locker Phase 2" src="/phase2" style="width:100%;height:80vh;border:0;border-radius:12px"></iframe></template>';
+  uiTemplate.format = '<template><iframe title="Smart Privacy Locker" src="/locker" style="display:block;width:100%;height:calc(100vh - 140px);min-height:720px;border:0;border-radius:20px;background:#f6f4ef"></iframe></template>';
 
   flows.push(
     {
       id: 'phase2_static_http', type: 'http in', z: 'tab_dashboard',
-      name: 'GET self-contained Phase 2 app', url: '/phase2', method: 'get',
-      upload: false, swaggerDoc: '', x: 200, y: 380, wires: [['phase2_static_fn']],
+      name: 'GET self-contained locker app', url: '/locker', method: 'get',
+      upload: false, swaggerDoc: '', x: 200, y: 570, wires: [['phase2_static_fn']],
     },
     {
       id: 'phase2_static_fn', type: 'function', z: 'tab_dashboard',
       name: 'Serve embedded Dashboard assets',
       func: `msg.payload=${JSON.stringify(inlineDashboard)};return msg;`,
       outputs: 1, noerr: 0, initialize: '', finalize: '', libs: [],
-      x: 510, y: 380, wires: [['phase2_static_response']],
+      x: 510, y: 570, wires: [['phase2_static_response']],
     },
     {
       id: 'phase2_static_response', type: 'http response', z: 'tab_dashboard',
-      name: 'Phase 2 app response', statusCode: '200',
+      name: 'Locker app response', statusCode: '200',
       headers: {
         'content-type': 'text/html; charset=utf-8',
         'cache-control': 'no-store',
@@ -272,7 +282,12 @@ function addFlowFuseDashboardRoute(flows) {
         'referrer-policy': 'no-referrer',
         'x-frame-options': 'SAMEORIGIN',
       },
-      x: 820, y: 380, wires: [],
+      x: 820, y: 570, wires: [],
+    },
+    {
+      id: 'phase2_legacy_http', type: 'http in', z: 'tab_dashboard',
+      name: 'GET legacy /phase2 app alias', url: '/phase2', method: 'get',
+      upload: false, swaggerDoc: '', x: 200, y: 640, wires: [['phase2_static_fn']],
     },
   );
 }

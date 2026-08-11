@@ -3,6 +3,8 @@
 const storageKey = 'smart-locker-phase2-session';
 const refreshRetryMs = 30_000;
 const requestTimeoutMs = 15_000;
+const dataRequestTimeoutMs = 30_000;
+const chatbotRequestTimeoutMs = 40_000;
 let config = null;
 let session = null;
 let sessionEpoch = 0;
@@ -16,11 +18,86 @@ let authRequestGeneration = 0;
 let claimRequestGeneration = 0;
 let phase3RequestGeneration = 0;
 let settingsRequestGeneration = 0;
+let telegramOperationGeneration = 0;
+let telegramLinkPollTimer = null;
+let telegramConnected = false;
+let commandRequestSequence = 0;
+let renderedUi = null;
+const commandRequests = new Map();
 
 const $ = (id) => document.getElementById(id);
 const lockerId = () => $('locker-id').value.trim();
 const defaultQuestion = $('question').value;
+const statusLabels = {
+  mqtt: { CONNECTED: 'Đã kết nối', DISCONNECTED: 'Mất kết nối' },
+  device: { ONLINE: 'Đang hoạt động', OFFLINE: 'Ngoại tuyến' },
+  wifi: { CONNECTED: 'Đã kết nối', DISCONNECTED: 'Chưa kết nối', UNKNOWN: 'Chưa xác định' },
+  door: { OPEN: 'Đang mở', CLOSED: 'Đang đóng', UNKNOWN: 'Chưa xác định' },
+  lock: { LOCKED: 'Đã khóa', UNLOCKED: 'Đã mở khóa', UNKNOWN: 'Chưa xác nhận' },
+  alarm: { ACTIVE: 'Đang bật', INACTIVE: 'Đang tắt', UNKNOWN: 'Chưa xác định' },
+  led: { ON: 'Đang bật', OFF: 'Đang tắt', UNKNOWN: 'Chưa xác định' },
+};
+const actionLabels = {
+  LOCK: 'Khóa tủ',
+  UNLOCK: 'Mở khóa',
+  ALARM_ON: 'Bật còi',
+  ALARM_OFF: 'Tắt còi',
+  LED_ON: 'Bật đèn',
+  LED_OFF: 'Tắt đèn',
+  GET_STATE: 'Làm mới trạng thái',
+};
+const eventTypeLabels = {
+  DOOR_OPENED: 'Cửa được mở',
+  DOOR_CLOSED: 'Cửa đã đóng',
+  DOOR_UNKNOWN: 'Trạng thái cửa chưa xác định',
+  LOCK_COMMAND: 'Yêu cầu khóa tủ',
+  UNLOCK_COMMAND: 'Yêu cầu mở khóa',
+  LOCK_STATE_CHANGED: 'Trạng thái khóa thay đổi',
+  ALARM_STARTED: 'Còi cảnh báo đã bật',
+  ALARM_STOPPED: 'Còi cảnh báo đã tắt',
+  LED_TURNED_ON: 'Đèn trong tủ đã bật',
+  LED_TURNED_OFF: 'Đèn trong tủ đã tắt',
+  DEVICE_ONLINE: 'Thiết bị đã trực tuyến',
+  DEVICE_OFFLINE: 'Thiết bị đã ngoại tuyến',
+  UNAUTHORIZED_OPEN: 'Phát hiện mở cửa trái phép',
+  COMMAND_REJECTED: 'Lệnh bị từ chối',
+  COMMAND_TIMEOUT: 'Thiết bị không xác nhận lệnh',
+  TELEGRAM_NOTIFICATION: 'Đã xử lý cảnh báo Telegram',
+  DAILY_EMAIL_REPORT: 'Đã xử lý báo cáo email',
+};
+const resultLabels = {
+  observed: 'Đã ghi nhận',
+  success: 'Thành công',
+  failure: 'Thất bại',
+  rejected: 'Bị từ chối',
+  timeout: 'Hết thời gian chờ',
+};
+const commandStatusLabels = {
+  PENDING: 'Đang chờ thiết bị xác nhận',
+  ACKED: 'Thiết bị đã xác nhận',
+  COMMAND_TIMEOUT: 'Thiết bị không phản hồi',
+  MQTT_DISCONNECTED: 'Mất kết nối MQTT',
+};
 function message(id, text) { $(id).textContent = text; }
+function renderStatus(id, rawValue = 'UNKNOWN') {
+  const normalized = String(rawValue || 'UNKNOWN').toUpperCase();
+  const element = $(id);
+  element.textContent = statusLabels[id]?.[normalized] || 'Chưa xác định';
+  element.dataset.state = normalized.toLowerCase();
+}
+function actionLabel(action) { return actionLabels[action] || action; }
+function formatDateTime(value, timezone = 'Asia/Ho_Chi_Minh') {
+  const parsed = new Date(value);
+  if (!value || Number.isNaN(parsed.getTime())) return 'Không rõ thời gian';
+  const options = { timeZone: timezone, hour12: false,
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit' };
+  try {
+    return parsed.toLocaleString('vi-VN', options);
+  } catch (_error) {
+    return parsed.toLocaleString('vi-VN', { ...options, timeZone: 'Asia/Ho_Chi_Minh' });
+  }
+}
 function claimMessage(text = '', state = 'idle') {
   message('claim-message', text);
   $('claim-message').dataset.state = state;
@@ -31,19 +108,66 @@ function hasRenderedContext() {
     && renderedLockerId === lockerId();
 }
 
+function hasAuthenticatedLockerSelection() {
+  return Boolean(session?.access_token) && lockerId().length > 0;
+}
+
+function clearPhase3State() {
+  phase3RequestGeneration += 1;
+  settingsRequestGeneration += 1;
+  telegramOperationGeneration += 1;
+  clearTimeout(telegramLinkPollTimer);
+  telegramLinkPollTimer = null;
+  $('refresh-phase3').disabled = false;
+  $('refresh-phase3').dataset.pending = 'false';
+  $('refresh-phase3').setAttribute('aria-busy', 'false');
+  $('settings-form').dataset.pending = 'false';
+  $('settings-form').setAttribute('aria-busy', 'false');
+  $('history-list').textContent = 'Chưa tải lịch sử.';
+  $('chart-summary').textContent = 'Chưa tải dữ liệu biểu đồ.';
+  $('chart-bars').innerHTML = '';
+  $('chart-empty').hidden = true;
+  $('chart-table-body').innerHTML = '';
+  message('history-message', '');
+  $('telegram-enabled').checked = false;
+  telegramConnected = false;
+  $('telegram-connection').dataset.connected = 'false';
+  $('telegram-status').textContent = 'Chưa liên kết. Bạn không cần tìm hoặc nhập Chat ID.';
+  $('telegram-link').textContent = 'Liên kết Telegram';
+  $('telegram-link').dataset.pending = 'false';
+  $('telegram-link').setAttribute('aria-busy', 'false');
+  $('telegram-test').hidden = true;
+  $('telegram-test').dataset.pending = 'false';
+  $('telegram-test').setAttribute('aria-busy', 'false');
+  $('telegram-disconnect').hidden = true;
+  $('telegram-disconnect').dataset.pending = 'false';
+  $('telegram-disconnect').setAttribute('aria-busy', 'false');
+  $('telegram-open-link').hidden = true;
+  $('telegram-open-link').removeAttribute('href');
+  $('email-enabled').checked = false;
+  $('report-email').value = '';
+  $('report-time').value = '21:00';
+  $('report-timezone').value = 'Asia/Ho_Chi_Minh';
+  syncNotificationFields();
+  message('settings-message', '');
+}
+
 function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nhận.', clearAnswer = false) {
   renderedLockerId = null;
   renderedSessionEpoch = -1;
-  $('mqtt').textContent = 'DISCONNECTED';
-  $('device').textContent = 'OFFLINE';
-  $('door').textContent = 'UNKNOWN';
-  $('lock').textContent = 'UNKNOWN — chưa xác nhận';
-  $('alarm').textContent = 'INACTIVE';
-  $('led').textContent = 'OFF';
+  renderedUi = null;
+  commandRequests.clear();
+  renderStatus('mqtt', 'DISCONNECTED');
+  renderStatus('device', 'OFFLINE');
+  renderStatus('wifi', 'UNKNOWN');
+  renderStatus('door', 'UNKNOWN');
+  renderStatus('lock', 'UNKNOWN');
+  renderStatus('alarm', 'INACTIVE');
+  renderStatus('led', 'OFF');
   $('updated').textContent = '—';
   $('alert').textContent = '—';
   message('state-message', reason);
-  message('command-message', 'Success chỉ xuất hiện sau ACK hợp lệ.');
+  message('command-message', 'Chưa có lệnh nào được gửi. Kết quả chỉ được xác nhận sau ACK hợp lệ.');
   if (clearAnswer) {
     chatRequestGeneration += 1;
     authRequestGeneration += 1;
@@ -54,11 +178,7 @@ function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nh�
     $('password').value = '';
     $('question').value = defaultQuestion;
     claimMessage();
-    $('history-list').textContent = 'Chưa tải lịch sử.';
-    $('chart-summary').textContent = 'Chưa tải dữ liệu biểu đồ.';
-    $('chart-bars').innerHTML = '';
-    message('history-message', '');
-    message('settings-message', '');
+    clearPhase3State();
     ['auth-form', 'claim-form', 'chat-form', 'settings-form'].forEach((id) => {
       $(id).dataset.pending = 'false';
       $(id).setAttribute('aria-busy', 'false');
@@ -68,18 +188,21 @@ function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nh�
 
 function invalidateLockerContext(reason = 'Locker ID đã thay đổi; đang chờ trạng thái được xác nhận.') {
   chatRequestGeneration += 1;
-  phase3RequestGeneration += 1;
-  settingsRequestGeneration += 1;
   $('answer').textContent = '';
   $('chat-form').dataset.pending = 'false';
   $('chat-form').setAttribute('aria-busy', 'false');
   clearSensitiveState(reason);
+  clearPhase3State();
   renderControls(null);
 }
 
 async function jsonFetch(url, options = {}) {
   const controller = new AbortController();
   const callerSignal = options.signal;
+  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+    ? options.timeoutMs : requestTimeoutMs;
+  const fetchOptions = { ...options };
+  delete fetchOptions.timeoutMs;
   let timedOut = false;
   const forwardAbort = () => controller.abort(callerSignal.reason);
   if (callerSignal?.aborted) forwardAbort();
@@ -87,9 +210,9 @@ async function jsonFetch(url, options = {}) {
   const requestTimer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, requestTimeoutMs);
+  }, timeoutMs);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw Object.assign(new Error(body.msg || body.message || body.code || `HTTP ${response.status}`), { status: response.status, body });
     return body;
@@ -177,7 +300,7 @@ async function refresh() {
   try {
     const next = await supabase('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: refreshSession.refresh_token }) });
     if (sessionEpoch !== refreshEpoch) return;
-    saveSession(next); await pollState();
+    saveSession(next); await pollState(); await loadSettings({ quiet: true });
   } catch (error) {
     if (sessionEpoch !== refreshEpoch) return;
     if ([400, 401, 403].includes(error.status)) {
@@ -208,7 +331,7 @@ async function protectedFetch(path, options = {}) {
 function renderControls(ui) {
   document.querySelectorAll('[data-action]').forEach((button) => {
     const domain = button.dataset.domain;
-    const pending = Boolean(ui?.controls?.[domain]?.pending);
+    const pending = Boolean(ui?.controls?.[domain]?.pending) || commandRequests.has(domain);
     button.disabled = !hasRenderedContext() || !ui?.controls?.[domain]?.enabled || pending;
     button.dataset.pending = pending ? 'true' : 'false';
     button.setAttribute('aria-busy', pending ? 'true' : 'false');
@@ -219,20 +342,28 @@ function renderState(ui, targetLocker) {
   if (!session || targetLocker !== lockerId()) return;
   renderedLockerId = targetLocker;
   renderedSessionEpoch = sessionEpoch;
-  $('mqtt').textContent = ui.mqtt; $('device').textContent = ui.device; $('door').textContent = ui.door;
-  $('lock').textContent = ui.lock_unconfirmed ? 'UNKNOWN — chưa xác nhận' : ui.lock;
-  $('alarm').textContent = ui.alarm || 'UNKNOWN';
-  $('led').textContent = ui.led || 'UNKNOWN';
-  $('updated').textContent = ui.last_updated || '—';
+  renderedUi = ui;
+  renderStatus('mqtt', ui.mqtt);
+  renderStatus('device', ui.device);
+  renderStatus('wifi', ui.wifi);
+  renderStatus('door', ui.door);
+  renderStatus('lock', ui.lock_unconfirmed ? 'UNKNOWN' : ui.lock);
+  renderStatus('alarm', ui.alarm);
+  renderStatus('led', ui.led);
+  $('updated').textContent = ui.last_updated ? formatDateTime(ui.last_updated) : '—';
   $('alert').textContent = ui.latest_alert
-    ? `${ui.latest_alert.event_type} @ ${ui.latest_alert.occurred_at} — Telegram: ${ui.latest_alert.notification_status || 'pending'}`
+    ? `${eventTypeLabels[ui.latest_alert.event_type] || 'Cảnh báo'} · ${formatDateTime(ui.latest_alert.occurred_at)}`
+      + ` · Telegram: ${ui.latest_alert.notification_status === 'delivered' ? 'đã gửi' : 'đang xử lý'}`
     : '—';
   const persistence = ui.persistence?.status === 'error'
     ? ` Supabase: ${ui.persistence.last_error}.` : '';
-  message('state-message', (ui.stale ? 'Dữ liệu stale/untrusted; controls bị khóa.' : 'Dữ liệu live đã được xác nhận.') + persistence);
+  message('state-message', (ui.stale
+    ? 'Dữ liệu đã cũ hoặc chưa được xác minh; các nút điều khiển tạm khóa.'
+    : 'Dữ liệu mới nhất đã được xác nhận.') + persistence);
   if (ui.command_status) {
     const value = ui.command_status;
-    message('command-message', `${value.action}: ${value.status} (${value.command_id.slice(0, 8)})`);
+    message('command-message', `${actionLabel(value.action)}: ${commandStatusLabels[value.status] || value.status}`
+      + ` (${value.command_id.slice(0, 8)})`);
   }
   renderControls(ui);
 }
@@ -243,14 +374,19 @@ function validRangeDays() {
 
 function renderHistory(result) {
   const events = Array.isArray(result.events) ? result.events : [];
+  const timezone = result.timezone || 'Asia/Ho_Chi_Minh';
   $('history-list').textContent = events.length
     ? events.map((event) => {
-      const authorization = event.authorized == null ? '' : ` · authorized=${event.authorized}`;
-      const action = event.action ? ` · ${event.action}` : '';
-      return `${event.occurred_at} · ${event.event_type}${action}${authorization} · ${event.result}`;
-    }).join('\n')
+      const details = [resultLabels[event.result] || 'Đã ghi nhận'];
+      if (event.action) details.push(actionLabel(event.action));
+      if (event.authorized === true) details.push('Mở cửa hợp lệ');
+      if (event.authorized === false) details.push('Cần kiểm tra');
+      return `${formatDateTime(event.occurred_at, timezone)} — ${eventTypeLabels[event.event_type] || 'Hoạt động khác'}\n${details.join(' · ')}`;
+    }).join('\n\n')
     : 'Không có sự kiện trong khoảng đã chọn.';
-  message('history-message', `${events.length} sự kiện · ${result.range?.from || '—'} → ${result.range?.to || '—'}`);
+  const from = result.range?.from ? formatDateTime(result.range.from, timezone) : '—';
+  const to = result.range?.to ? formatDateTime(result.range.to, timezone) : '—';
+  message('history-message', `${events.length} sự kiện · ${from} đến ${to}`);
 }
 
 function renderChart(result) {
@@ -258,21 +394,29 @@ function renderChart(result) {
   const maximum = Math.max(1, ...buckets.flatMap((bucket) => [Number(bucket.opens) || 0, Number(bucket.alerts) || 0]));
   $('chart-summary').textContent = `${result.days || validRangeDays()} ngày · ${result.timezone || 'Asia/Ho_Chi_Minh'} · `
     + `${result.totals?.opens || 0} lần mở · ${result.totals?.alerts || 0} cảnh báo`;
+  $('chart-empty').hidden = buckets.some((bucket) => (Number(bucket.opens) || 0) > 0
+    || (Number(bucket.alerts) || 0) > 0);
   $('chart-bars').innerHTML = buckets.map((bucket) => {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(String(bucket.date)) ? String(bucket.date) : 'unknown';
     const opens = Math.max(0, Number(bucket.opens) || 0);
     const alerts = Math.max(0, Number(bucket.alerts) || 0);
-    const openHeight = Math.max(2, Math.round((opens / maximum) * 170));
-    const alertHeight = Math.max(2, Math.round((alerts / maximum) * 170));
+    const openHeight = opens === 0 ? 0 : Math.max(2, Math.round((opens / maximum) * 170));
+    const alertHeight = alerts === 0 ? 0 : Math.max(2, Math.round((alerts / maximum) * 170));
     return `<div class="chart-day"><i class="chart-bar chart-bar--open" title="${opens} lần mở" style="height:${openHeight}px"></i>`
       + `<i class="chart-bar chart-bar--alert" title="${alerts} cảnh báo" style="height:${alertHeight}px"></i>`
       + `<span class="chart-label">${date.slice(5)}</span></div>`;
   }).join('');
+  $('chart-table-body').innerHTML = buckets.map((bucket) => {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(bucket.date)) ? String(bucket.date) : 'unknown';
+    const opens = Math.max(0, Number(bucket.opens) || 0);
+    const alerts = Math.max(0, Number(bucket.alerts) || 0);
+    return `<tr><th scope="row">${date}</th><td>${opens}</td><td>${alerts}</td></tr>`;
+  }).join('');
 }
 
 async function loadPhase3Data() {
-  if (!hasRenderedContext()) {
-    message('history-message', 'Cần live state của đúng locker trước khi tải dữ liệu.');
+  if (!hasAuthenticatedLockerSelection()) {
+    message('history-message', 'Cần đăng nhập và chọn Locker ID trước khi tải dữ liệu.');
     return;
   }
   const requestGeneration = ++phase3RequestGeneration;
@@ -280,40 +424,92 @@ async function loadPhase3Data() {
   const targetLocker = lockerId();
   const days = validRangeDays();
   $('refresh-phase3').disabled = true;
+  $('refresh-phase3').dataset.pending = 'true';
+  $('refresh-phase3').setAttribute('aria-busy', 'true');
   message('history-message', 'Đang tải lịch sử và biểu đồ…');
   try {
-    const [history, chart] = await Promise.all([
-      protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/history?days=${days}`),
-      protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/chart?days=${days}`),
+    const [historyResult, chartResult] = await Promise.allSettled([
+      protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/history?days=${days}`,
+        { timeoutMs: dataRequestTimeoutMs }),
+      protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/chart?days=${days}`,
+        { timeoutMs: dataRequestTimeoutMs }),
     ]);
     if (phase3RequestGeneration !== requestGeneration || sessionEpoch !== requestEpoch
       || lockerId() !== targetLocker) return;
-    renderHistory(history);
-    renderChart(chart);
+
+    const messages = [];
+    if (historyResult.status === 'fulfilled') {
+      renderHistory(historyResult.value);
+      const count = Array.isArray(historyResult.value.events) ? historyResult.value.events.length : 0;
+      messages.push(`Lịch sử: ${count} sự kiện`);
+    } else {
+      $('history-list').textContent = 'Dữ liệu tạm thời không khả dụng.';
+      messages.push(`Không tải được lịch sử: ${historyResult.reason?.message || 'HISTORY_UNAVAILABLE'}`);
+    }
+
+    if (chartResult.status === 'fulfilled') {
+      renderChart(chartResult.value);
+      messages.push('Biểu đồ: đã cập nhật');
+    } else {
+      $('chart-summary').textContent = 'Biểu đồ tạm thời không khả dụng.';
+      $('chart-bars').innerHTML = '';
+      $('chart-empty').hidden = true;
+      $('chart-table-body').innerHTML = '';
+      messages.push(`Không tải được biểu đồ: ${chartResult.reason?.message || 'CHART_UNAVAILABLE'}`);
+    }
+    message('history-message', messages.join(' · '));
   } catch (error) {
     if (phase3RequestGeneration === requestGeneration && sessionEpoch === requestEpoch) {
       message('history-message', `Không tải được dữ liệu: ${error.message}`);
-      $('history-list').textContent = 'Dữ liệu tạm thời không khả dụng.';
-      $('chart-summary').textContent = 'Biểu đồ tạm thời không khả dụng.';
-      $('chart-bars').innerHTML = '';
     }
   } finally {
-    if (phase3RequestGeneration === requestGeneration) $('refresh-phase3').disabled = false;
+    if (phase3RequestGeneration === requestGeneration) {
+      $('refresh-phase3').disabled = false;
+      $('refresh-phase3').dataset.pending = 'false';
+      $('refresh-phase3').setAttribute('aria-busy', 'false');
+    }
   }
 }
 
+function syncNotificationFields() {
+  const emailEnabled = $('email-enabled').checked;
+  $('telegram-enabled').disabled = !telegramConnected;
+  if (!telegramConnected) $('telegram-enabled').checked = false;
+  ['report-email', 'report-time', 'report-timezone'].forEach((id) => {
+    $(id).disabled = !emailEnabled;
+  });
+  $('report-email').required = emailEnabled;
+  ['report-email-field', 'report-time-field', 'report-timezone-field'].forEach((id) => {
+    $(id).dataset.enabled = emailEnabled ? 'true' : 'false';
+  });
+}
+
+function renderTelegramConnection(setting = {}) {
+  telegramConnected = Boolean(setting.telegram_connected);
+  $('telegram-connection').dataset.connected = telegramConnected ? 'true' : 'false';
+  $('telegram-link').textContent = telegramConnected ? 'Liên kết lại' : 'Liên kết Telegram';
+  $('telegram-test').hidden = !telegramConnected;
+  $('telegram-disconnect').hidden = !telegramConnected;
+  const identity = setting.telegram_username ? `@${setting.telegram_username}` : 'tài khoản Telegram riêng tư';
+  $('telegram-status').textContent = telegramConnected
+    ? `Đã liên kết với ${identity}. Chat ID được giữ kín ở máy chủ.`
+    : 'Chưa liên kết. Bạn không cần tìm hoặc nhập Chat ID.';
+}
+
 function applySettings(setting) {
+  renderTelegramConnection(setting);
   $('telegram-enabled').checked = Boolean(setting.telegram_enabled);
-  $('telegram-chat-id').value = setting.telegram_chat_id || '';
   $('email-enabled').checked = Boolean(setting.email_enabled);
   $('report-email').value = setting.email_address || '';
   $('report-time').value = String(setting.report_time || '21:00').slice(0, 5);
   $('report-timezone').value = setting.timezone || 'Asia/Ho_Chi_Minh';
+  syncNotificationFields();
 }
 
-async function loadSettings() {
-  if (!hasRenderedContext()) {
-    message('settings-message', 'Cần live state của đúng locker trước khi tải cài đặt.');
+async function loadSettings(options = {}) {
+  const quiet = Boolean(options.quiet);
+  if (!hasAuthenticatedLockerSelection()) {
+    if (!quiet) message('settings-message', 'Cần đăng nhập và chọn Locker ID trước khi tải cài đặt.');
     return;
   }
   const generation = ++settingsRequestGeneration;
@@ -322,12 +518,14 @@ async function loadSettings() {
   $('settings-form').dataset.pending = 'true';
   $('settings-form').setAttribute('aria-busy', 'true');
   try {
-    const result = await protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/notification-settings`);
+    const result = await protectedFetch(
+      `/api/v1/lockers/${encodeURIComponent(targetLocker)}/notification-settings`,
+      { timeoutMs: dataRequestTimeoutMs });
     if (generation !== settingsRequestGeneration || requestEpoch !== sessionEpoch || targetLocker !== lockerId()) return;
     applySettings(result.setting || {});
-    message('settings-message', 'Đã tải cài đặt báo cáo.');
+    if (!quiet) message('settings-message', 'Đã tải cài đặt báo cáo.');
   } catch (error) {
-    if (generation === settingsRequestGeneration && requestEpoch === sessionEpoch) {
+    if (!quiet && generation === settingsRequestGeneration && requestEpoch === sessionEpoch) {
       message('settings-message', `Không tải được cài đặt: ${error.message}`);
     }
   } finally {
@@ -336,6 +534,48 @@ async function loadSettings() {
       $('settings-form').setAttribute('aria-busy', 'false');
     }
   }
+}
+
+function scheduleTelegramLinkPolling({ operation, requestEpoch, targetLocker, expiresAt }) {
+  clearTimeout(telegramLinkPollTimer);
+  const deadline = Number.isFinite(Date.parse(expiresAt)) ? Date.parse(expiresAt) : Date.now() + 10 * 60_000;
+  const poll = async () => {
+    if (operation !== telegramOperationGeneration || requestEpoch !== sessionEpoch
+        || targetLocker !== lockerId()) return;
+    if (Date.now() >= deadline) {
+      message('settings-message', 'Liên kết Telegram đã hết hạn. Hãy bấm “Liên kết Telegram” để tạo mã mới.');
+      $('telegram-open-link').hidden = true;
+      $('telegram-open-link').removeAttribute('href');
+      return;
+    }
+    const generation = ++settingsRequestGeneration;
+    try {
+      const result = await protectedFetch(
+        `/api/v1/lockers/${encodeURIComponent(targetLocker)}/notification-settings`,
+        { timeoutMs: dataRequestTimeoutMs });
+      if (operation !== telegramOperationGeneration || requestEpoch !== sessionEpoch
+          || targetLocker !== lockerId()) return;
+      // Another settings request may have superseded this response. Do not
+      // render stale data, but keep the active link operation polling until
+      // it succeeds, expires, or the session/locker changes.
+      if (generation === settingsRequestGeneration) {
+        applySettings(result.setting || {});
+        if (telegramConnected) {
+          $('telegram-open-link').hidden = true;
+          $('telegram-open-link').removeAttribute('href');
+          message('settings-message', 'Liên kết Telegram thành công. Bạn có thể gửi tin nhắn thử ngay.');
+          return;
+        }
+      }
+    } catch (_error) {
+      if (operation !== telegramOperationGeneration || requestEpoch !== sessionEpoch) return;
+    }
+    if (operation === telegramOperationGeneration && requestEpoch === sessionEpoch
+        && targetLocker === lockerId()) {
+      telegramLinkPollTimer = setTimeout(poll, 2000);
+    }
+  };
+  telegramLinkPollTimer = setTimeout(poll, 1500);
 }
 
 function pollState() {
@@ -389,7 +629,12 @@ $('auth-form').addEventListener('submit', async (event) => {
     $('password').value = '';
     const result = await supabase(path, { method: 'POST', body: JSON.stringify(payload) });
     if (sessionEpoch !== requestEpoch) return;
-    if (result.access_token) { saveSession(result); message('auth-message', 'Xác thực thành công.'); await pollState(); }
+    if (result.access_token) {
+      saveSession(result);
+      message('auth-message', 'Xác thực thành công.');
+      await pollState();
+      await loadSettings({ quiet: true });
+    }
     else message('auth-message', 'Đăng ký thành công; kiểm tra email nếu project yêu cầu xác nhận.');
   } catch (error) { if (sessionEpoch === requestEpoch) message('auth-message', `Xác thực thất bại: ${error.message}`); }
   finally {
@@ -431,6 +676,7 @@ $('claim-form').addEventListener('submit', async (event) => {
     invalidateLockerContext('Đang xác minh live state cho tủ vừa claim.');
     claimMessage(`Claim thành công: ${claimedLocker}; đang xác minh live state.`, 'success');
     await pollState();
+    await loadSettings({ quiet: true });
   } catch (error) {
     if (sessionEpoch === requestEpoch) claimMessage(`Claim bị từ chối: ${error.message}`, 'error');
   }
@@ -445,40 +691,159 @@ $('claim-form').addEventListener('submit', async (event) => {
 document.querySelectorAll('[data-action]').forEach((button) => button.addEventListener('click', async () => {
   const requestEpoch = sessionEpoch;
   const targetLocker = lockerId();
+  const domain = button.dataset.domain;
   if (!hasRenderedContext()) {
     invalidateLockerContext('Locker chưa có live state được xác nhận; command bị khóa.');
     return;
   }
-  button.disabled = true;
-  button.dataset.pending = 'true';
-  button.setAttribute('aria-busy', 'true');
-  message('command-message', `${button.dataset.action}: PENDING — chờ ACK.`);
+  if (commandRequests.has(domain)) return;
+  const requestId = ++commandRequestSequence;
+  commandRequests.set(domain, { requestId, requestEpoch, targetLocker });
+  renderControls(renderedUi);
+  message('command-message', `${actionLabel(button.dataset.action)}: đang chờ thiết bị xác nhận…`);
   try {
     const result = await protectedFetch('/api/v1/commands', { method: 'POST', body: JSON.stringify({ locker_id: targetLocker, action: button.dataset.action }) });
     if (sessionEpoch !== requestEpoch || lockerId() !== targetLocker
       || renderedLockerId !== targetLocker) return;
-    message('command-message', `${button.dataset.action}: PENDING ${result.command.command_id.slice(0, 8)}. Không coi publish là success.`);
+    message('command-message', `${actionLabel(button.dataset.action)}: đã gửi, đang chờ ACK (${result.command.command_id.slice(0, 8)}).`);
     await pollState();
   } catch (error) {
     if (sessionEpoch !== requestEpoch || lockerId() !== targetLocker
       || renderedLockerId !== targetLocker) return;
     if (error.code === 'REQUEST_TIMEOUT') {
-      message('command-message', `${button.dataset.action}: KẾT QUẢ CHƯA XÁC ĐỊNH — đang đối soát; không gửi lại ngay.`);
+      message('command-message', `${actionLabel(button.dataset.action)}: KẾT QUẢ CHƯA XÁC ĐỊNH — đang đối soát; không gửi lại ngay.`);
     } else {
-      message('command-message', `Command bị từ chối: ${error.message}`);
+      message('command-message', `Lệnh bị từ chối: ${error.message}`);
     }
     await pollState();
+  } finally {
+    if (commandRequests.get(domain)?.requestId === requestId) {
+      commandRequests.delete(domain);
+      if (sessionEpoch === requestEpoch && lockerId() === targetLocker
+        && renderedLockerId === targetLocker) renderControls(renderedUi);
+    }
   }
 }));
 
 $('refresh-phase3').addEventListener('click', loadPhase3Data);
-$('range-days').addEventListener('change', () => { if (hasRenderedContext()) loadPhase3Data(); });
+$('range-days').addEventListener('change', () => { if (hasAuthenticatedLockerSelection()) loadPhase3Data(); });
 $('load-settings').addEventListener('click', loadSettings);
+$('telegram-enabled').addEventListener('change', syncNotificationFields);
+$('email-enabled').addEventListener('change', syncNotificationFields);
+
+$('telegram-link').addEventListener('click', async () => {
+  if (!hasAuthenticatedLockerSelection() || $('telegram-link').dataset.pending === 'true') {
+    message('settings-message', 'Cần đăng nhập và chọn đúng tủ trước khi liên kết Telegram.');
+    return;
+  }
+  const operation = ++telegramOperationGeneration;
+  const requestEpoch = sessionEpoch;
+  const targetLocker = lockerId();
+  clearTimeout(telegramLinkPollTimer);
+  $('telegram-open-link').hidden = true;
+  $('telegram-open-link').removeAttribute('href');
+  $('telegram-link').dataset.pending = 'true';
+  $('telegram-link').setAttribute('aria-busy', 'true');
+  message('settings-message', 'Đang tạo liên kết Telegram dùng một lần…');
+  let popup = null;
+  try {
+    popup = window.open('about:blank', '_blank');
+    if (popup) popup.opener = null;
+  } catch (_error) {
+    popup = null;
+  }
+  try {
+    const result = await protectedFetch(
+      `/api/v1/lockers/${encodeURIComponent(targetLocker)}/telegram-link`,
+      { method: 'POST', timeoutMs: dataRequestTimeoutMs });
+    if (operation !== telegramOperationGeneration || requestEpoch !== sessionEpoch
+        || targetLocker !== lockerId()) {
+      popup?.close?.();
+      return;
+    }
+    $('telegram-open-link').setAttribute('href', result.link_url);
+    $('telegram-open-link').hidden = Boolean(popup);
+    if (popup) popup.location.href = result.link_url;
+    message('settings-message', popup
+      ? 'Telegram đã được mở. Hãy bấm Start; hệ thống sẽ tự nhận diện tài khoản của bạn.'
+      : 'Trình duyệt đã chặn cửa sổ mới. Hãy bấm “Mở bot Telegram”, rồi bấm Start.');
+    scheduleTelegramLinkPolling({ operation, requestEpoch, targetLocker, expiresAt: result.expires_at });
+  } catch (error) {
+    popup?.close?.();
+    if (operation === telegramOperationGeneration && requestEpoch === sessionEpoch) {
+      message('settings-message', `Không tạo được liên kết Telegram: ${error.message}`);
+    }
+  } finally {
+    if (operation === telegramOperationGeneration) {
+      $('telegram-link').dataset.pending = 'false';
+      $('telegram-link').setAttribute('aria-busy', 'false');
+    }
+  }
+});
+
+$('telegram-test').addEventListener('click', async () => {
+  if (!hasAuthenticatedLockerSelection() || !telegramConnected
+      || $('telegram-test').dataset.pending === 'true') return;
+  const operation = ++telegramOperationGeneration;
+  const requestEpoch = sessionEpoch;
+  const targetLocker = lockerId();
+  $('telegram-test').dataset.pending = 'true';
+  $('telegram-test').setAttribute('aria-busy', 'true');
+  try {
+    await protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/telegram-test`, {
+      method: 'POST', timeoutMs: dataRequestTimeoutMs,
+    });
+    if (operation === telegramOperationGeneration && requestEpoch === sessionEpoch
+        && targetLocker === lockerId()) message('settings-message', 'Đã gửi tin nhắn thử tới Telegram đã liên kết.');
+  } catch (error) {
+    if (operation === telegramOperationGeneration && requestEpoch === sessionEpoch) {
+      message('settings-message', `Không gửi được tin nhắn thử: ${error.message}`);
+    }
+  } finally {
+    if (operation === telegramOperationGeneration) {
+      $('telegram-test').dataset.pending = 'false';
+      $('telegram-test').setAttribute('aria-busy', 'false');
+    }
+  }
+});
+
+$('telegram-disconnect').addEventListener('click', async () => {
+  if (!hasAuthenticatedLockerSelection() || !telegramConnected
+      || $('telegram-disconnect').dataset.pending === 'true') return;
+  if (typeof window.confirm === 'function'
+      && !window.confirm('Ngắt liên kết Telegram khỏi tủ này?')) return;
+  const operation = ++telegramOperationGeneration;
+  const requestEpoch = sessionEpoch;
+  const targetLocker = lockerId();
+  clearTimeout(telegramLinkPollTimer);
+  $('telegram-disconnect').dataset.pending = 'true';
+  $('telegram-disconnect').setAttribute('aria-busy', 'true');
+  try {
+    const result = await protectedFetch(
+      `/api/v1/lockers/${encodeURIComponent(targetLocker)}/telegram-link`,
+      { method: 'DELETE', timeoutMs: dataRequestTimeoutMs });
+    if (operation !== telegramOperationGeneration || requestEpoch !== sessionEpoch
+        || targetLocker !== lockerId()) return;
+    applySettings(result.setting || {});
+    $('telegram-open-link').hidden = true;
+    $('telegram-open-link').removeAttribute('href');
+    message('settings-message', 'Đã ngắt liên kết Telegram và tắt cảnh báo trên kênh này.');
+  } catch (error) {
+    if (operation === telegramOperationGeneration && requestEpoch === sessionEpoch) {
+      message('settings-message', `Không ngắt được liên kết Telegram: ${error.message}`);
+    }
+  } finally {
+    if (operation === telegramOperationGeneration) {
+      $('telegram-disconnect').dataset.pending = 'false';
+      $('telegram-disconnect').setAttribute('aria-busy', 'false');
+    }
+  }
+});
 
 $('settings-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!hasRenderedContext() || event.currentTarget.dataset.pending === 'true') {
-    message('settings-message', 'Cần live state của đúng locker trước khi lưu cài đặt.');
+  if (!hasAuthenticatedLockerSelection() || event.currentTarget.dataset.pending === 'true') {
+    message('settings-message', 'Cần đăng nhập và chọn Locker ID trước khi lưu cài đặt.');
     return;
   }
   const generation = ++settingsRequestGeneration;
@@ -490,13 +855,13 @@ $('settings-form').addEventListener('submit', async (event) => {
   try {
     const result = await protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/notification-settings`, {
       method: 'PUT',
+      timeoutMs: dataRequestTimeoutMs,
       body: JSON.stringify({
         email_enabled: $('email-enabled').checked,
         email_address: $('report-email').value.trim(),
         report_time: $('report-time').value,
         timezone: $('report-timezone').value.trim(),
         telegram_enabled: $('telegram-enabled').checked,
-        telegram_chat_id: $('telegram-chat-id').value.trim() || null,
       }),
     });
     if (generation !== settingsRequestGeneration || requestEpoch !== sessionEpoch || targetLocker !== lockerId()) return;
@@ -527,7 +892,10 @@ $('chat-form').addEventListener('submit', async (event) => {
   form.dataset.pending = 'true';
   form.setAttribute('aria-busy', 'true');
   $('answer').textContent = 'Đang xử lý…';
-  try { const result = await protectedFetch('/api/v1/chatbot', { method: 'POST', body: JSON.stringify({ locker_id: targetLocker, question: $('question').value }) });
+  try { const result = await protectedFetch('/api/v1/chatbot', {
+    method: 'POST', timeoutMs: chatbotRequestTimeoutMs,
+    body: JSON.stringify({ locker_id: targetLocker, question: $('question').value }),
+  });
     if (sessionEpoch === requestEpoch && chatRequestGeneration === requestGeneration
       && lockerId() === targetLocker && renderedLockerId === targetLocker) $('answer').textContent = result.answer;
   } catch (error) {
@@ -544,12 +912,17 @@ $('chat-form').addEventListener('submit', async (event) => {
 });
 
 $('locker-id').addEventListener('input', () => {
-  if (renderedLockerId !== null && renderedLockerId !== lockerId()) invalidateLockerContext();
+  invalidateLockerContext();
 });
 
-$('locker-id').addEventListener('change', () => {
-  if (session) pollState();
+$('locker-id').addEventListener('change', async () => {
+  if (session) {
+    await pollState();
+    await loadSettings({ quiet: true });
+  }
 });
+
+syncNotificationFields();
 
 (async function start() {
   const callback = consumeAuthFragment();
@@ -568,6 +941,8 @@ $('locker-id').addEventListener('change', () => {
       else if (restored?.refresh_token) { saveSession(restored); await refresh(); }
       else saveSession(null);
     }
-    await pollState(); setInterval(pollState, 2000);
+    await pollState();
+    if (session) await loadSettings({ quiet: true });
+    setInterval(pollState, 2000);
   } catch (error) { message('auth-message', `Dashboard chưa được cấu hình: ${error.message}`); }
 }());

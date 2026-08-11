@@ -11,6 +11,7 @@
 | P2-M04/P2-M05 | Manual HARD-GATE PASS | `live-service-results.md`; complete two-user UI/API/RLS/broker and 200/409/409 claim evidence |
 | P2-M06/P2-M07 | Manual FINAL-GATE PASS | `live-service-results.md`; delivered, controlled failure, ACK, cleanup, and restore evidence |
 | P2-M08 | Manual FINAL-GATE PASS | `live-service-results.md`; grounded success, controlled provider failure, cleanup, and restore evidence |
+| Automatic Telegram private-account rollout | Partial deployment PASS | `live-service-results.md`; current Dashboard/webhook/private-Start/link/test/sanitized-response subset passes, while preference replay/disconnect/relink remains unticked in `tests/test-plan.md` |
 
 Raw captures that may contain identifiers/tokens belong in ignored `private/`.
 Only sanitized evidence may be committed. No simulator row is an ESP32, MC-38,

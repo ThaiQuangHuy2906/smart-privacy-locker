@@ -36,7 +36,7 @@ Có **12 requirement** phải được triển khai đầy đủ; `Owner chính`
 |---|---|---|---|---|
 | CB1 | MC-38 đọc `OPEN/CLOSED` → ESP32 → MQTT → Node-RED → Dashboard; hỗ trợ `UNKNOWN` | Nguyễn Văn Minh | Phase 2 | YC4 persistence ở Phase 3 |
 | CB2 | Dashboard Lock/Unlock → Node-RED xác thực → MQTT → ESP32 → Servo SG90 → ACK/state | Thái Quang Huy | Phase 1, tích hợp shared backend ở Phase 2/3 | Dispatcher/Auth của Phase 2; Dashboard cuối của Phase 3 |
-| CB3 | Dashboard Test Alarm/Stop Alarm → Node-RED → MQTT → ESP32 → Active Buzzer → ACK/state | Mai Phương Thùy | Phase 3 | Command contract/foundation từ Phase 1/2 |
+| CB3 | Dashboard **Kiểm tra còi/Tắt còi** (`ALARM_ON/OFF`) → Node-RED → MQTT → ESP32 → Active Buzzer → ACK/state | Mai Phương Thùy | Phase 3 | Command contract/foundation từ Phase 1/2 |
 | YC1 | DHT22 → ESP32 → OLED SSD1306, chỉ cục bộ | Thái Quang Huy | Phase 1 | Hardware integration cuối Phase 3 |
 | YC3 | Dashboard LED On/Off → Node-RED xác thực → MQTT → ESP32 → WS2812B → ACK/state | Thái Quang Huy | Phase 1, tích hợp shared backend ở Phase 2/3 | Dispatcher/Auth của Phase 2; Dashboard cuối của Phase 3 |
 | YC4 | Node-RED lưu lịch sử cửa, khóa, buzzer, LED, cảnh báo, source, result, authorized, command_id, timestamp vào Supabase | Mai Phương Thùy | Phase 3 | Event contract do Phase 2 phát cho YC6 |
@@ -175,7 +175,7 @@ Hardening guidance để Terra không biến ý tưởng tốt thành blocker:
 | WS2812B có bao nhiêu pixel và dòng cực đại? | Đo strip thật; giới hạn brightness để 5 V/3 A vẫn có margin | Huy / Phase 1 | Chặn full-load acceptance |
 | MQTT Broker/FlowFuse deployment, TLS và credential được cấp ở đâu? | Broker có authentication; TLS bắt buộc nếu đi qua Internet | Nhóm, Huy khóa config / Phase 1 | Chặn MQTT integration thật |
 | Locker được pre-provision/claim bằng mã như thế nào? | `LOCKER-001` được tạo server-side ở trạng thái chưa claim; claim một lần qua backend/RPC đã xác thực bằng một thao tác có điều kiện/constraint đơn giản. Chỉ cần cơ chế phức tạp hơn nếu test thật chứng minh có race cần xử lý | Minh / Phase 2 | Chặn ownership end-to-end |
-| Telegram chat ID được liên kết với locker/user thế nào? | Lưu trong notification settings có RLS; xác nhận bằng thao tác bot có kiểm soát | Minh / Phase 2, Thùy tích hợp Phase 3 | Chặn Telegram test thật |
+| Telegram được liên kết với locker/user thế nào? | Owner tạo deep link 10 phút; private `/start` + webhook secret tiêu thụ token một lần; Chat/User ID chỉ ở backend settings | Minh / Phase 2, Thùy tích hợp Phase 3 | Chặn Telegram test thật |
 | Giờ báo cáo/email auth dùng cấu hình nào? | `21:00`, `Asia/Ho_Chi_Minh`; Gmail App Password hoặc OAuth chỉ ở backend | Thùy / Phase 3 | Chặn YC7 MANUAL test |
 | Gemini model/quota nào được phép dùng? | Tên model là environment variable, không hard-code; kiểm tra model khả dụng khi triển khai | Minh / Phase 2 | Chặn Gemini API MANUAL test |
 | Git remote và integration branch đã tồn tại chưa? | Dùng `develop` làm integration branch sau khi bootstrap; không giả lập remote state | Huy / Phase 1 | Chặn push/integration, không chặn local implementation |
@@ -522,7 +522,7 @@ Không tạo SQL ở baseline; Phase 2/3 hiện thực bằng versioned migratio
 | `profiles` | `user_id` liên kết Auth, full name, created time | Minh / Phase 2 |
 | `lockers` | UUID, unique `locker_code`, `owner_id`, display name, claim state/time | Minh / Phase 2 |
 | `device_events` | event ID, locker FK, type, device/action/source/result/authorized/command ID, state/error/metadata, occurred/recorded timestamps | Thùy / Phase 3 |
-| `notification_settings` | locker FK, Telegram enabled/chat ID, email enabled/address, report time, timezone | Thùy / Phase 3; Minh cung cấp ownership contract |
+| `notification_settings` | locker FK, Telegram enabled + backend-only private destination, email enabled/address, report time, timezone | Thùy / Phase 3; Minh cung cấp ownership contract |
 | `notification_deliveries` | channel, locker, report/event key, status, attempted/sent time, bounded error; unique dedupe key | Thùy / Phase 3 |
 
 RLS/ownership rules:
@@ -558,7 +558,7 @@ Tên biến đề xuất; `.env.example` chỉ để placeholder:
 - Device/deployment: `LOCKER_ID`, `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_TLS`, `MQTT_CA_CERT_PATH`.
 - Runtime: `COMMAND_TIMEOUT_MS`, `COMMAND_MAX_AGE_SECONDS`, `AUTHORIZED_UNLOCK_WINDOW_SECONDS`, `DEVICE_STALE_AFTER_SECONDS`, `DASHBOARD_BASE_URL`.
 - Supabase: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-- Telegram: `TELEGRAM_BOT_TOKEN`.
+- Telegram: `TELEGRAM_BOT_TOKEN`, public bot username và secret webhook riêng; không dùng global `TELEGRAM_CHAT_ID`.
 - Email: `GMAIL_SMTP_HOST`, `GMAIL_SMTP_PORT`, `GMAIL_SMTP_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_FROM`.
 - Gemini: `GEMINI_API_KEY`, `GEMINI_MODEL`.
 - Node-RED: `NODE_RED_CREDENTIAL_SECRET`, `REPORT_TIMEZONE`.
@@ -596,10 +596,10 @@ UI rules:
 | MC-38 | GPIO 27 | `INPUT_PULLUP` nếu wiring phù hợp; xác nhận logic đảo |
 | Servo SG90 signal | GPIO 18 | PWM; servo lấy 5 V từ rail nguồn, không từ GPIO/3.3 V |
 | Active Buzzer control | GPIO 26 | Phase 3 xác nhận polarity/MOSFET; GPIO không cấp dòng tải |
-| DHT22 data | GPIO 4 | Pull-up 10 kΩ nếu module chưa có |
-| WS2812B data | GPIO 25 | Điện trở nối tiếp 330–470 Ω; level shifter nếu tín hiệu 3.3 V không ổn định |
-| OLED SDA | GPIO 21 | I2C mặc định đề xuất |
-| OLED SCL | GPIO 22 | I2C mặc định đề xuất |
+| DHT22 data | GPIO 4 | Cấp và kéo data lên 3.3 V; dùng 4.7–5.1 kΩ nếu module chưa có; không kéo GPIO lên 5 V |
+| WS2812B data | GPIO 25 | Baseline dùng buffer 74AHCT125/74HCT14 cấp 5 V, rồi điện trở nối tiếp 330–470 Ω gần DIN |
+| OLED SDA | GPIO 21 | I2C mặc định; pull-up nhìn thấy từ ESP32 phải về 3.3 V hoặc qua level shifter đã xác minh |
+| OLED SCL | GPIO 22 | I2C mặc định; pull-up nhìn thấy từ ESP32 phải về 3.3 V hoặc qua level shifter đã xác minh |
 
 Tránh dùng GPIO boot-strapping hoặc input-only nếu không có lý do/kiểm thử. Pin map chỉ được xem là khóa sau khi Phase 1 đo board, kiểm tra boot, test từng module và cập nhật `hardware/pin-map.md` + `docs/mqtt-contract.md` nếu state mapping bị ảnh hưởng.
 
@@ -812,7 +812,7 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 - Planned broker/simulator tests: P1-S05/P1-S06 remain PLANNED SOFTWARE-GATE scenarios for the Phase 2 harness. They are not hardware evidence and do not create a circular dependency that blocks this Phase 1 handoff.
 - Deferred HARDWARE-FINAL-GATE tests: P1-M01–P1-M11 remain `[ ]` because the group has not bought/received ESP32 or modules. P1-M09 remains the physical ESP32 Wi-Fi/broker reconnect/LWT check and P1-M02 must determine mechanical self-holding versus holding torque before any servo-policy change. Section 8/full-system hardware tests remain mandatory before final release/demo.
 - Known issues: PlatformIO Core 6.1.18 fails from the current Windows path containing Vietnamese characters; documented ASCII-path build workaround was used. Default Arduino partition build uses 83.7% flash (16.3% remaining). Candidate pin map vẫn chờ physical as-built verification; trạng thái này không phải `VERIFIED`.
-- Deferred SHOULD/OPTIONAL items: `boot_id`/sequence telemetry; optional local TLS and broker ACL; conditional WS2812B level shifter/extra bulk capacitance pending physical measurements. No optional scope was used to replace a MUST.
+- Deferred SHOULD/OPTIONAL items at the original Phase 1 handoff: `boot_id`/sequence telemetry and optional local TLS. The later pre-purchase electrical audit supersedes the old conditional WS2812B note: the 5 V data path now requires a 5 V-powered 74AHCT125/74HCT14 level shifter, 330–470 Ω series resistor and 470–1000 µF local bulk capacitor unless the exact purchased module's primary datasheet proves an equivalent safe interface. No optional scope was used to replace a MUST.
 - Branch: `phase/1-huy-firmware-foundation` pushed to `origin/phase/1-huy-firmware-foundation`.
 - Accepted baseline commit: `4dd72fa` — Phase 1 source/docs/PDF baseline trước workflow-transition commit; remote branch HEAD là source of truth cho commit mới nhất.
 - Integration: `develop` được tạo tại accepted Phase-1 HEAD và push; không yêu cầu Pull Request.
@@ -985,7 +985,7 @@ Các bullet CB1/MC-38 cần phần cứng thật vẫn là `MUST` cho final rele
 | P2-A09 | Authorized window + restart | Case A: UNLOCK ACK rồi OPEN trước deadline; Case B: UNLOCK ACK, restart Node-RED rồi OPEN | A tạo `DOOR_OPENED authorized=true` và consume window; B không restore window, phân loại unauthorized theo fail-safe | Automated | Timeline + normalized events + restart assertions |
 | P2-A10 | Unauthorized OPEN | OPEN khi LOCKED/ngoài window | `authorized=false`; một `UNAUTHORIZED_OPEN`; ALARM_ON request | Automated | Event + command capture |
 | P2-A11 | Alert duplicate/rate-limit/bounded state | Replay same sequence/keep OPEN và feed quá giới hạn buffer/map | Không tạo Telegram/alarm request lặp trong episode; runtime/Telegram collections không tăng vô hạn; delivery status có contract/UI | Automated | Invocation counts + bound/status assertions |
-| P2-M06 | Telegram thành công | Dùng bot/chat ID thật, gây unauthorized event an toàn | Một message đúng locker/time/states/link | MANUAL — FINAL-GATE | Screenshot đã che chat ID nếu cần + delivery log |
+| P2-M06 | Telegram thành công | Owner bấm **Liên kết Telegram**, Start private bot, gửi test rồi gây unauthorized event an toàn | Link một lần thành công; một message đúng locker/time/states/link | MANUAL — FINAL-GATE | Screenshot đã che provider ID nếu cần + delivery log |
 | P2-M07 | Telegram thất bại | Dùng controlled invalid credential/network case | Detector/event vẫn hoạt động; status failure rõ; không crash/retry vô hạn | MANUAL — FINAL-GATE | Sanitized error/status log |
 | P2-A12 | Chatbot canonical/live/missing/error route | Feed đủ sáu câu acceptance, live cache, empty cache, provider error | Intent/route và safe canonical question đúng; structured facts đúng; no-data/error deterministic; raw trailing secret không vào context | Automated | Context snapshots không secret |
 | P2-A13 | Chatbot history contract | Feed history response, unavailable và thrown transport failure | Structured context chứa đúng question/intent/facts/counts; failure controlled; instruction không cho model tự tính hoặc tạo số | Automated | Adapter fixture + deterministic context assertions |
@@ -1029,7 +1029,7 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Phase tiếp theo: **Phase 3 — CB3, YC4, YC5, YC7 và final integration**.
 - Contract phải đọc: MQTT v1; normalized event; alarm request/ACK; Supabase Auth Transport + ownership; Node-RED restart recovery; state cache; history adapter; timezone/counting; Telegram status.
 - Những phần đã hoàn thành: implementation/evidence software đã có cho CB1 contract/debounce, secure dispatcher/cache/ACK/timeout/restart, YC9 schema/auth middleware/Dashboard và custom-SMTP signup/session gate, YC6 Telegram success/failure/restore, YC8 grounded Gemini success/failure/restore, cùng P2-M03–P2-M08 trên deployment thật.
-- Những phần còn MANUAL: không còn Phase 2 non-hardware service gate; actual CB3 buzzer, YC4 insert/RLS, actual history route, chart/email/full load/final demo thuộc Phase 3. Phase 1/2 hardware final gates vẫn deferred.
+- Những phần còn MANUAL: automatic Telegram private-account linking được bổ sung trong lần tích hợp Phase 3; current Dashboard/artifact, secret/webhook, private **Start**, sanitized connected status và test-message subset đã PASS trên deployment ngày 2026-08-11, còn preference save/re-enable, consumed-token replay và disconnect/relink chưa chạy nên gate vẫn unticked. Gate này không mở lại lifecycle Phase 2 nhưng vẫn chặn final release. Actual CB3 buzzer, full load/final demo và Phase 1/2 hardware final gates vẫn deferred.
 - Dependency được mở khóa: door telemetry; secure dispatcher; pending/ACK/timeout; cache; auth/RLS; unauthorized event + ALARM_ON; Telegram; chatbot context adapter.
 - Dependency Phase 3 phải hoàn thiện: CB3 firmware/hardware, event schema/persistence, history query thật, YC6 full integration, YC5, YC7, final Dashboard/docs/regression.
 - SOFTWARE-GATE, commit/push Phase branch và fast-forward integration vào `develop` đã hoàn tất. `phase/3-thuy-data-integration` đã được tạo/push từ lifecycle commit `a05ca06`; bàn giao lifecycle hoàn tất mà không triển khai functionality Phase 3 trong phiên chuyển giao này.
@@ -1039,9 +1039,9 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 
 - Status: COMPLETED — SOFTWARE-GATE, live service gates và Git integration đều PASS; P1/P2 hardware final gates vẫn deferred và tiếp tục block final release/demo.
 - Implementation: Phase 2 software source hiện có cho CB1 debounce/telemetry; authenticated local TCP device simulator; modular Node-RED MQTT validation/live cache/dispatcher/ACK/timeout/restart/reconnect recovery; real Node-RED status-key handling + GET_STATE bootstrap; Supabase profiles/lockers/RLS/atomic claim migrations với explicit least-privilege Data API grants; full-name signup; canonical Bearer middleware với 401/503 và bounded provider timeout; normalized claim row; responsive Phase 2 Dashboard auth/claim/state/control/chat + Telegram delivery status, implicit-flow URL cleanup, local-first logout, bounded/serialized requests; bounded runtime/provider buffers; authorized window/unauthorized episodes; normalized event, `ALARM_ON`, notification và history contracts; đủ sáu YC8 canonical question với safe question/intent; Telegram/Gemini adapters. Actual CB3 và YC4/history backend production vẫn thuộc Phase 3.
-- Automated tests: PASS hiện tại — PlatformIO native 14/14 (gồm Phase 1 regression 7/7, P2 door debounce 3/3 và MQTT retry wrap-around 4/4); clean ESP32 build PASS qua temporary ASCII drive alias (RAM 16,2%, Flash 84,2%); Node contract/artifact/Dashboard/export suite 85/85; P2-S01 memory fault matrix 14 scenario/8 assertion + authenticated local TCP MQTT broker/exported-status/Phase2Runtime 15 assertion; npm audit 0 vulnerability và secret/config audit 0 finding. Corrective regression bao phủ MQTT status/reconnect/bootstrap, pre-status retained-message generation, disconnect pending cancellation, auth outage/timeout/malformed/RPC normalization (kể cả response body bị treo), aggregate deadline/aborted-request suppression, bounded buffers, đủ sáu YC8 questions + context/history failure, Dashboard callback/logout/claim/poll/concurrency/late-401/locker-context/pending-generation/timeout behavior, claim feedback không bị live-state poll ghi đè, pgTAP test envelope, public-signup real-domain template guard và deterministic cross-platform LF-canonical FlowFuse export. Evidence: `tests/evidence/phase-2/automated-results.md`.
+- Automated tests: PASS hiện tại — PlatformIO native 14/14 tại Phase 2 (full current firmware suite 17/17); clean ESP32 build PASS qua temporary ASCII drive alias (RAM 16,2%, Flash 84,2%); full current Node contract/artifact/Dashboard/export suite 145/145; P2-S01 memory fault matrix 14 scenario/8 assertion + authenticated local TCP MQTT broker/exported-status/Phase2Runtime 15 assertion; npm audit 0 vulnerability và secret/config audit 0 finding. Corrective regression bao phủ MQTT status/reconnect/bootstrap, pre-status retained-message generation, disconnect pending cancellation, auth outage/timeout/malformed/RPC normalization (kể cả response body bị treo), aggregate deadline/aborted-request suppression, bounded buffers, đủ sáu YC8 questions + context/history failure, Dashboard callback/logout/claim/poll/concurrency/late-401/locker-context/pending-generation/timeout behavior, semantic `hidden` cho logout/Telegram controls, blocked-popup fallback, private `/start`/`/help`/`/settings`, claim feedback không bị live-state poll ghi đè, automatic Telegram private-account link/retry/cross-account denial, byte-safe webhook secret và unknown-provider retry, pgTAP test envelope, public-signup real-domain template guard và deterministic cross-platform LF-canonical FlowFuse export. Evidence: `tests/evidence/phase-2/automated-results.md`.
 - Manual HARD-GATE tests: **PASS**. P2-M03 custom-SMTP signup/user/profile/login/session/callback/reload/logout/PII/Bearer/cleanup đạt 12/12; P2-M04/P2-M05 đạt sanitized two-user UI/API/RLS/broker evidence và claim 200/409/409 + immutable owner evidence.
-- Manual FINAL-GATE tests: P2-M06/P2-M07 Telegram **PASS** cho real delivery, controlled failure, `ALARM_ON`/ACK continuity và restore; P2-M08 Gemini **PASS** cho grounded live success, controlled provider failure, state preservation và restore. Evidence: `tests/evidence/phase-2/live-service-results.md`.
+- Manual FINAL-GATE tests: P2-M06/P2-M07 Telegram **PASS** cho real delivery, controlled failure, `ALARM_ON`/ACK continuity và restore trên deployment pre-auto-link; automatic private-account link current-deployment subset **PASS** cho Dashboard/secret/webhook/private **Start**/sanitized status/test message nhưng preference replay/disconnect/relink vẫn Pending. P2-M08 Gemini **PASS** cho grounded live success, controlled provider failure, state preservation và restore. Evidence: `tests/evidence/phase-2/live-service-results.md` và `tests/test-plan.md`.
 - Hardware final gates: P2-M01/P2-M02 `[ ] DEFERRED — HARDWARE-FINAL-GATE`; không có ESP32/MC-38, không tuyên bố GPIO/polarity/debounce/hardware verified. P1-M01–P1-M11 vẫn giữ nguyên deferred.
 - Known issues: Playwright CLI 0.1.18 abort với libuv `UV_HANDLE_CLOSING` trên Node v24.14.1 nên live UI evidence dùng Chrome DevTools fallback. Xtensa Windows toolchain không xử lý ổn định đường dẫn workspace tiếng Việt nên clean ESP32 build dùng temporary ASCII `Z:` alias rồi xóa alias. Node-RED runtime phải do FlowFuse cung cấp ở phiên bản `>=4.1.13 <5`; project không vendor runtime/palette-manager npm thừa. Không có Critical/High dependency advisory trong dependency tree đã cài của project.
 - Deferred SHOULD/OPTIONAL items: MQTT ACL nâng cao; `boot_id`/sequence; persistent/distributed cache; numeric-output validator nâng cao. Không mục nào thay thế MUST.
@@ -1075,7 +1075,7 @@ MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `
 
 ### Deliverables
 
-- CB3 Active Buzzer firmware/hardware, configurable polarity, `ALARM_ON/OFF`, ACK/full state và Dashboard Test/Stop Alarm.
+- CB3 Active Buzzer firmware/hardware, configurable polarity, `ALARM_ON/OFF`, ACK/full state và Dashboard **Kiểm tra còi/Tắt còi**.
 - YC4 versioned event schema, RLS/indexes, Node-RED persistence pipeline, recent/history queries và explicit failure behavior.
 - YC5 aggregation/chart 7/30 ngày, empty/loading/error state và timezone-correct boundaries.
 - YC7 notification settings, scheduler, daily aggregation, Gmail delivery, delivery log và duplicate-send prevention.
@@ -1121,13 +1121,13 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
   - Cách kiểm tra: automated controller/duplicate tests và MANUAL MQTT command/hardware.
   - Điều kiện được tick: CB3 firmware/hardware lặp lại ổn định, không treo/reset và ACK/state đúng contract.
 
-- [ ] **[MUST]** Hoàn thiện Dashboard Test Alarm/Stop Alarm qua secure dispatcher.
+- [ ] **[MUST]** Hoàn thiện Dashboard **Kiểm tra còi/Tắt còi** (`ALARM_ON/OFF`) qua secure dispatcher.
   - File/module dự kiến: FlowFuse control widgets/state adapter, existing dispatcher/ACK flows.
   - Kết quả phải đạt: control auth/ownership/online/pending gates; processing; success chỉ sau ACK; timeout/error rõ.
   - Cách kiểm tra: MANUAL valid/unauthorized/offline/timeout/duplicate scenarios và broker capture.
   - Điều kiện được tick: CB3 end-to-end đạt, không có Dashboard → MQTT direct path.
 
-- [ ] **[MUST]** Thiết kế và migrate YC4 event schema/index/idempotency/RLS.
+- [x] **[MUST]** Thiết kế và migrate YC4 event schema/index/idempotency/RLS.
   - File/module dự kiến: versioned Supabase migrations, database design, RLS tests.
   - Kết quả phải đạt: lưu đầy đủ event contract; event ID/unique rule chống insert trùng; indexes hỗ trợ locker/time/type query; RLS owner-only.
   - Cách kiểm tra: apply các migration có thứ tự trên dev sạch, schema diff, two-user RLS tests, duplicate insert và query thực tế. Migration framework/rollback automation/query-plan tuning nâng cao là `SHOULD/OPTIONAL`.
@@ -1139,9 +1139,9 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
   - Cách kiểm tra: automated event matrix, duplicate, 4xx validation failure, 5xx/network failure và recovery; MANUAL Supabase thật.
   - Điều kiện được tick: success lưu đúng; failure không bị nuốt/loop vô hạn; UI/diagnostic phản ánh persistence health và evidence có thật.
 
-- [ ] **[MUST]** Hoàn thiện recent events và history query có ownership/RLS.
+- [x] **[MUST]** Hoàn thiện recent events và history query có ownership/RLS.
   - File/module dự kiến: Supabase query/RPC migration, Node-RED history subflow, Dashboard recent/history views.
-  - Kết quả phải đạt: recent list newest-first có bounded limit; filter locker/time/type; không cross-owner; empty/loading/error rõ. Pagination đầy đủ là `SHOULD` nếu không cần cho demo dataset.
+  - Kết quả phải đạt: recent list newest-first có bounded display limit; filter locker/time/type; không cross-owner; empty/loading/error rõ. Các consumer cần tổng chính xác phải paginate, không được âm thầm dừng ở giới hạn Data API.
   - Cách kiểm tra: seeded test data qua test setup, User A/B, boundary timestamps, no-data và Supabase failure.
   - Điều kiện được tick: query trả đúng dữ liệu thật, UI không leak Locker B và test cleanup được kiểm soát.
 
@@ -1151,17 +1151,17 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
   - Cách kiểm tra: deterministic dataset quanh midnight/UTC boundary, empty/multiple-event days, compare expected counts.
   - Điều kiện được tick: chart/query/chatbot/report dùng cùng counting utility/contract và 7/30 MANUAL UI evidence đạt.
 
-- [ ] **[MUST]** Triển khai notification settings với ownership/RLS.
+- [x] **[MUST]** Triển khai notification settings với ownership/RLS.
   - File/module dự kiến: settings table/policies, settings API/subflow, Dashboard settings.
-  - Kết quả phải đạt: Telegram/email enable, chat ID/email/report time/timezone được validate; chỉ owner đọc/sửa; secret token không nằm trong row/frontend.
+  - Kết quả phải đạt: Telegram/email enable, automatic private-account link, email/report time/timezone được validate; chỉ owner thao tác; Chat/User ID và one-time token không lộ ra frontend.
   - Cách kiểm tra: User A/B, invalid time/timezone/address, session expiry và reload.
   - Điều kiện được tick: settings persist đúng, RLS deny cross-owner và UI không hiển thị credential backend.
 
 - [x] **[MUST]** Triển khai YC7 scheduler, daily aggregation và email rendering.
   - File/module dự kiến: scheduler/report aggregator/email subflows, email template/docs.
   - Kết quả phải đạt: đúng report period local ngày trước; số lần mở/cảnh báo/latest activity từ data; email nêu khoảng thời gian/timezone.
-  - Cách kiểm tra: virtual/injected schedule automated test với deterministic events và email transport adapter; MANUAL Gmail test mailbox được theo dõi riêng ở P3-M06 `FINAL-GATE`.
-  - Điều kiện được tick cho software completion: subject/body/recipient/counts, owner scope và controlled provider-failure path đạt bằng automated/integration evidence; P3-M06 có thể còn `Pending` nhưng block `FINAL_RELEASE_READY`.
+  - Cách kiểm tra: virtual/injected schedule automated test với deterministic events và email transport adapter; selected SMTP test mailbox được theo dõi riêng ở P3-M06 `FINAL-GATE`.
+  - Điều kiện được tick cho software completion: subject/body/recipient/counts, owner scope và controlled provider-failure path đạt bằng automated/integration evidence; deployed P3-M06 success/definite-failure evidence đã PASS qua Mailtrap Sandbox.
 
 - [x] **[MUST]** Chống gửi email trùng và lưu delivery log idempotent.
   - File/module dự kiến: notification delivery migration, dedupe/scheduler subflow, tests.
@@ -1205,7 +1205,7 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
 |---|---|---|---|---|---|
 | P3-A01 | Alarm controller valid/duplicate/invalid | Feed ALARM_ON/OFF, duplicate ID, invalid action | State/ACK đúng; duplicate không actuation; invalid an toàn | Automated | Test report + ACK fixtures |
 | P3-M01 | Buzzer active polarity/boot | Khi có hardware: boot/restart, bật/tắt qua command | Boot INACTIVE; ON/OFF đúng; không treo/reset | DEFERRED — HARDWARE-FINAL-GATE | Video + wiring/voltage note |
-| P3-M02 | Dashboard Test/Stop Alarm | Software: test bằng simulator/broker; khi có hardware: login owner, thao tác control | Pending → ACK success → ACTIVE/INACTIVE; không direct MQTT; physical buzzer evidence còn deferred | DEFERRED — HARDWARE-FINAL-GATE | UI + broker + hardware video |
+| P3-M02 | Dashboard **Kiểm tra còi/Tắt còi** | Software: test bằng simulator/broker; khi có hardware: login owner, thao tác control | Pending → ACK success → ACTIVE/INACTIVE; không direct MQTT; physical buzzer evidence còn deferred | DEFERRED — HARDWARE-FINAL-GATE | UI + broker + hardware video |
 | P3-A02 | Event persistence matrix | Feed mọi canonical event type | Mapping đầy đủ; required fields; idempotent insert | Automated | DB assertions/test report |
 | P3-M03 | Supabase insert thành công | Software: inject simulator fixtures; khi có hardware: chạy door/lock/alarm/LED/unauthorized thật | Rows đúng locker/source/result/authorized/command/time; physical producer evidence còn deferred | DEFERRED — HARDWARE-FINAL-GATE | Sanitized query export/screenshot |
 | P3-A03 | Supabase duplicate/failure | Insert same event ID; inject 4xx/5xx/network | Một row; lỗi được surface, không crash/loop; retry transient hữu hạn nếu có | Automated | Invocation/row counts + error log |
@@ -1213,7 +1213,7 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
 | P3-A04 | Chart aggregation 7/30 | Deterministic events tại boundary/multiple/zero days | Đủ buckets, counts đúng contract | Automated | Dataset + expected/actual report |
 | P3-M05 | Dashboard chart/empty/timezone | Chọn 7/30, no-data và local midnight data | UI/count/boundary/empty state đúng | MANUAL — HARD-GATE | Screenshots + source query |
 | P3-A05 | Daily report aggregation | Feed previous-day data/timezone | Counts/latest/period đúng và owner-scoped | Automated | Rendered sanitized email + assertions |
-| P3-M06 | Gmail send success/failure | Gửi test report rồi dùng controlled failure | Success log đúng; failure rõ; không crash/loop | MANUAL — FINAL-GATE | Test mailbox screenshot + sanitized delivery log |
+| P3-M06 | SMTP send success/failure | Gửi test report rồi dùng controlled failure | Success log đúng; failure rõ; không crash/loop | MANUAL — FINAL-GATE PASS | Mailtrap Sandbox message + sanitized delivery log |
 | P3-A06 | Duplicate email prevention | Trigger cùng locker/report date hai lần và qua restart | Chỉ một send; unique delivery key giữ idempotency | Automated | Send spy + DB delivery rows |
 | P3-M07 | YC6 full success | LOCKED rồi tạo stable unauthorized OPEN | One event authorized=false; buzzer ACTIVE; Telegram; Dashboard alert | MANUAL — FINAL-GATE | Synchronized video/UI/broker/DB/Telegram evidence |
 | P3-M08 | YC6 dependency failures | Lần lượt gây Supabase/Telegram/buzzer ACK failure an toàn | Các nhánh độc lập, lỗi rõ, không duplicate/infinite retry | MANUAL — FINAL-GATE | Failure matrix evidence |
@@ -1226,7 +1226,7 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
 
 Mọi mục trong phần này là `MUST` cho final project acceptance. Để Phase 3 software thành `COMPLETED`, các phần implementation/automated/software-gate tương ứng phải đạt; các phần cần hardware/service thật giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE` hoặc `Pending` đúng loại. Mọi `FINAL-GATE` phải có evidence thật trước `FINAL_RELEASE_READY`. `SHOULD`/`OPTIONAL` không block acceptance và phải được ghi rõ nếu defer.
 
-- [ ] CB3 hardware/firmware/Dashboard Test/Stop Alarm, ACK/state/timeout đạt và safe boot INACTIVE.
+- [ ] CB3 hardware/firmware/Dashboard **Kiểm tra còi/Tắt còi**, ACK/state/timeout đạt và safe boot INACTIVE.
 - [ ] YC4 lưu đầy đủ door/lock/alarm/LED/unauthorized/source/result/authorized/command/time; idempotency và RLS đạt.
 - [ ] Recent/history query đúng owner, có bounded limit/filter và empty/error behavior rõ; pagination đầy đủ là `SHOULD`, không block demo dataset.
 - [ ] YC5 chart 7/30, zero buckets, counting rule và Asia/Ho_Chi_Minh boundary đạt.
@@ -1243,10 +1243,10 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 
 - [x] **Terra/owner:** Pull `develop` mới nhất bằng fast-forward-only; xác minh Phase 2 `COMPLETED`, Phase 3 `ACTIVE` và prior hardware final gates vẫn deferred nếu chưa có hardware.
 - [x] **Terra/owner:** Xác nhận owner Mai Phương Thùy và switch/tạo `phase/3-thuy-data-integration` từ `develop`.
-- [ ] **Terra/owner:** Build/test SOFTWARE-GATE phù hợp đã chạy: firmware, Node-RED, migrations/RLS, aggregation và regression; non-hardware manual gates có environment sẵn sàng có evidence thật.
+- [x] **Terra/owner:** Build/test SOFTWARE-GATE phù hợp đã chạy: firmware, Node-RED, migrations/RLS, aggregation và regression; non-hardware manual gates có environment sẵn sàng có evidence thật.
 - [x] **Terra/owner:** Physical tests chưa chạy được giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` thiếu account/credential giữ `Pending`, không giả PASS và vẫn block `FINAL_RELEASE_READY`.
 - [x] **Terra/owner:** Chạy final diff/source/secret/generated-flow/migration audit; không đổi owner YC6/YC8 hoặc frozen contract ngầm.
-- [x] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary.
+- [ ] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary. Source/docs đã cập nhật; commit mới chưa được user yêu cầu trong lượt audit này.
 - [ ] **Terra/owner:** Push Phase branch lên GitHub; nếu không có quyền, giữ Phase `ACTIVE` và ghi exact command.
 - [ ] **Terra/owner:** Khi SOFTWARE-GATE `PASS`, fast-forward merge Phase branch vào `develop` và push `develop`; không rewrite history hoặc force push.
 - [ ] **Terra/owner:** Chỉ sau integration push thành công, chuyển Phase 3 `ACTIVE → COMPLETED`, đặt project `SOFTWARE_COMPLETE` và dừng.
@@ -1257,7 +1257,7 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 - Người nhận tiếp theo: **Cả nhóm thực hiện hardware integration**.
 - Phase tiếp theo: **Không có Phase 4; sau Phase 3 `COMPLETED`, project là `SOFTWARE_COMPLETE`**.
 - Contract phải đọc: architecture/MQTT/event/auth/database/time/counting/deployment docs đã khóa và traceability matrix.
-- Những phần đã hoàn thành: khi software handoff phải liệt kê chính xác implementation/evidence của 12 requirements, commit và deployment version có thật; baseline hiện chưa có Phase 3 implementation.
+- Những phần đã hoàn thành: Phase 3 source, migration, owner-scoped history, automated gates, deterministic FlowFuse export và responsive Dashboard đã có evidence; khi software handoff phải liệt kê commit/deployment version có thật, không suy từ working tree.
 - Những phần còn MANUAL: phân biệt SOFTWARE-GATE, `DEFERRED — HARDWARE-FINAL-GATE` và `FINAL-GATE`; ghi rõ mọi credential/hardware/demo rehearsal chưa chạy; Phase 3 vẫn có thể `COMPLETED` ở software level nhưng project chưa release-ready.
 - Dependency được mở khóa: `HARDWARE_INTEGRATION`, sau đó `HARDWARE_VERIFICATION`, `FULL_E2E` và cuối cùng `FINAL_RELEASE_READY`.
 - Release record: chỉ ghi tag/version, commit, deployment URL và evidence link sau khi chúng tồn tại; không tạo giá trị giả.
@@ -1266,15 +1266,15 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 
 ### Phase Completion Summary
 
-- Status: ACTIVE — Phase 3 source implementation is present; lifecycle completion still requires the full PlatformIO gate, live database/UI HARD-GATE evidence, final audit, commit/push and `develop` integration.
-- Implementation: CB3 controller/ACK/state; YC4 migration, RLS contract, persistence/history/settings adapter; YC5 timezone aggregation/chart; YC7 SMTP report/delivery dedupe; YC6/YC8 adapters; final Dashboard and deployment/user/troubleshooting docs.
-- Automated tests: Node 92/92 PASS; simulator 8 assertions/14 scenarios PASS; authenticated loopback broker 15 assertions PASS; config/secret audit 0 findings; npm audit 0 vulnerabilities; CB3 host compiler smoke PASS. Full PlatformIO native/ESP32 run is not claimed because package download was unavailable in this execution environment.
-- Manual HARD-GATE tests: P3-M04 RLS and P3-M05 deployed chart remain Pending; migration was not applied to the supplied live project in this session.
-- Manual FINAL-GATE tests remaining: P3-M01–P3-M03 and P3-M06–P3-M12 remain Pending; no buzzer hardware, live SMTP send or final deployed UI/E2E evidence is claimed.
-- Known issues: supplied environment has no SMTP variables for YC7; browser screenshot runner lacked its Chromium binary; both are deployment/evidence gaps rather than production mock substitutions.
-- Deferred SHOULD/OPTIONAL items: history pagination, advanced retry/dead-letter infrastructure, distributed scheduler coordination and query-plan tuning.
+- Status: ACTIVE — source and SOFTWARE-GATE pass; the development Phase 3 forward migration plus P3-M04/P3-M05 hard gates pass. The automatic Telegram-link Dashboard/secret/webhook/private-Start/sanitized-status/test-message subset passes on the current deployment; preference replay/disconnect/relink and the remaining final gates are still pending. Lifecycle completion also requires a commit/push and `develop` integration.
+- Implementation: CB3 controller/ACK/state with backward-compatible polarity config; YC4 migration/RLS/idempotent persistence and paginated history consumers; YC5 timezone aggregation/chart with accessible zero buckets; YC7 SMTP state machine with configuration preflight, atomic reservation, bounded retry and ambiguous-outcome protection; YC6/YC8 adapters; YC12 validated fresh Wi-Fi state and local-only captive-portal guidance; independently resilient history/chart panels; warm, responsive owner-facing Dashboard; current deployment/user/troubleshooting/evidence docs.
+- Automated tests: Node 145/145 PASS; simulator 8 assertions/14 scenarios PASS; authenticated loopback broker 15 assertions PASS; config/secret audit 0 findings; npm audit 0 vulnerabilities; PlatformIO native 17/17 PASS; clean `esp32dev` build PASS at 16.2% RAM and 84.2% flash; deterministic FlowFuse SHA-256 `27ab25fc70abf62b06cf5f5fca7f359339496a041fa920e672839e4aeb63fd15` (235,573 bytes, 81 nodes, 7 tabs, 15 unique HTTP routes, no credential object); prior Chrome/CDP responsive QA PASS at 1440 px desktop and exact 390/320 px mobile widths, including no card overlap or horizontal overflow, 44 px minimum targets, visible focus, reduced motion and the local-only YC12 setup panel. The automatic Telegram-link UI is additionally covered by DOM/behavior regressions, including initial logout/Telegram controls honoring `hidden`, blocked-popup fallback, private `/start`/`/help`/`/settings`, malformed-header rejection and retry-safe unknown Supabase errors. Its attempted Playwright CLI visual rerun on 2026-08-11 was blocked by an upstream Windows/Node 24 `UV_HANDLE_CLOSING` assertion; the deployed Dashboard/secret/webhook/private-Start/sanitized-status/test-message subset was instead revalidated directly. Software/compile results still do not imply hardware evidence.
+- Manual HARD-GATE tests: P3-M04 PASS on the development project. P3-M05 PASS for deployed 7/30-day owner views, empty buckets and controlled `Asia/Ho_Chi_Minh` local-midnight data with cleanup.
+- Manual FINAL-GATE tests remaining: P3-M01–P3-M03 and P3-M07–P3-M12 remain Pending; P3-M06 deployed SMTP success/definite-failure PASS is recorded, but no buzzer hardware or final physical E2E evidence is claimed.
+- Known issues: this audit reproduced and fixed the ESP32Servo channel-zero initialization bug, bounded-data response-body/error normalization, late auth expiry handling, same-domain Dashboard request locking, stale/raw UI states, locker-timezone drift across history/chart/YC8 context, browser deadlines that were too short for database-backed views, the visible-but-unissued Telegram fallback button, and missing private bot-command guidance; no remaining reproducible software defect is known in the automated scope. The unexecuted manual gates above remain release risks, not PASS. Local Supabase CLI/`psql`/Docker were unavailable, so the live database evidence comes from the separately recorded development-project run. No physical result is inferred from the simulator or ESP32 compile.
+- Deferred SHOULD/OPTIONAL items: advanced retry/dead-letter infrastructure, distributed scheduler coordination and query-plan tuning.
 - Branch: `phase/3-thuy-data-integration`
-- Commit: `70f8ca1` — local Phase 3 implementation commit; push requires explicit user approval.
+- Commit: `fdc7e4d` — current checked-out baseline; the audited hardening/UI/docs working-tree changes are not yet committed or pushed.
 - Integration into `develop`: Pending; Phase branch push and merge were not performed.
 - Project state after completion: `SOFTWARE_COMPLETE`; hardware workflow follows.
 
@@ -1296,7 +1296,7 @@ Quy tắc dùng bảng:
 | [ ] E2E-04 | Door UNKNOWN | Quan sát boot trước stable sample; tạo device Offline/cache stale; inject state payload thiếu/không hợp lệ | Cache/Dashboard dùng `UNKNOWN` khi live state không đáng tin; không suy từ retained data và không tuyên bố tháo dây là broken-wire detection | MANUAL — FINAL-GATE | Boot/LWT/cache/UI capture + scope note về supervised circuit |
 | [ ] E2E-05 | Servo UNLOCK | Owner login; device online; nhấn Unlock | Pending; một command; servo mở; valid ACK; UI `UNLOCKED` | MANUAL — FINAL-GATE | UI/broker/servo video + ACK |
 | [ ] E2E-06 | Servo LOCK và cơ khí | Đóng cửa đúng; nhấn Lock; lặp nhiều vòng có tải | Chốt khóa đúng, không kẹt/quá góc/reset; ACK `LOCKED` | MANUAL — FINAL-GATE | Video + angle/current/defect note |
-| [ ] E2E-07 | Buzzer ON/OFF | Nhấn Test Alarm rồi Stop Alarm | `ALARM_ON/OFF` qua Node-RED; buzzer/ACK/UI `ACTIVE/INACTIVE` đúng | MANUAL — FINAL-GATE | Hardware/UI/broker video |
+| [ ] E2E-07 | Buzzer ON/OFF | Nhấn **Kiểm tra còi** rồi **Tắt còi** | `ALARM_ON/OFF` qua Node-RED; buzzer/ACK/UI `ACTIVE/INACTIVE` đúng | MANUAL — FINAL-GATE | Hardware/UI/broker video |
 | [ ] E2E-08 | LED ON/OFF | Nhấn/toggle LED On rồi Off | WS2812B, ACK và Dashboard `ON/OFF` đúng; không reset | MANUAL — FINAL-GATE | Video + state/ACK capture |
 | [ ] E2E-09 | DHT22 thành công | Chạy nhiều chu kỳ với sensor thật | Giá trị hợp lý cập nhật trên OLED, không có card/telemetry Dashboard YC1 | MANUAL — FINAL-GATE | OLED photo/video + topic inventory |
 | [ ] E2E-10 | DHT22 lỗi | Tháo/gây lỗi sensor an toàn | OLED báo lỗi; loop/MQTT/controls khác tiếp tục | MANUAL — FINAL-GATE | Video + broker/serial diagnostic |
@@ -1319,8 +1319,8 @@ Quy tắc dùng bảng:
 | [ ] E2E-27 | RLS User A đọc Locker B | Query lockers/events/settings B bằng JWT A và unauthenticated | Zero/deny theo policy; service role không ở client | MANUAL — FINAL-GATE | Sanitized Supabase responses/policy test |
 | [ ] E2E-28 | Mở cửa hợp lệ | Valid UNLOCK ACK; OPEN stable trong window, lock xác nhận UNLOCKED | `DOOR_OPENED authorized=true`; không buzzer/Telegram; window consume | MANUAL — FINAL-GATE | Synchronized ACK/door/event/UI log |
 | [ ] E2E-29 | Mở cửa trái phép | Lock state LOCKED hoặc window hết; tạo OPEN stable | `authorized=false`; one `UNAUTHORIZED_OPEN`; buzzer; Telegram; latest alert | MANUAL — FINAL-GATE | Video + DB + Telegram + broker/UI evidence |
-| [ ] E2E-30 | Telegram thành công | Cấu hình bot/chat test; trigger unauthorized | Một message đúng locker/time/door/lock/link; delivery success | MANUAL — FINAL-GATE | Screenshot đã che ID + delivery log |
-| [ ] E2E-31 | Telegram thất bại | Controlled invalid token/chat/network, trigger event | Event/buzzer vẫn xử lý; failure rõ; no infinite retry/duplicate storm | MANUAL — FINAL-GATE | Sanitized error + event/buzzer evidence |
+| [ ] E2E-30 | Telegram thành công | Owner bấm **Liên kết Telegram**, mở bot private, bấm **Start**, gửi tin thử rồi trigger unauthorized | Dashboard báo đúng tài khoản đã liên kết; một message đúng locker/time/door/lock/link; delivery success; browser không nhận Chat/User ID | MANUAL — FINAL-GATE | Screenshot đã che username/ID không cần thiết + sanitized settings/delivery log |
+| [ ] E2E-31 | Telegram thất bại | Sau một success baseline, dùng controlled invalid bot credential hoặc chặn provider network trong môi trường test; trigger event rồi khôi phục secret và Full Deploy | Event/buzzer vẫn xử lý; failure rõ; no infinite retry/duplicate storm; success smoke sau restore | MANUAL — FINAL-GATE | Sanitized error + event/buzzer evidence + post-restore message |
 | [ ] E2E-32 | Supabase thành công | Thực hiện door, lock, buzzer, LED và unauthorized flows | Rows đủ fields/source/result/auth/command/time, đúng owner | MANUAL — FINAL-GATE | Sanitized query export/screenshots |
 | [ ] E2E-33 | Supabase thất bại | Chặn endpoint/credential test sai có kiểm soát | Real-time control/cảnh báo không crash; lỗi được surface; không retry vô hạn; UI lỗi phù hợp | MANUAL — FINAL-GATE | Failure/recovery logs |
 | [ ] E2E-34 | Chart 7 ngày | Tạo deterministic data; chọn 7 ngày | 7 local calendar buckets; open/alert counts đúng; zero days hiển thị | MANUAL — FINAL-GATE | Source rows/query result/chart screenshot |
@@ -1351,15 +1351,17 @@ Mọi mục trong section này là **MANUAL hardware**, chưa được thực hi
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Test servo có tải lặp lại khi cửa căn chỉnh đúng; ghi lỗi cơ khí, nhiệt và dòng.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 3]** Xác minh Active Buzzer active-high/active-low, voltage/current và safe boot state.
 - [ ] **[MUST khi phần cứng yêu cầu | DEFERRED — HARDWARE-FINAL-GATE | Phase 3]** Dùng MOSFET/driver đúng nếu buzzer cần 5 V/dòng vượt GPIO; xác minh gate/control/common ground và linh kiện bảo vệ phù hợp module.
-- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh DHT22 chạy ở điện áp module phù hợp; lắp pull-up 10 kΩ nếu module chưa tích hợp; đặt sensor trong khoang chứa.
-- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh OLED SSD1306 địa chỉ I2C, điện áp, SDA/SCL và vị trí quan sát ở mặt trước khoang kỹ thuật.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Cấp DHT22 và pull-up data về 3.3 V; lắp 4.7–5.1 kΩ nếu module chưa tích hợp; tuyệt đối không để pull-up 5 V đi thẳng vào GPIO; đặt sensor trong khoang chứa.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh OLED SSD1306 địa chỉ I2C và exact-board datasheet; baseline cấp 3.3 V với SDA/SCL pull-up 3.3 V, hoặc dùng level shifter đã xác minh nếu board bắt buộc 5 V; kiểm tra vị trí quan sát ở mặt trước khoang kỹ thuật.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Đo số pixel WS2812B thực, current worst case và đặt brightness limit phù hợp nguồn.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Lắp điện trở 330–470 Ω nối tiếp data WS2812B và tụ 470–1000 µF gần đầu nguồn strip.
-- [ ] **[SHOULD, conditional]** Kiểm tra level shifter 3.3 V → 5 V nếu WS2812B không ổn định với ESP32 logic; chỉ thêm khi test chứng minh cần.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Dùng baseline buffer 74AHCT125/74HCT14 cấp 5 V giữa ESP32 và WS2812 DIN; chỉ bỏ/thay khi primary datasheet của đúng part đã mua và phép đo rail chứng minh mức logic an toàn.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh nguồn DC 5 V/3 A đúng cực, công suất và chất lượng; jack/công tắc/terminal không lỏng hoặc quá nhiệt.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Tất cả thiết bị dùng common ground; tách đường nguồn tải (servo/LED/buzzer) khỏi logic, chỉ nối ground theo thiết kế.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Dùng dây đủ tiết diện cho tải; mối nối cách điện, có strain relief và không để dây trần chạm vỏ/linh kiện.
-- [ ] **[SHOULD, conditional]** Đặt tụ decoupling/bulk gần servo/LED theo kết quả đo, không thêm linh kiện ngẫu nhiên thiếu sơ đồ; nếu thiếu tụ gây brownout thì fix này trở thành `MUST`.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Lắp tụ 470–1000 µF đúng cực/rating gần nguồn WS2812; chọn decoupling/bulk nhánh servo từ exact-part datasheet và phép đo, không thêm linh kiện ngẫu nhiên để che nguồn thiếu dòng.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác nhận không đồng thời cấp nguồn ngoài và USB theo đường có thể back-feed; chỉ dùng topology được tài liệu chính thức của đúng board cho phép.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE]** Hoàn tất `hardware/bom.md` và `hardware/power-budget.md` bằng model/datasheet/dòng đo thật trước khi mua chốt nguồn hoặc chạy full-load.
 - [ ] **[MUST | FINAL-GATE]** Đo rail 5 V và theo dõi brownout khi boot, Servo + LED, rồi Servo + LED + Buzzer full load.
 - [ ] **[MUST | FINAL-GATE]** Xác nhận ESP32, OLED, MQTT và DHT22 vẫn ổn định trong full-load test.
 - [ ] **[MUST | FINAL-GATE]** Kiểm tra nhiệt độ/âm lượng/thời lượng buzzer và LED trong giới hạn demo an toàn.
@@ -1387,7 +1389,7 @@ Mọi mục trong section này là **MANUAL hardware**, chưa được thực hi
 | Supabase service-role key | Node-RED only | Có, đặc quyền cao | Backend secret store/environment | Browser, FlowFuse UI payload, Git/evidence |
 | Supabase JWT/session | Browser session và request tới Node-RED | Có, ngắn hạn | Session storage/runtime theo thiết kế | Log, Gemini context, DB event metadata |
 | Telegram bot token | Node-RED only | Có | Backend secret store | DB settings row, Dashboard, Git |
-| Telegram chat ID | Node-RED/Supabase settings | Nhạy cảm | Owner-protected row/RLS | Public log/evidence không che |
+| Telegram private Chat/User ID | Node-RED/service-role Supabase settings only | Nhạy cảm | Không cấp cột cho browser; link qua one-time token + secret webhook | Public response/log/evidence |
 | Gmail App Password/OAuth | Node-RED only | Có | Backend secret/credential store | Flow export plaintext, Git, screenshot |
 | Email recipient | Owner-protected settings | PII | Supabase RLS row | Cross-locker query/log công khai |
 | Gemini API key | Node-RED only | Có | Backend secret store | Dashboard, Gemini prompt/context, Git |
@@ -1408,7 +1410,7 @@ Mọi mục trong section này là **MANUAL hardware**, chưa được thực hi
 - [ ] **[MUST | Phase 2]** Supabase project URL/keys được nạp từ environment; service-role chỉ ở backend và được rotate nếu từng lộ.
 - [ ] **[MUST | HARD-GATE Phase 2]** Tạo tối thiểu User A/User B và Locker A/Locker B cho security test; không dùng tài khoản cá nhân chính trong evidence.
 - [ ] **[MUST | Phase 2]** Locker claim code/test data được quản lý riêng; owner ID không thể update từ frontend.
-- [ ] **[MUST | FINAL-GATE]** Telegram bot token/chat ID được kiểm thử ở môi trường test; screenshot che thông tin không cần thiết.
+- [ ] **[MUST | FINAL-GATE]** Telegram bot token/webhook và automatic private-account link được kiểm thử ở môi trường test; screenshot che thông tin không cần thiết.
 - [ ] **[MUST | FINAL-GATE]** Gmail credential/test mailbox được cấu hình; không dùng email production/lớp học nếu chưa được phép.
 - [ ] **[MUST | FINAL-GATE]** Gemini API key/model/quota được xác minh; không gửi JWT, email, token, service key hoặc raw PII trong context.
 - [ ] **[MUST | Phase 3]** Notification recipient/time/timezone có validation và RLS; default timezone `Asia/Ho_Chi_Minh` được ghi rõ.
@@ -1431,7 +1433,7 @@ Demo phải chạy trên một release candidate/build ID đã ghi, dùng dữ l
 2. Xác nhận ESP32 firmware version/build ID, Node-RED deploy version, Supabase migration version và release commit khớp test evidence.
 3. Đặt cửa `CLOSED`, khóa `LOCKED`, alarm `INACTIVE`, LED `OFF`; xóa pending command; không sửa DB history để giả kết quả.
 4. Xác nhận test User A owns Locker A; User B/Locker B có sẵn cho negative test; session/token không xuất hiện trên màn chiếu.
-5. Xác nhận Telegram test chat, Gmail test inbox và Gemini quota; chuẩn bị failure-safe message nếu dịch vụ ngoài không khả dụng.
+5. Xác nhận owner đã liên kết private Telegram account bằng nút **Liên kết Telegram**, Gmail test inbox và Gemini quota; chuẩn bị failure-safe message nếu dịch vụ ngoài không khả dụng.
 6. Chuẩn bị video dự phòng, screenshots Telegram/email, sanitized DB export, MQTT/Node-RED logs, USB/cáp/firmware binary/flow export theo chính sách secret.
 
 ### Trình tự demo chính
@@ -1457,14 +1459,14 @@ Demo phải chạy trên một release candidate/build ID đã ghi, dùng dữ l
 
 5. **YC3 LED, CB3 Buzzer và YC1 local OLED**
    - Bật/tắt LED qua Dashboard, chỉ ra pending/ACK/state.
-   - Test Alarm/Stop Alarm, chỉ ra buzzer thật, ACK và ACTIVE/INACTIVE.
+   - Kiểm tra còi/Tắt còi, chỉ ra buzzer thật, ACK và ACTIVE/INACTIVE.
    - Cho xem nhiệt độ/độ ẩm trên OLED; nhắc rõ không đưa YC1 lên Dashboard.
 
 6. **YC6 mở cửa trái phép**
    - Bảo đảm lock `LOCKED`, không có valid unlock window.
    - Tác động MC-38/mở cửa an toàn.
    - Cho thấy one `UNAUTHORIZED_OPEN`, `authorized=false`, buzzer ACTIVE, latest alert, Telegram và Supabase event.
-   - Đóng cửa/Stop Alarm theo quy trình; chứng minh không gửi cảnh báo lặp trong cùng episode.
+   - Đóng cửa/Tắt còi theo quy trình; chứng minh không gửi cảnh báo lặp trong cùng episode.
 
 7. **YC4 History và YC5 Chart**
    - Mở recent/history, đối chiếu các event door/lock/alarm/LED/unauthorized vừa tạo.

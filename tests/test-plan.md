@@ -1,11 +1,11 @@
-# Phase 1 regression and Phase 2 test plan
+# Phase 1–3 regression and test plan
 
 ## Automated checks
 
 | ID | Command | Scope | Expected result |
 |---|---|---|---|
-| P1-A01 | `python -X utf8 -m platformio run -e esp32dev -t clean` then `python -X utf8 -m platformio run -e esp32dev` | pinned firmware build | exit 0; no ignored compiler error |
-| P1-A02 | `python -X utf8 -m platformio test -e native` | valid action/UUID/locker/requester parse | seven native tests pass |
+| P1-A01 | `python -m platformio run -e esp32dev -t clean` then `python -m platformio run -e esp32dev` (use the documented temporary ASCII drive mapping only if the Xtensa toolchain mangles the Vietnamese Windows path) | pinned firmware build | exit 0; no ignored compiler error |
+| P1-A02 | `python -m platformio test -e native` | valid action/UUID/locker/requester parse plus Phase 2/3 firmware regressions | full current native suite passes 17/17 |
 | P1-A03 | same native suite | malformed JSON/no ACK ID; correlatable missing field; invalid action/locker; stale check | error semantics pass |
 | P1-A04 | same native suite | duplicate cache/ACK replay and cold-boot state | original state preserved with `duplicate:true`; lock `UNKNOWN` |
 
@@ -64,9 +64,9 @@ The `rg` command may find harmless variable names in `.env.example` or documenta
 | P2-A06/A07 | Node ACK/restart tests | match/wrong/duplicate/late ACK, restart, disconnect cancellation and reconnect GET_STATE | only current exact pending succeeds; disconnect cannot leave stale pending; each connection generation bootstraps once |
 | P2-A08 | Node virtual-clock timeout | 5000 ms, no actuator retry, one GET_STATE; expire the reconciliation command too | controlled timeout with no recursive GET_STATE |
 | P2-A09/A10 | Node security timeline | window boundary/consume/restart, unauthorized OPEN | deterministic classification + ALARM_ON |
-| P2-A11 | Node Telegram/security tests | episode dedupe, rate limit, failure, provider stall, bounded runtime/provider maps and delivery status contract | one attempt/episode; ALARM_ON does not wait for Telegram; memory state remains bounded |
+| P2-A11 | Node Telegram/security/linking tests | one-time SHA-256 token, private-chat-only webhook, byte-safe exact secret (including malformed Unicode header), owner isolation, idempotent same-account webhook retry, cross-account replay denial, unknown provider 4xx retry, sanitized settings, per-locker destination, episode dedupe/rate limit/failure/provider stall and bounded state | no browser Chat ID path or global fallback; only known final token errors are acknowledged; one attempt/episode; ALARM_ON does not wait for Telegram; memory state remains bounded |
 | P2-A12/A13 | Node chatbot tests | all six canonical questions, safe canonical intent/question, live/missing/provider error/history counts/context/transport failure | grounded whitelist without raw user secret text; controlled failures |
-| YC9 static | Node artifact/SQL tests | full-name signup metadata, ordered SQL, RLS clauses, atomic claim/no owner update policy, least-privilege grants and pgTAP runner envelope | contract assertions pass; live database gate remains manual |
+| YC9 static | Node artifact/SQL tests | full-name signup metadata, ordered SQL, RLS clauses, atomic claim/no owner update policy, least-privilege grants and pgTAP runner envelope | contract assertions and P2-M03–P2-M05 live gates pass |
 | Secret/dependency | `npm audit --audit-level=high`, `npm run audit` | installed Dashboard dependency and committed source/config | 0 vulnerabilities; 0 secret/config findings |
 
 Exact output is recorded in `evidence/phase-2/automated-results.md`.
@@ -77,22 +77,25 @@ Exact output is recorded in `evidence/phase-2/automated-results.md`.
 - [x] P2-M03 — `MANUAL — HARD-GATE PASS`: with custom SMTP and a controlled nonce-bearing test-mailbox template, the final deployed UI passed public signup HTTP 200, exact user/profile creation, confirmed-account login, Bearer transport, fragment cleanup, reload persistence, local/server logout, PII cleanup, logged-out reload, and disposable-resource cleanup (12/12).
 - [x] P2-M04 — `MANUAL — HARD-GATE PASS`: two disposable users/lockers passed cross-owner UI denial, direct state/command 403, zero-row Supabase RLS read, and a broker spy observed zero command messages.
 - [x] P2-M05 — `MANUAL — HARD-GATE PASS`: final deployed claim feedback produced 200/409/409, kept owner/timestamp immutable, and rejected authenticated `owner_id` update with 403.
-- [x] P2-M06/P2-M07 — `MANUAL — FINAL-GATE PASS`: a real Telegram delivery reached `delivered`; a controlled invalid destination reached `failed` while detector/`ALARM_ON`/ACK stayed operational; valid configuration was restored and reverified.
+- [x] P2-M06/P2-M07 delivery semantics — `MANUAL — FINAL-GATE PASS` on the recorded pre-auto-link deployment: a real Telegram delivery reached `delivered`; a controlled invalid destination reached `failed` while detector/`ALARM_ON`/ACK stayed operational; valid configuration was restored and reverified. This evidence does not replace the automatic-link rollout smoke below.
+- [ ] Automatic Telegram-link rollout smoke — `MANUAL — DEPLOYMENT-GATE`, **PARTIAL PASS on 2026-08-11**: the current Dashboard response, `[hidden]` fallback rule, correct/wrong webhook-secret boundary, registered webhook health, bot identity/commands, protected `201` deep link, real private **Start**, sanitized connected/enabled status, `200 TELEGRAM_TEST_DELIVERED`, and absence of Chat/User ID fields in browser responses all passed. Before ticking this row, run preference save/re-enable, exact consumed-token replay, disconnect and relink against a controlled disposable locker/account or an explicitly approved temporary disconnect. Apply `202608110001_telegram_account_linking.sql`, `202608110002_telegram_link_consume_conflict_fix.sql`, and `202608110003_telegram_notification_preference_upsert_fix.sql` in lexical order only on a project where they are unapplied; a project with `110001` and `110002` already applied runs only `110003`.
 - [x] P2-M08 — `MANUAL — FINAL-GATE PASS`: deployed API/UI grounded a real Gemini answer in trusted `LOCKED` MQTT state; a controlled invalid model produced a safe 503 UI path without corrupting state; valid configuration was restored and reverified.
 
-All available non-hardware Phase 2 manual service gates now pass. Phase 2 stays
-`ACTIVE` only until its corrective working tree is committed, pushed, and
-fast-forward integrated into `develop` with explicit Git authorization. The
-deferred ESP32/MC-38 rows remain hardware final gates and are not relabeled.
+The recorded Phase 2 manual service gates pass. The automatic-link boundary has
+deterministic software coverage and the non-destructive current-deployment
+subset above has live evidence. The remaining stateful lifecycle checks keep
+the rollout row unticked; this does not transfer ownership of Phase 2.
+Deferred ESP32/MC-38 rows remain hardware final gates and are not relabeled.
 
 ## Phase 3 automated SOFTWARE-GATE
 
 | ID | Command/suite | Coverage | Current result |
 |---|---|---|---|
-| P3-A01 | alarm controller native test + host smoke compile | active-high/low, safe boot, idempotent ON/OFF, missing output writer | PASS for host smoke; full PlatformIO suite must be rerun where package download is available |
+| P3-A01 | `pio test -e native` + clean `pio run -e esp32dev` | active-high/low, safe boot, idempotent ON/OFF, missing output writer and full firmware compatibility | PASS — native 17/17; clean ESP32 build succeeds (16.2% RAM, 84.2% flash) |
 | P3-A02/P3-A03 | `npm test` Phase 3 data tests | every canonical event mapping, idempotent insert, safe 503, persistence health | PASS |
 | P3-A04 | `npm test` statistics/time tests | 7/30 local boundaries, zero buckets, open/alert counts | PASS |
-| P3-A05/P3-A06 | `npm test` report tests | previous local day, rendered facts, settings ownership, delivery reservation and duplicate suppression | PASS |
+| P3-A05/P3-A06 | `npm test` report tests | previous local day, rendered facts, settings ownership, atomic reservation, bounded retry, ambiguous outcome and duplicate suppression | PASS |
+| YC12 software | `npm test` live-state/Dashboard/export tests | validated `wifi_connected`, stale/cross-locker reset, local captive-portal guidance and absence of Dashboard credential inputs | PASS; physical P1-M08/P1-M09 remain deferred |
 | Integration | `npm run test:simulator` | deterministic command/ACK/state matrix including alarm contract | PASS — 8 assertions / 14 scenarios |
 | Broker | `npm run test:broker` | authenticated loopback MQTT, retained state/recovery and unauthorized alarm path | PASS — 15 assertions |
 | Security | `npm run audit`, `npm audit --audit-level=high` | committed config/secret patterns and dependency advisories | PASS — 0 findings / 0 vulnerabilities |
@@ -101,12 +104,27 @@ Exact reproducible software results are recorded in
 `evidence/phase-3/automated-results.md`. They do not assert a real ESP32,
 buzzer, Supabase project, Gmail mailbox or deployed FlowFuse instance.
 
+The current full Node result is recorded in
+`evidence/phase-3/automated-results.md`. The forward scheduler migration and
+P3-M04 pgTAP/owner-history gate have run on the development project. Local
+source/artifact checks and the P3-M04/P3-M05 passes are not substitutes for
+the separately recorded P3-M06 SMTP evidence or remaining hardware evidence.
+
 ## Phase 3 manual gates still pending
 
 - P3-M01/P3-M02/P3-M03/P3-M11/P3-M12: hardware/full E2E evidence is pending.
-- P3-M04/P3-M05: apply the migration and run sanitized User A/User B RLS plus
-  real history/chart UI boundary checks.
-- P3-M06: send through the selected SMTP account, inject one controlled
-  credential/config failure, restore it, and capture sanitized delivery rows.
-- P3-M07–P3-M10: deployed YC6/YC8/Dashboard success and failure recordings are
-  pending. These continue to block `FINAL_RELEASE_READY`.
+- [x] P3-M04 — `MANUAL — HARD-GATE PASS`: forward migration, disposable-user
+  pgTAP owner isolation, wrong-owner `LOCKER_FORBIDDEN` and correct-owner
+  protected history completed on the development project.
+- [x] P3-M05 — `MANUAL — HARD-GATE PASS`: deployed 7/30-day owner views,
+  empty buckets and controlled local-midnight boundary passed with disposable
+  data and exact cleanup.
+- [x] P3-M06 — `MANUAL — FINAL-GATE PASS`: the deployed scheduler sent one
+  disposable owner's daily report through Mailtrap Sandbox on attempt 1 and
+  recorded `delivered`, `sent_at` and `DAILY_EMAIL_REPORT`; an intentionally
+  invalid disposable recipient produced a definite `EENVELOPE` failure with
+  no `sent_at`. Both disposable lockers and cascaded rows were removed.
+- P3-M07–P3-M10: the deployed Telegram automatic-link subset is now recorded,
+  while its remaining lifecycle checks and the other YC6/YC8/Dashboard
+  success/failure recordings stay pending. These continue to block
+  `FINAL_RELEASE_READY`.

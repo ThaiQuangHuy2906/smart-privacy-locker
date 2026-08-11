@@ -36,12 +36,27 @@ class EmailAdapter {
     return Boolean(this.transport && typeof this.transport.sendMail === 'function' && this.from);
   }
 
-  async send({ to, subject, text, html }) {
+  async send({ to, subject, text, html, messageId = undefined }) {
     if (!this.configured()) {
-      throw Object.assign(new Error('Email provider is not configured'), { code: 'EMAIL_NOT_CONFIGURED' });
+      throw Object.assign(new Error('Email provider is not configured'), {
+        code: 'EMAIL_NOT_CONFIGURED', deliveryOutcome: 'not_sent',
+      });
     }
-    const result = await this.transport.sendMail({ from: this.from, to, subject, text, html });
-    return { message_id: result?.messageId || null };
+    try {
+      const result = await this.transport.sendMail({ from: this.from, to, subject, text, html, messageId });
+      return { message_id: result?.messageId || null };
+    } catch (error) {
+      const code = typeof error?.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(error.code)
+        ? error.code : 'EMAIL_PROVIDER_FAILED';
+      const responseCode = Number(error?.responseCode);
+      const providerRejected = Number.isInteger(responseCode) && responseCode >= 400 && responseCode < 600;
+      const definitelyNotSent = providerRejected || ['EAUTH', 'EENVELOPE', 'EMESSAGE'].includes(code)
+        || error?.deliveryOutcome === 'not_sent';
+      throw Object.assign(new Error('Email delivery failed'), {
+        code,
+        deliveryOutcome: definitelyNotSent ? 'not_sent' : 'unknown',
+      });
+    }
   }
 }
 

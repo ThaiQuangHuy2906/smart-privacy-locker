@@ -25,6 +25,12 @@ class TelegramAdapter {
       schema_version: 1, event_id: event.event_id, channel: 'telegram', status, attempts,
       attempted_at: new Date(this.now()).toISOString(), error,
     });
+    const chatId = String(locker.telegram_chat_id || '');
+    if (!/^[1-9][0-9]{0,19}$/.test(chatId)) {
+      return result('not_configured', 0, {
+        code: 'TELEGRAM_NOT_LINKED', message: 'Telegram is not linked for this locker',
+      });
+    }
     if (this.delivered.has(event.event_id)) return result('duplicate_suppressed', 0);
     const last = this.lastByLocker.get(event.locker_id) || 0;
     if (last && this.now() - last < this.rateLimitMs) return result('rate_limited', 0);
@@ -43,7 +49,7 @@ class TelegramAdapter {
       `Dashboard: ${this.dashboardUrl}`,
     ].join('\n');
     try {
-      await this.transport({ text, lockerId: event.locker_id });
+      await this.transport({ chatId, text, lockerId: event.locker_id });
       return result('delivered', 1);
     } catch (error) {
       return result('failed', 1, {
@@ -51,10 +57,20 @@ class TelegramAdapter {
       });
     }
   }
+
+  configured() { return typeof this.transport === 'function' && this.transport.configured !== false; }
+
+  async sendText({ chatId, text, lockerId = null }) {
+    if (!/^[1-9][0-9]{0,19}$/.test(String(chatId || ''))) {
+      throw Object.assign(new Error('Telegram is not linked for this locker'), { code: 'TELEGRAM_NOT_LINKED' });
+    }
+    await this.transport({ chatId: String(chatId), text, lockerId });
+    return { ok: true };
+  }
 }
 
-function telegramHttpTransport({ token, chatId, fetchImpl = globalThis.fetch, timeoutMs = 5000 }) {
-  return async ({ text }) => {
+function telegramHttpTransport({ token, fetchImpl = globalThis.fetch, timeoutMs = 5000 }) {
+  const transport = async ({ chatId, text }) => {
     if (!token || !chatId) throw Object.assign(new Error('Telegram is not configured'), { code: 'NOT_CONFIGURED' });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -71,6 +87,8 @@ function telegramHttpTransport({ token, chatId, fetchImpl = globalThis.fetch, ti
       clearTimeout(timer);
     }
   };
+  transport.configured = Boolean(token && fetchImpl);
+  return transport;
 }
 
 module.exports = { TelegramAdapter, telegramHttpTransport };

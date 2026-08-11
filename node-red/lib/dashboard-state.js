@@ -10,6 +10,9 @@ function dashboardState({ authenticated, ownsLocker, snapshot, pendingDomains = 
   return {
     mqtt: snapshot.mqtt_connected ? 'CONNECTED' : 'DISCONNECTED',
     device: snapshot.availability,
+    wifi: snapshot.fresh && typeof snapshot.state.wifi_connected === 'boolean'
+      ? (snapshot.state.wifi_connected ? 'CONNECTED' : 'DISCONNECTED')
+      : 'UNKNOWN',
     door: snapshot.fresh ? snapshot.state.door : 'UNKNOWN',
     lock: snapshot.state.lock,
     alarm: snapshot.state.alarm,

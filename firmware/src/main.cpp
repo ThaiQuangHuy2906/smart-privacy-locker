@@ -33,7 +33,7 @@ void writeBuzzerOutput(bool high) {
   digitalWrite(static_cast<int>(PinMap::BUZZER_CONTROL), high ? HIGH : LOW);
 }
 
-AlarmController alarmController(AppConfig::BUZZER_ACTIVE_HIGH, writeBuzzerOutput);
+AlarmController alarmController(RuntimeConfig::BUZZER_ACTIVE_HIGH, writeBuzzerOutput);
 
 AckRecord inFlightLockAck;
 bool lockCommandInFlight = false;
@@ -208,7 +208,7 @@ void setup() {
   // active-low driver pulse during boot. GPIO26 only drives the external
   // MOSFET/driver input; it never powers the 5 V buzzer load directly.
   digitalWrite(static_cast<int>(PinMap::BUZZER_CONTROL),
-               AppConfig::BUZZER_ACTIVE_HIGH ? LOW : HIGH);
+               RuntimeConfig::BUZZER_ACTIVE_HIGH ? LOW : HIGH);
   pinMode(static_cast<int>(PinMap::BUZZER_CONTROL), OUTPUT);
   alarmController.begin();
   stateManager.setAlarm(AlarmState::INACTIVE);

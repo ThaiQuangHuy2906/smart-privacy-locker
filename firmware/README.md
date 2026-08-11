@@ -38,6 +38,22 @@ Copy-Item firmware\include\app_config.example.h firmware\include\app_config.h
 
 For example, scan the actual OLED first. The committed default is `OLED_I2C_ADDRESS = 0x3C`; if the module is `0x3D`, change that constant to `0x3D` in the full ignored `app_config.h` copy. Do not include the example and redeclare a constant: that causes a redefinition. The configured default is not hardware verification.
 
+### Upgrade from a Phase 1/2 local config
+
+Phase 3 adds active-buzzer polarity without invalidating an existing ignored
+`app_config.h`. `runtime_config.h` supplies the candidate active-high default
+when the old copy has no Phase 3 field, so a pull remains buildable. After the
+real module/driver is measured, add exactly one macro near the top of the
+ignored `app_config.h`, before any use of it:
+
+```cpp
+#define SPL_BUZZER_ACTIVE_HIGH 1  // use 0 only for a measured active-low driver
+```
+
+Do not infer polarity from the module label. The default is only software-safe
+evidence; the inactive boot level and audible output still require the CB3
+hardware gate.
+
 ## Build and test
 
 From this directory:
@@ -48,20 +64,37 @@ python -m platformio run -e esp32dev -t clean
 python -m platformio run -e esp32dev
 ```
 
-PlatformIO Core 6.1.18 in the recorded environment fails to discover/build tests from a Windows path containing Vietnamese characters. If that happens, copy only this `firmware/` directory to a temporary ASCII-only path before running the same commands. The temporary `.pio` output is ignored and must not be copied back:
+The native suite succeeds from the repository's current Vietnamese Windows
+path. The Xtensa toolchain used by the clean `esp32dev` build can still mangle
+that path and then report missing temporary compiler files. If that exact
+failure occurs, map the unchanged repository root to an unused ASCII drive
+letter for the command, then remove the mapping. From the repository root:
 
 ```powershell
-$buildRoot = 'C:\Temp\smart-privacy-locker-phase1-build-local'
-New-Item -ItemType Directory -Path $buildRoot
-Copy-Item -LiteralPath '<repository>\firmware' -Destination $buildRoot -Recurse
-Set-Location "$buildRoot\firmware"
-$env:PYTHONUTF8 = '1'
-python -X utf8 -m platformio test -e native
-python -X utf8 -m platformio run -e esp32dev -t clean
-python -X utf8 -m platformio run -e esp32dev
+$repoRoot = (Resolve-Path '.').Path
+if (Test-Path 'R:\') { throw 'Choose an unused drive letter instead of R:' }
+
+subst.exe R: $repoRoot
+try {
+  Push-Location R:\firmware
+  python -m platformio test -e native
+  python -m platformio run -e esp32dev -t clean
+  python -m platformio run -e esp32dev
+}
+finally {
+  Pop-Location
+  subst.exe R: /D
+}
 ```
 
-The native suite covers contract parsing, stale/duplicate behavior, door debounce and the CB3 controller's active-high/active-low, safe-boot and idempotent behavior. It cannot prove a buzzer/servo moves or sounds, an OLED is wired, or an ESP32 physically recovers; physical gates remain mandatory before release/demo.
+The recorded native suite covers 17 contract/state tests: command parsing,
+stale/duplicate behavior, door debounce and the CB3 controller's
+active-high/active-low, safe-boot and idempotent behavior. A clean ESP32 build
+also guards the ESP32Servo 3.0.7 integration: channel `0` returned by
+`attach()` is valid, so initialization verifies `attached()` rather than
+treating the return value as a boolean. These checks cannot prove a
+buzzer/servo moves or sounds, an OLED is wired, or an ESP32 physically
+recovers; physical gates remain mandatory before release/demo.
 
 ## Upload and serial monitor
 
@@ -81,9 +114,9 @@ To clear only Wi-Fi configuration, open the USB serial monitor and send a single
 - `loop()` contains no intentional long `delay`; WiFiManager processing, MQTT, DHT polling, OLED refresh, and servo completion run cooperatively.
 - MQTT reconnect is bounded from 1 second up to 30 seconds. With PubSubClient 2.8, a broker connection becomes operational only after the `command` SUBSCRIBE packet is sent successfully by the local transport. That return value is not broker confirmation: the library does not wait for or expose a SUBACK grant/rejection. The firmware then publishes retained `ONLINE` and retained full state before the next MQTT callback can process a command. If the local/send-level `subscribe()` call returns false, it sets MQTT state false, publishes retained `OFFLINE` when possible, disconnects, and waits for the bounded retry; it does not publish a false `ONLINE` state.
 - PubSubClient publishes at QoS 0. The design therefore uses correlated ACKs, bounded duplicate cache, Node-RED timeout, and `GET_STATE` reconciliation instead of claiming delivery exactly once.
-- The servo is **not attached at boot**. `lock=UNKNOWN` remains until a new valid `LOCK` or `UNLOCK` action finishes.
+- The servo is **not attached at boot**. `lock=UNKNOWN` remains until a new valid `LOCK` or `UNLOCK` action finishes. When motion starts, the ESP32Servo 3.0.7 result is checked with `attached()` because allocated channel `0` is a valid success result.
 - GPIO27 is sampled with `INPUT_PULLUP` through a 50 ms non-blocking stable debounce. Door remains `UNKNOWN` until the first full stable interval. A later stable edge publishes one non-retained `telemetry/door` message and updates retained full state. Unsynchronized telemetry uses `timestamp:null,time_synced:false`.
-- `ALARM_ON`/`ALARM_OFF` update GPIO26 through `AlarmController`, return a success ACK only after the state changes, and publish full state `ACTIVE`/`INACTIVE`. `BUZZER_ACTIVE_HIGH` supports either logic polarity. Setup writes the inactive latch before configuring the output pin to reduce boot glitches.
+- `ALARM_ON`/`ALARM_OFF` update GPIO26 through `AlarmController`, return a success ACK only after the state changes, and publish full state `ACTIVE`/`INACTIVE`. `SPL_BUZZER_ACTIVE_HIGH` supports either logic polarity. Setup writes the inactive latch before configuring the output pin to reduce boot glitches.
 - DHT22 readings are rendered only to OLED. No DHT telemetry topic exists.
 
 The authoritative payload and state rules are [../docs/mqtt-contract.md](../docs/mqtt-contract.md).

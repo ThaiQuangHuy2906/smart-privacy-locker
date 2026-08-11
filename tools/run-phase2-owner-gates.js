@@ -351,9 +351,9 @@ async function verifyChatUi(env, session, evidenceDir, expectProviderFailure = f
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }, LOCKER_ID);
-    await waitFor(cdp, () => document.getElementById('mqtt')?.textContent === 'CONNECTED'
-      && document.getElementById('device')?.textContent === 'ONLINE'
-      && document.getElementById('lock')?.textContent === 'LOCKED',
+    await waitFor(cdp, () => document.getElementById('mqtt')?.dataset.state === 'connected'
+      && document.getElementById('device')?.dataset.state === 'online'
+      && document.getElementById('lock')?.dataset.state === 'locked',
     null, 'OWNER_UI_STATE_TIMEOUT');
 
     const marker = network.responses.length;
@@ -375,8 +375,8 @@ async function verifyChatUi(env, session, evidenceDir, expectProviderFailure = f
           && !/access_token|refresh_token|bearer\s+[a-z0-9._-]+/i.test(answer),
         authFieldsBlank: ['full-name', 'email', 'password'].every((id) => !document.getElementById(id)?.value),
         fragmentEmpty: location.hash === '',
-        trustedStatePreserved: document.getElementById('lock')?.textContent === 'LOCKED'
-          && document.getElementById('mqtt')?.textContent === 'CONNECTED',
+        trustedStatePreserved: document.getElementById('lock')?.dataset.state === 'locked'
+          && document.getElementById('mqtt')?.dataset.state === 'connected',
       };
     }, null, 'OWNER_UI_ANSWER_TIMEOUT');
     if (expectProviderFailure) {

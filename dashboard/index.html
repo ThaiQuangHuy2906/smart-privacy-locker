@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#071118">
+  <meta name="theme-color" content="#f6f4ef">
   <meta name="description" content="Bảng điều khiển Smart Privacy Locker với lịch sử, biểu đồ và báo cáo.">
   <title>Smart Privacy Locker</title>
   <link rel="stylesheet" href="styles.css">
@@ -16,19 +16,18 @@
       <div class="brand-lockup">
         <div class="brand-mark" aria-hidden="true"><span></span></div>
         <div>
-          <p class="eyebrow">Node-RED security console</p>
+          <p class="eyebrow">Tủ thông minh của bạn</p>
           <h1>Smart Privacy <span>Locker</span></h1>
-          <p class="topbar-copy">Xác thực danh tính, kiểm tra trạng thái và gửi lệnh có ACK.</p>
+          <p class="topbar-copy">Theo dõi trạng thái, điều khiển an toàn và xem lại hoạt động ở một nơi.</p>
         </div>
       </div>
 
       <div class="session-panel" aria-label="Trạng thái phiên đăng nhập">
         <span class="session-indicator" aria-hidden="true"></span>
         <div>
-          <span class="micro-label">Phiên bảo mật</span>
+          <span class="micro-label">Trạng thái tài khoản</span>
           <p id="session-label" role="status" aria-live="polite">Chưa đăng nhập</p>
         </div>
-        <span class="phase-badge">Phase 3</span>
       </div>
     </header>
 
@@ -37,9 +36,9 @@
         <div class="section-heading">
           <span class="section-index" aria-hidden="true">01</span>
           <div>
-            <p class="section-kicker">Identity perimeter</p>
+            <p class="section-kicker">Tài khoản &amp; bảo mật</p>
             <h2 id="auth-title">Tài khoản</h2>
-            <p class="section-copy">Đăng nhập bằng Supabase để mọi yêu cầu bảo vệ mang Bearer token của chính bạn.</p>
+            <p class="section-copy">Đăng nhập để chỉ bạn mới có thể xem dữ liệu và điều khiển tủ đã liên kết.</p>
           </div>
         </div>
 
@@ -51,7 +50,7 @@
           </label>
 
           <label class="field" for="email">
-            <span class="field-label">Email test</span>
+            <span class="field-label">Email</span>
             <input id="email" type="email" autocomplete="username" inputmode="email" placeholder="name@example.com" required>
           </label>
 
@@ -67,7 +66,7 @@
         </form>
 
         <div class="auth-footer">
-          <button id="logout" type="button" class="button button--danger" hidden>Đăng xuất an toàn</button>
+          <button id="logout" type="button" class="button button--danger" hidden>Đăng xuất</button>
           <p id="auth-message" class="message" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>
       </section>
@@ -76,28 +75,28 @@
         <div class="section-heading">
           <span class="section-index" aria-hidden="true">02</span>
           <div>
-            <p class="section-kicker">Ownership gate</p>
-            <h2 id="ownership-title">Tủ sở hữu</h2>
-            <p class="section-copy">Liên kết mã tủ một lần, sau đó chọn đúng tủ cho live state và command.</p>
+            <p class="section-kicker">Liên kết thiết bị</p>
+            <h2 id="ownership-title">Tủ của bạn</h2>
+            <p class="section-copy">Dùng mã đi kèm tủ để liên kết một lần với tài khoản của bạn.</p>
           </div>
         </div>
 
         <form id="claim-form" class="claim-form" data-pending="false" aria-busy="false">
           <label class="field" for="locker-code">
-            <span class="field-label">Mã claim</span>
-            <span class="field-hint">Mỗi tủ chỉ thuộc về một tài khoản.</span>
+            <span class="field-label">Mã liên kết</span>
+            <span class="field-hint">Mỗi tủ chỉ có thể liên kết với một tài khoản.</span>
             <input id="locker-code" value="LOCKER-001" autocomplete="off" autocapitalize="characters" spellcheck="false">
           </label>
-          <button id="claim-button" type="submit" class="button button--claim">Claim một lần</button>
+          <button id="claim-button" type="submit" class="button button--claim">Liên kết tủ</button>
         </form>
         <p id="claim-message" class="message message--claim" data-state="idle" role="status" aria-live="polite" aria-atomic="true"></p>
 
         <div class="locker-selector">
           <label class="field" for="locker-id">
-            <span class="field-label">Locker ID đang thao tác</span>
+            <span class="field-label">Mã tủ đang xem</span>
             <input id="locker-id" value="LOCKER-001" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="locker-id-hint">
           </label>
-          <p id="locker-id-hint" class="field-hint locker-hint">Node-RED luôn kiểm tra ownership trước khi đọc hoặc gửi lệnh.</p>
+          <p id="locker-id-hint" class="field-hint locker-hint">Hệ thống luôn kiểm tra quyền sở hữu trước khi đọc dữ liệu hoặc gửi lệnh.</p>
         </div>
       </section>
     </div>
@@ -107,44 +106,44 @@
         <div class="section-heading">
           <span class="section-index" aria-hidden="true">03</span>
           <div>
-            <p class="section-kicker">Verified signal rail</p>
-            <h2 id="live-title">Trạng thái trực tiếp</h2>
-            <p class="section-copy">Chỉ dữ liệu mới, hợp lệ và đã xác nhận mới mở khóa điều khiển.</p>
+            <p class="section-kicker">Tổng quan tủ</p>
+            <h2 id="live-title">Trạng thái hiện tại</h2>
+            <p class="section-copy">Các nút điều khiển chỉ bật khi tủ đang trực tuyến và dữ liệu vừa được xác nhận.</p>
           </div>
         </div>
-        <div class="freshness-key"><span aria-hidden="true"></span> Poll mỗi 2 giây</div>
+        <div class="freshness-key"><span aria-hidden="true"></span> Tự cập nhật mỗi 2 giây</div>
       </div>
 
       <div class="status-rail" aria-label="Trạng thái kết nối và tủ">
         <article class="status-cell status-cell--transport">
-          <div class="status-cell-top"><span class="status-code">NET·01</span><span class="signal-bars" aria-hidden="true"></span></div>
-          <span class="status-label">MQTT</span>
-          <strong id="mqtt">DISCONNECTED</strong>
+          <span class="status-icon" aria-hidden="true"></span>
+          <span class="status-label">Kết nối máy chủ</span>
+          <strong id="mqtt" data-state="disconnected">Mất kết nối</strong>
         </article>
         <article class="status-cell status-cell--device">
-          <div class="status-cell-top"><span class="status-code">DEV·02</span><span class="signal-bars" aria-hidden="true"></span></div>
-          <span class="status-label">ESP32</span>
-          <strong id="device">OFFLINE</strong>
+          <span class="status-icon" aria-hidden="true"></span>
+          <span class="status-label">Thiết bị</span>
+          <strong id="device" data-state="offline">Ngoại tuyến</strong>
         </article>
         <article class="status-cell status-cell--door">
-          <div class="status-cell-top"><span class="status-code">SNS·03</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-icon" aria-hidden="true"></span>
           <span class="status-label">Cửa</span>
-          <strong id="door">UNKNOWN</strong>
+          <strong id="door" data-state="unknown">Chưa xác định</strong>
         </article>
         <article class="status-cell status-cell--lock">
-          <div class="status-cell-top"><span class="status-code">SEC·04</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-icon" aria-hidden="true"></span>
           <span class="status-label">Khóa</span>
-          <strong id="lock">UNKNOWN — chưa xác nhận</strong>
+          <strong id="lock" data-state="unknown">Chưa xác nhận</strong>
         </article>
         <article class="status-cell status-cell--alarm">
-          <div class="status-cell-top"><span class="status-code">ALM·05</span><span class="signal-bars" aria-hidden="true"></span></div>
-          <span class="status-label">Còi báo động</span>
-          <strong id="alarm">INACTIVE</strong>
+          <span class="status-icon" aria-hidden="true"></span>
+          <span class="status-label">Cảnh báo</span>
+          <strong id="alarm" data-state="inactive">Đang tắt</strong>
         </article>
         <article class="status-cell status-cell--led">
-          <div class="status-cell-top"><span class="status-code">LED·06</span><span class="signal-bars" aria-hidden="true"></span></div>
+          <span class="status-icon" aria-hidden="true"></span>
           <span class="status-label">Đèn trong tủ</span>
-          <strong id="led">OFF</strong>
+          <strong id="led" data-state="off">Đang tắt</strong>
         </article>
       </div>
 
@@ -167,9 +166,9 @@
         <div class="section-heading">
           <span class="section-index" aria-hidden="true">04</span>
           <div>
-            <p class="section-kicker">ACK-controlled actions</p>
-            <h2 id="control-title">Điều khiển qua Node-RED</h2>
-            <p class="section-copy">Lệnh chỉ thành công sau khi ESP32 trả ACK hợp lệ.</p>
+            <p class="section-kicker">Điều khiển an toàn</p>
+            <h2 id="control-title">Điều khiển tủ</h2>
+            <p class="section-copy">Hệ thống sẽ chờ thiết bị xác nhận trước khi báo lệnh thành công.</p>
           </div>
         </div>
 
@@ -178,22 +177,22 @@
             <span class="control-group-label">Cơ cấu khóa</span>
             <div class="control-buttons">
               <button type="button" data-action="LOCK" data-domain="lock" class="control-button" disabled>
-                <span class="control-code">LOCK</span><span>Khóa tủ</span>
+                <span>Khóa tủ</span>
               </button>
               <button type="button" data-action="UNLOCK" data-domain="lock" class="control-button control-button--open" disabled>
-                <span class="control-code">UNLOCK</span><span>Mở khóa</span>
+                <span>Mở khóa</span>
               </button>
             </div>
           </div>
 
           <div class="control-group">
-            <span class="control-group-label">Còi báo động CB3</span>
+            <span class="control-group-label">Còi cảnh báo</span>
             <div class="control-buttons">
               <button type="button" data-action="ALARM_ON" data-domain="alarm" class="control-button control-button--alarm" disabled>
-                <span class="control-code">ALARM·ON</span><span>Test Alarm</span>
+                <span>Kiểm tra còi</span>
               </button>
               <button type="button" data-action="ALARM_OFF" data-domain="alarm" class="control-button control-button--open" disabled>
-                <span class="control-code">ALARM·OFF</span><span>Stop Alarm</span>
+                <span>Tắt còi</span>
               </button>
             </div>
           </div>
@@ -202,25 +201,25 @@
             <span class="control-group-label">Đèn bên trong</span>
             <div class="control-buttons">
               <button type="button" data-action="LED_ON" data-domain="led" class="control-button" disabled>
-                <span class="control-code">LED·ON</span><span>Bật LED</span>
+                <span>Bật đèn</span>
               </button>
               <button type="button" data-action="LED_OFF" data-domain="led" class="control-button control-button--open" disabled>
-                <span class="control-code">LED·OFF</span><span>Tắt LED</span>
+                <span>Tắt đèn</span>
               </button>
             </div>
           </div>
         </div>
 
-        <p id="command-message" class="message message--command" role="status" aria-live="polite" aria-atomic="true">Success chỉ xuất hiện sau ACK hợp lệ.</p>
+        <p id="command-message" class="message message--command" role="status" aria-live="polite" aria-atomic="true">Chưa có lệnh nào được gửi.</p>
       </section>
 
       <section class="card chat-card" aria-labelledby="chat-title">
         <div class="section-heading">
           <span class="section-index" aria-hidden="true">05</span>
           <div>
-            <p class="section-kicker">Grounded assistant · YC8</p>
-            <h2 id="chat-title">Hỏi trạng thái tủ</h2>
-            <p class="section-copy">Chatbot chỉ diễn đạt từ live state và context đã được Node-RED kiểm soát.</p>
+            <p class="section-kicker">Trợ lý nhanh</p>
+            <h2 id="chat-title">Hỏi về tủ của bạn</h2>
+            <p class="section-copy">Câu trả lời chỉ dựa trên trạng thái và lịch sử mà hệ thống đã xác minh.</p>
           </div>
         </div>
 
@@ -235,20 +234,53 @@
         </form>
 
         <div class="answer-shell">
-          <span class="micro-label">Phản hồi được kiểm chứng</span>
+          <span class="micro-label">Câu trả lời</span>
           <pre id="answer" aria-live="polite" aria-atomic="true" tabindex="0">Chưa có câu trả lời.</pre>
         </div>
       </section>
     </div>
 
-    <section class="phase3-grid" aria-label="Dữ liệu và báo cáo Phase 3">
+    <section class="card device-setup-card" aria-labelledby="wifi-setup-title">
+      <div class="section-heading">
+        <span class="section-index" aria-hidden="true">06</span>
+        <div>
+          <p class="section-kicker">Kết nối thiết bị</p>
+          <h2 id="wifi-setup-title">Cấu hình Wi-Fi cho tủ</h2>
+          <p class="section-copy">Chỉ cần làm các bước dưới đây khi tủ chưa có mạng, đổi router hoặc mật khẩu Wi-Fi đã lưu không còn dùng được.</p>
+        </div>
+      </div>
+
+      <div class="device-setup-layout">
+        <div class="wifi-status-panel">
+          <span class="micro-label">Trạng thái Wi-Fi từ thiết bị</span>
+          <div class="wifi-status-line">
+            <span class="wifi-status-icon" aria-hidden="true"></span>
+            <strong id="wifi" data-state="unknown" role="status" aria-live="polite" aria-atomic="true">Chưa xác định</strong>
+          </div>
+          <p>Trạng thái chỉ được xác nhận khi tủ đang trực tuyến và gói dữ liệu mới nhất còn hiệu lực.</p>
+        </div>
+
+        <div class="setup-guide">
+          <p class="micro-label">Thiết lập tại chỗ</p>
+          <ol class="setup-steps">
+            <li><strong>Khởi động lại tủ ở gần điện thoại hoặc máy tính.</strong><span>Khi không dùng được Wi-Fi đã lưu, tủ sẽ tự mở mạng cấu hình tạm thời.</span></li>
+            <li><strong>Kết nối vào mạng <code>Locker-Setup</code>.</strong><span>Mạng này chỉ xuất hiện trong khoảng 3 phút để bạn cấu hình.</span></li>
+            <li><strong>Mở trang cấu hình.</strong><span>Chọn thông báo captive portal; nếu trang không tự mở, truy cập <code>192.168.4.1</code>.</span></li>
+            <li><strong>Chọn Wi-Fi, nhập mật khẩu tại portal rồi lưu.</strong><span>Chờ tủ kết nối lại Wi-Fi và MQTT; trạng thái phía trên sẽ tự cập nhật.</span></li>
+          </ol>
+          <p class="privacy-note"><strong>Thông tin riêng tư:</strong> Dashboard không có ô nhập hoặc hiển thị SSID/mật khẩu Wi-Fi. Thông tin này chỉ được nhập trực tiếp vào portal của ESP32, lưu cục bộ trên thiết bị và không gửi qua Node-RED, MQTT hay dịch vụ đám mây.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="data-grid" aria-label="Dữ liệu và báo cáo">
       <article class="card data-card" aria-labelledby="history-title">
         <div class="section-heading">
-          <span class="section-index" aria-hidden="true">06</span>
+          <span class="section-index" aria-hidden="true">07</span>
           <div>
-            <p class="section-kicker">Supabase history · YC4</p>
-            <h2 id="history-title">Sự kiện gần đây</h2>
-            <p class="section-copy">Dữ liệu mới nhất của đúng locker đang đăng nhập.</p>
+            <p class="section-kicker">Lịch sử hoạt động</p>
+            <h2 id="history-title">Hoạt động gần đây</h2>
+            <p class="section-copy">Chỉ hiển thị dữ liệu của tủ thuộc tài khoản đang đăng nhập.</p>
           </div>
         </div>
         <div class="data-toolbar">
@@ -259,59 +291,78 @@
               <option value="30">30 ngày</option>
             </select>
           </label>
-          <button id="refresh-phase3" type="button" class="button button--secondary">Tải lịch sử &amp; biểu đồ</button>
+          <button id="refresh-phase3" type="button" class="button button--secondary">Cập nhật dữ liệu</button>
         </div>
-        <pre id="history-list" class="history-list" aria-live="polite">Chưa tải lịch sử.</pre>
+        <div id="history-list" class="history-list" aria-live="polite">Chưa tải lịch sử.</div>
         <p id="history-message" class="message" role="status" aria-live="polite"></p>
       </article>
 
       <article class="card data-card" aria-labelledby="chart-title">
         <div class="section-heading">
-          <span class="section-index" aria-hidden="true">07</span>
+          <span class="section-index" aria-hidden="true">08</span>
           <div>
-            <p class="section-kicker">Daily aggregation · YC5</p>
-            <h2 id="chart-title">Biểu đồ mở tủ &amp; cảnh báo</h2>
-            <p class="section-copy">Đủ bucket ngày, kể cả ngày không có sự kiện.</p>
+            <p class="section-kicker">Thống kê theo ngày</p>
+            <h2 id="chart-title">Lượt mở tủ &amp; cảnh báo</h2>
+            <p class="section-copy">So sánh hoạt động theo ngày, kể cả những ngày không có sự kiện.</p>
           </div>
         </div>
         <p id="chart-summary" class="chart-summary">Chưa tải dữ liệu biểu đồ.</p>
-        <div id="chart-bars" class="chart-bars" role="img" aria-label="Biểu đồ số lần mở tủ và cảnh báo theo ngày"></div>
+        <div class="chart-plot">
+          <div id="chart-bars" class="chart-bars" aria-hidden="true"></div>
+          <p id="chart-empty" class="empty-state" hidden>Chưa có lượt mở tủ hoặc cảnh báo trong khoảng này.</p>
+        </div>
         <div class="chart-legend"><span><i class="legend-open"></i>Mở tủ</span><span><i class="legend-alert"></i>Cảnh báo</span></div>
+        <div class="visually-hidden">
+          <table>
+            <caption>Dữ liệu biểu đồ số lần mở tủ và cảnh báo theo ngày</caption>
+            <thead><tr><th scope="col">Ngày</th><th scope="col">Số lần mở</th><th scope="col">Số cảnh báo</th></tr></thead>
+            <tbody id="chart-table-body"></tbody>
+          </table>
+        </div>
       </article>
 
       <article class="card settings-card" aria-labelledby="settings-title">
         <div class="section-heading">
-          <span class="section-index" aria-hidden="true">08</span>
+          <span class="section-index" aria-hidden="true">09</span>
           <div>
-            <p class="section-kicker">Daily report · YC7</p>
-            <h2 id="settings-title">Cài đặt báo cáo hằng ngày</h2>
-            <p class="section-copy">Email tổng hợp ngày trước, theo múi giờ của locker và chống gửi trùng.</p>
+            <p class="section-kicker">Nhắc nhở &amp; báo cáo</p>
+            <h2 id="settings-title">Báo cáo hằng ngày</h2>
+            <p class="section-copy">Chọn nơi nhận và thời gian gửi bản tóm tắt hoạt động của ngày hôm trước.</p>
           </div>
         </div>
         <form id="settings-form" class="settings-form" data-pending="false" aria-busy="false">
+          <div id="telegram-connection" class="telegram-connection" data-connected="false">
+            <div>
+              <span class="field-label">Tài khoản Telegram</span>
+              <p id="telegram-status" class="field-hint">Chưa liên kết. Bạn không cần tìm hoặc nhập Chat ID.</p>
+            </div>
+            <div class="telegram-actions">
+              <button id="telegram-link" type="button" class="button button--secondary">Liên kết Telegram</button>
+              <a id="telegram-open-link" class="button button--secondary" target="_blank" rel="noopener noreferrer" hidden>Mở bot Telegram</a>
+              <button id="telegram-test" type="button" class="button button--secondary" hidden>Gửi tin thử</button>
+              <button id="telegram-disconnect" type="button" class="button button--danger" hidden>Ngắt liên kết</button>
+            </div>
+          </div>
           <label class="check-field" for="telegram-enabled">
-            <input id="telegram-enabled" type="checkbox">
-            <span>Bật thông báo Telegram</span>
-          </label>
-          <label class="field" for="telegram-chat-id">
-            <span class="field-label">Telegram chat ID</span>
-            <input id="telegram-chat-id" autocomplete="off" placeholder="Giữ trống nếu không dùng">
+            <input id="telegram-enabled" type="checkbox" disabled>
+            <span>Nhận cảnh báo qua Telegram</span>
           </label>
           <label class="check-field" for="email-enabled">
             <input id="email-enabled" type="checkbox">
-            <span>Bật báo cáo email</span>
+            <span>Nhận báo cáo qua email</span>
           </label>
-          <label class="field" for="report-email">
+          <label id="report-email-field" class="field conditional-field" for="report-email" data-enabled="false">
             <span class="field-label">Email nhận báo cáo</span>
-            <input id="report-email" type="email" autocomplete="email" placeholder="owner@example.com">
+            <span id="report-email-hint" class="field-hint">Chỉ cần nhập khi bật báo cáo email.</span>
+            <input id="report-email" type="email" autocomplete="email" placeholder="owner@example.com" aria-describedby="report-email-hint" disabled>
           </label>
-          <label class="field" for="report-time">
+          <label id="report-time-field" class="field conditional-field" for="report-time" data-enabled="false">
             <span class="field-label">Giờ gửi</span>
-            <input id="report-time" type="time" value="21:00">
+            <input id="report-time" type="time" value="21:00" disabled>
           </label>
-          <label class="field" for="report-timezone">
+          <label id="report-timezone-field" class="field conditional-field" for="report-timezone" data-enabled="false">
             <span class="field-label">Múi giờ</span>
-            <input id="report-timezone" value="Asia/Ho_Chi_Minh" autocomplete="off">
+            <input id="report-timezone" value="Asia/Ho_Chi_Minh" autocomplete="off" disabled>
           </label>
           <div class="settings-actions">
             <button id="load-settings" type="button" class="button button--secondary">Tải cài đặt</button>
@@ -323,8 +374,8 @@
     </section>
 
     <footer class="page-footer">
-      <p>Smart Privacy Locker · Phase 3 data integration</p>
-      <p>MQTT, Supabase service-role và SMTP credential không nằm trong trình duyệt.</p>
+      <p>Smart Privacy Locker · Bảng điều khiển dành cho chủ tủ</p>
+      <p>Thông tin kết nối và khóa dịch vụ được giữ ở phía máy chủ, không hiển thị trong trình duyệt.</p>
     </footer>
   </main>
 

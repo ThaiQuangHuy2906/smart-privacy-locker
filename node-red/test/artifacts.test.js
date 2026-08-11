@@ -86,11 +86,97 @@ test('Supabase migrations enforce RLS, no locker update policy, and atomic uncla
   assert.match(phase3Migration, /grant select on table public\.device_events to authenticated/i);
   assert.doesNotMatch(phase3Migration, /grant (?:insert|update|delete|all).*public\.device_events to authenticated/i);
 
+  const phase3Hardening = fs.readFileSync(path.join(migrationsPath,
+    '202608100002_phase3_scheduler_delivery_hardening.sql'), 'utf8');
+  assert.match(phase3Hardening, /revoke insert, update on table public\.notification_settings from authenticated/i);
+  assert.match(phase3Hardening, /drop policy if exists notification_settings_insert_owned/i);
+  assert.match(phase3Hardening, /pg_timezone_names/i);
+  assert.match(phase3Hardening, /report_date date generated always as/i);
+  assert.match(phase3Hardening, /unique \(locker_id, channel, report_date\)/i);
+  assert.match(phase3Hardening, /create or replace function public\.reserve_notification_delivery/i);
+  assert.match(phase3Hardening, /grant execute on function public\.reserve_notification_delivery/i);
+
+  const telegramLinking = fs.readFileSync(path.join(migrationsPath,
+    '202608110001_telegram_account_linking.sql'), 'utf8');
+  assert.match(telegramLinking, /create table public\.telegram_link_tokens/i);
+  assert.match(telegramLinking, /alter table public\.telegram_link_tokens enable row level security/i);
+  assert.match(telegramLinking, /token_hash text not null unique/i);
+  assert.match(telegramLinking, /create unique index telegram_link_tokens_one_active_idx/i);
+  assert.match(telegramLinking, /pg_catalog\.pg_advisory_xact_lock/i);
+  assert.match(telegramLinking, /create or replace function public\.issue_telegram_link/i);
+  assert.match(telegramLinking, /create or replace function public\.consume_telegram_link/i);
+  assert.match(telegramLinking,
+    /select token_row\.locker_id into candidate_locker_id\s+from public\.telegram_link_tokens as token_row/i,
+    'consume RPC must qualify locker_id because it is also a TABLE output name');
+  assert.match(telegramLinking,
+    /select setting\.telegram_username, setting\.telegram_linked_at,[\s\S]*from public\.notification_settings as setting/i,
+    'consume replay lookup must qualify Telegram output column names');
+  assert.match(telegramLinking,
+    /on conflict on constraint notification_settings_pkey do update/i,
+    'consume RPC must name its conflict constraint because locker_id is also a TABLE output name');
+  assert.match(telegramLinking, /create or replace function public\.disconnect_telegram/i);
+  assert.match(telegramLinking, /create or replace function public\.update_notification_preferences/i);
+  assert.match(telegramLinking,
+    /insert into public\.notification_settings\s*\(\s*locker_id, telegram_enabled,\s*telegram_chat_id, telegram_user_id, telegram_username, telegram_linked_at,/i,
+    'preference upsert must carry the linked Telegram route through INSERT constraint validation');
+  assert.match(telegramLinking,
+    /case when setting_exists then existing\.telegram_chat_id else null end,[\s\S]*case when setting_exists then existing\.telegram_linked_at else null end/i);
+  assert.match(telegramLinking,
+    /on conflict on constraint notification_settings_pkey do update/i);
+  assert.match(telegramLinking,
+    /revoke all privileges on table public\.telegram_link_tokens\s+from public, anon, authenticated/i);
+  assert.match(telegramLinking,
+    /grant select \(\s*locker_id, telegram_enabled, telegram_username, telegram_linked_at,[\s\S]*?\) on table public\.notification_settings to authenticated/i);
+  assert.doesNotMatch(telegramLinking,
+    /grant select \([^)]*telegram_(?:chat|user)_id[^)]*\) on table public\.notification_settings to authenticated/i);
+  for (const signature of [
+    'issue_telegram_link\\(text, uuid, text\\)',
+    'consume_telegram_link\\(text, text, text, text\\)',
+    'disconnect_telegram\\(text, uuid\\)',
+  ]) {
+    assert.match(telegramLinking,
+      new RegExp(`grant execute on function public\\.${signature} to service_role`, 'i'));
+    assert.doesNotMatch(telegramLinking,
+      new RegExp(`grant execute on function public\\.${signature} to (?:anon|authenticated|public)`, 'i'));
+  }
+
+  const telegramConsumeFix = fs.readFileSync(path.join(migrationsPath,
+    '202608110002_telegram_link_consume_conflict_fix.sql'), 'utf8');
+  assert.match(telegramConsumeFix,
+    /create or replace function public\.consume_telegram_link/i);
+  assert.match(telegramConsumeFix,
+    /on conflict on constraint notification_settings_pkey do update/i);
+  assert.doesNotMatch(telegramConsumeFix,
+    /on conflict\s*\(\s*locker_id\s*\)\s*do update/i);
+
+  const telegramPreferenceFix = fs.readFileSync(path.join(migrationsPath,
+    '202608110003_telegram_notification_preference_upsert_fix.sql'), 'utf8');
+  assert.match(telegramPreferenceFix,
+    /create or replace function public\.update_notification_preferences/i);
+  assert.match(telegramPreferenceFix,
+    /existing\.telegram_chat_id is null[\s\S]*existing\.telegram_user_id is null[\s\S]*existing\.telegram_linked_at is null/i);
+  assert.match(telegramPreferenceFix,
+    /insert into public\.notification_settings\s*\(\s*locker_id, telegram_enabled,\s*telegram_chat_id, telegram_user_id, telegram_username, telegram_linked_at,/i);
+  assert.match(telegramPreferenceFix,
+    /case when setting_exists then existing\.telegram_chat_id else null end,[\s\S]*case when setting_exists then existing\.telegram_linked_at else null end/i);
+  assert.match(telegramPreferenceFix,
+    /on conflict on constraint notification_settings_pkey do update/i);
+  assert.match(telegramPreferenceFix,
+    /revoke all privileges on function public\.update_notification_preferences\([\s\S]*?from public, anon, authenticated/i);
+  assert.match(telegramPreferenceFix,
+    /grant execute on function public\.update_notification_preferences\([\s\S]*?to service_role/i);
+
   const phase3DatabaseTest = fs.readFileSync(path.join(root, 'supabase', 'tests',
     'phase3_data_rls.sql'), 'utf8');
   assert.match(phase3DatabaseTest, /has_table_privilege\('authenticated', 'public\.device_events', 'SELECT'\)/i);
+  assert.match(phase3DatabaseTest, /P3-RLS-A/i);
+  assert.match(phase3DatabaseTest, /P3-RLS-B/i);
+  assert.doesNotMatch(phase3DatabaseTest, /'LOCKER-00[12]'/i,
+    'live RLS test must not mutate or count rows belonging to real development lockers');
   assert.match(phase3DatabaseTest, /User A can see cross-owner Phase 3 rows/i);
   assert.match(phase3DatabaseTest, /duplicate event_id unexpectedly succeeded/i);
+  assert.match(phase3DatabaseTest,
+    /preference update lost the linked Telegram destination/i);
 });
 
 test('P2-M03 live signup uses a unique real-mailbox template and rejects blocked test domains', () => {
@@ -118,15 +204,39 @@ test('P2-M03 live signup uses a unique real-mailbox template and rejects blocked
   );
 });
 
+test('.env.example documents every live E2E input without real credentials', () => {
+  const envExample = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
+  for (const key of [
+    'E2E_BASE_URL',
+    'E2E_TEST_EMAIL',
+    'E2E_TEST_PASSWORD',
+    'E2E_LOCKER_ID',
+    'E2E_FORBIDDEN_LOCKER_ID',
+  ]) {
+    assert.match(envExample, new RegExp(`^${key}=`, 'm'));
+  }
+  assert.match(envExample, /^E2E_BASE_URL=https:\/\/<ten-instance-cua-ban>\.flowfuse\.cloud\/locker$/m);
+  assert.match(envExample, /^E2E_TEST_EMAIL=$/m);
+  assert.match(envExample, /^E2E_TEST_PASSWORD=$/m);
+  for (const key of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_USERNAME', 'TELEGRAM_WEBHOOK_SECRET']) {
+    assert.match(envExample, new RegExp(`^${key}=$`, 'm'));
+  }
+  assert.doesNotMatch(envExample, /^TELEGRAM_CHAT_ID=/m);
+});
+
 test('Node-RED export has separate responsibility tabs and no embedded credential values', () => {
   const flows = JSON.parse(fs.readFileSync(path.join(root, 'node-red', 'flows.json'), 'utf8'));
   const tabs = flows.filter((node) => node.type === 'tab').map((node) => node.label).join(' ');
-  for (const responsibility of ['MQTT', 'Auth', 'Unauthorized', 'History', 'Dashboard']) assert.match(tabs, new RegExp(responsibility, 'i'));
+  for (const responsibility of ['MQTT', 'Auth', 'Unauthorized', 'History', 'Dashboard', 'Telegram']) {
+    assert.match(tabs, new RegExp(responsibility, 'i'));
+  }
   const serialized = JSON.stringify(flows);
   assert.doesNotMatch(serialized, /service_role|telegram_bot_token|gemini_api_key|eyJ[a-zA-Z0-9_-]{10}/i);
   assert.ok(flows.some((node) => node.type === 'mqtt out' && /Secure command egress/.test(node.name)));
   assert.ok(flows.some((node) => node.z === 'tab_security' && node.type === 'link in'));
   assert.ok(flows.some((node) => node.z === 'tab_security' && /notification status/i.test(node.name)));
+  assert.ok(flows.some((node) => node.type === 'http in'
+    && node.url === '/api/v1/telegram/webhook' && node.method === 'post'));
 });
 
 test('all exported Function code compiles and settings pre-create the shared runtime', () => {
@@ -271,14 +381,70 @@ test('Dashboard has no MQTT/service-role path and uses canonical Bearer header',
   assert.match(html, /id="claim-message"[^>]*role="status"/);
   assert.match(app, /data:\s*\{\s*full_name:\s*fullName\s*\}/);
   assert.match(app, /notification_status/);
+  assert.match(html, /id="telegram-link"/);
+  assert.match(html, /id="telegram-open-link"/);
+  assert.doesNotMatch(html, /id="telegram-chat-id"/);
+  assert.doesNotMatch(app, /telegram_chat_id\s*:/);
   assert.match(app, /function clearSensitiveState/);
   assert.match(app, /if \(!value\) clearSensitiveState\(undefined, shouldClearPrivate\)/);
   const browserTimeout = Number(app.match(/requestTimeoutMs\s*=\s*([\d_]+)/)?.[1].replaceAll('_', ''));
+  const dataBrowserTimeout = Number(app.match(/dataRequestTimeoutMs\s*=\s*([\d_]+)/)?.[1].replaceAll('_', ''));
+  const chatbotBrowserTimeout = Number(app.match(/chatbotRequestTimeoutMs\s*=\s*([\d_]+)/)?.[1].replaceAll('_', ''));
   const providerTimeout = Number(auth.match(/timeoutMs\s*=\s*([\d_]+)/)?.[1].replaceAll('_', ''));
   const authorizationTimeout = Number(auth.match(/DEFAULT_AUTHORIZATION_TIMEOUT_MS\s*=\s*([\d_]+)/)?.[1].replaceAll('_', ''));
   assert.ok(browserTimeout > providerTimeout * 2,
     'browser timeout must exceed the two sequential auth-provider deadlines');
   assert.ok(browserTimeout > authorizationTimeout,
     'browser timeout must exceed the server aggregate authorization deadline');
+  assert.ok(dataBrowserTimeout > browserTimeout,
+    'database-backed views need a longer bounded deadline than simple auth and command requests');
+  assert.ok(chatbotBrowserTimeout > dataBrowserTimeout,
+    'chatbot deadline must also cover its grounded history and provider request');
   assert.doesNotMatch(app, /mqtt_(?:username|password)|mqtt\.publish|service.?role|new WebSocket/i);
+});
+
+test('owner live gate observes stable state attributes instead of localized labels', () => {
+  const runner = fs.readFileSync(path.join(root, 'tools', 'run-phase2-owner-gates.js'), 'utf8');
+  for (const [id, state] of [['mqtt', 'connected'], ['device', 'online'], ['lock', 'locked']]) {
+    assert.match(runner, new RegExp(`getElementById\\('${id}'\\)\\?\\.dataset\\.state === '${state}'`));
+  }
+  assert.doesNotMatch(runner,
+    /getElementById\('(mqtt|device|lock)'\)\?\.textContent === '(CONNECTED|ONLINE|LOCKED)'/);
+});
+
+test('Phase 3 deployment docs and firmware compatibility use the executable runtime contracts', () => {
+  const nodeRedReadme = fs.readFileSync(path.join(root, 'node-red', 'README.md'), 'utf8');
+  const builder = fs.readFileSync(path.join(root, 'node-red', 'scripts', 'build-flowfuse-flow.js'), 'utf8');
+  const requirements = fs.readFileSync(path.join(root, 'docs', 'requirements.md'), 'utf8');
+  const architecture = fs.readFileSync(path.join(root, 'docs', 'architecture.md'), 'utf8');
+  const chatbotGrounding = fs.readFileSync(path.join(root, 'docs', 'chatbot-grounding.md'), 'utf8');
+  const authOwnership = fs.readFileSync(path.join(root, 'docs', 'auth-ownership.md'), 'utf8');
+  const runtimeConfig = fs.readFileSync(path.join(root, 'firmware', 'include', 'runtime_config.h'), 'utf8');
+  const firmwareMain = fs.readFileSync(path.join(root, 'firmware', 'src', 'main.cpp'), 'utf8');
+  const pinMap = fs.readFileSync(path.join(root, 'hardware', 'pin-map.md'), 'utf8');
+  const buzzerWiring = fs.readFileSync(path.join(root, 'hardware', 'wiring-diagram',
+    'phase-3-buzzer-wiring.md'), 'utf8');
+  for (const key of ['GMAIL_APP_PASSWORD', 'EMAIL_FROM']) {
+    assert.match(nodeRedReadme, new RegExp(`\\b${key}\\b`));
+    assert.match(builder, new RegExp(`['\"]${key}['\"]`));
+  }
+  assert.doesNotMatch(nodeRedReadme, /\bGMAIL_SMTP_PASSWORD\b|\bGMAIL_FROM\b/);
+  assert.match(runtimeConfig, /SPL_BUZZER_ACTIVE_HIGH/);
+  assert.match(firmwareMain, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
+  assert.doesNotMatch(firmwareMain, /AppConfig::BUZZER_ACTIVE_HIGH/);
+  assert.match(pinMap, /SPL_BUZZER_ACTIVE_HIGH/);
+  assert.match(buzzerWiring, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
+  assert.doesNotMatch(`${pinMap}\n${buzzerWiring}`, /AppConfig::BUZZER_ACTIVE_HIGH/);
+  assert.match(requirements, /Requirement traceability — Phases 1–3/);
+  assert.match(architecture, /Phase 1–3 architecture/);
+  assert.match(chatbotGrounding, /Phase 3 now connects the\s+same frozen history contract/);
+  assert.match(authOwnership, /P2-M03–P2-M05 registration\/session, cross-owner and one-time-claim\s+gates pass/);
+  assert.doesNotMatch(`${requirements}\n${architecture}\n${chatbotGrounding}\n${authOwnership}`,
+    /Phase 2 does not implement actual CB3|real Supabase history remains YC4 Phase 3|final generated bundle.*Pending/i);
+});
+
+test('ESP32Servo channel zero is accepted through the attached-state API', () => {
+  const source = fs.readFileSync(path.join(root, 'firmware', 'src', 'lock_controller.cpp'), 'utf8');
+  assert.match(source, /servo_\.attach\([\s\S]*?\);\s*if \(!servo_\.attached\(\)\)/);
+  assert.doesNotMatch(source, /if\s*\(\s*!servo_\.attach\s*\(/);
 });
