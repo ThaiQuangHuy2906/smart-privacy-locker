@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { classify, GeminiAdapter } = require('../lib/chatbot');
-const { makeRuntime, prime, headers, LOCKER_A } = require('./helpers');
+const { makeRuntime, prime, state, headers, LOCKER_A } = require('./helpers');
 
 test('P2-A12 classifier routes every canonical YC8 acceptance question', () => {
   const canonical = [
@@ -100,13 +100,37 @@ test('dashboard separates MQTT/device, marks UNKNOWN/stale, and does not enable 
   const { runtime } = makeRuntime();
   let ui = runtime.uiState({ authenticated: false, ownsLocker: false, lockerId: LOCKER_A });
   assert.equal(ui.mqtt, 'DISCONNECTED');
+  assert.equal(ui.wifi, 'UNKNOWN');
   assert.equal(ui.door, 'UNKNOWN');
   assert.equal(ui.controls.lock.enabled, false);
   await prime(runtime);
   ui = runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A });
   assert.equal(ui.mqtt, 'CONNECTED');
+  assert.equal(ui.wifi, 'CONNECTED');
   assert.equal(ui.device, 'ONLINE');
   assert.equal(ui.controls.lock.enabled, true);
+});
+
+test('YC12 exposes only fresh validated Wi-Fi connectivity and hides stale values', async () => {
+  const { runtime, clock } = makeRuntime();
+  runtime.setMqttConnected(true);
+  await runtime.ingest(`locker/${LOCKER_A}/availability`, {
+    schema_version: 1,
+    locker_id: LOCKER_A,
+    status: 'ONLINE',
+    sent_at: new Date(clock.value).toISOString(),
+  }, clock.value);
+  await runtime.ingest(`locker/${LOCKER_A}/state`, state(LOCKER_A, {
+    wifi_connected: false,
+    timestamp: new Date(clock.value).toISOString(),
+  }), clock.value);
+
+  let ui = runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A });
+  assert.equal(ui.wifi, 'DISCONNECTED');
+
+  clock.value += 30_001;
+  ui = runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A });
+  assert.equal(ui.wifi, 'UNKNOWN');
 });
 
 test('dashboard never shows success on publish; pending domain remains disabled until ACK', async () => {

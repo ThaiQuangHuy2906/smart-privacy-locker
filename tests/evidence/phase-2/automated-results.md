@@ -1,6 +1,6 @@
 # Automated evidence — Phase 2
 
-**Recorded:** 2026-08-09, Windows, branch `phase/2-minh-security-orchestration`
+**Recorded:** 2026-08-09; full current-tree revalidation 2026-08-11 on Windows
 
 **Source:** the current corrective working tree after the Phase 1/Phase 2 review.
 The local automated runs below did not use an ESP32, MC-38, production service
@@ -51,10 +51,11 @@ npm run build:flowfuse
 npm test
 ```
 
-Final result: **PASS — 85/85**, 0 failed, 0 skipped, 0 todo. The generated
-`flows.flowfuse.json` contains 51 nodes, is deterministic from the tested source,
-self-serves the Dashboard at `/phase2`, and contains no Node-RED `credentials`
-object. The suite covers:
+Final current-tree result: **PASS — 145/145**, 0 failed, 0 skipped, 0 todo. The
+generated `flows.flowfuse.json` contains 81 nodes across seven responsibility
+tabs and 15 unique HTTP routes, is deterministic from the tested source,
+self-serves the Dashboard at `/locker` with `/phase2` as a compatibility alias,
+and contains no Node-RED `credentials` object. The suite covers:
 
 - MQTT state/door/availability/ACK/command validation and invalid-side-effect
   rejection;
@@ -67,8 +68,13 @@ object. The suite covers:
   ACK, timeout reconciliation, restart/disconnect/reconnect recovery;
 - authorized-window consumption/boundaries/restart and one unauthorized event
   per OPEN episode;
-- Telegram payload, one-attempt behavior, timeout, bounded dedupe/rate-limit
-  state, delivery status, and non-blocking `ALARM_ON` dispatch;
+- Telegram payload, automatic private-account linking, hash-only one-time
+  tokens, byte-safe exact webhook secret, same-account idempotent retry,
+  cross-account replay denial, retry for unknown provider 4xx failures,
+  private `/start`/`/help`/`/settings` guidance, blocked-popup fallback,
+  per-locker destinations, one-attempt behavior, timeout,
+  bounded dedupe/rate-limit state, delivery status, and non-blocking `ALARM_ON`
+  dispatch;
 - all six YC8 questions, structured grounding context, live/history unavailable
   behavior, provider failure, and Gemini credential header transport;
 - Supabase profile metadata, RLS/claim/static privilege contract, including the
@@ -115,8 +121,11 @@ The final locally verified artifacts can be distinguished from an older live
 deployment by these SHA-256 values:
 
 ```text
-aefb102992b5dfc52df9e3bf49e8361441da0a7bc1b227d56e0fecbb134cd0ed  node-red/flows.flowfuse.json
+27ab25fc70abf62b06cf5f5fca7f359339496a041fa920e672839e4aeb63fd15  node-red/flows.flowfuse.json
 8b047fa6dee8c5c14d5ecf3a786cdab65ca0db06f36ae04fb349f0a359e78aca  supabase/migrations/202608090001_phase2_least_privilege_grants.sql
+5201ad4db326641c67fcd16a560eff134d4dea8c5b623b93e23ff3abcad0dc0f  supabase/migrations/202608110001_telegram_account_linking.sql
+27367ac2d06117f2343cb5914ab804cfaba3c6ccc46896a3255bf74a86b46b11  supabase/migrations/202608110002_telegram_link_consume_conflict_fix.sql
+586517087f07606b2a6c770eb40aa2ba33b8f35ce1065796c02b16e53f06dcde  supabase/migrations/202608110003_telegram_notification_preference_upsert_fix.sql
 ```
 
 The FlowFuse file is generated from the tested source; it must not be hand-
@@ -190,6 +199,10 @@ in the handoff audit; no secret value is printed into this evidence.
 - P2-M08: **MANUAL FINAL-GATE PASS**; grounded live success, controlled provider
   failure, restore, Bearer/URL checks, and cleanup are in
   `live-service-results.md`.
+- Automatic private-account rollout: **PARTIAL DEPLOYMENT PASS**; the current
+  Dashboard/webhook/private-Start/link/test/sanitized-response subset is in
+  `live-service-results.md`. Preference save/re-enable, consumed-token replay,
+  disconnect and relink remain unticked in `tests/test-plan.md`.
 
 Their exact gate status is also maintained in `tests/test-plan.md`; none is
 silently relabeled as PASS.

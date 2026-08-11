@@ -18,8 +18,10 @@ Load rail    ──────────────────────�
 - A bare or higher-current buzzer requires a suitable transistor/MOSFET driver
   selected and checked by the lab supervisor; do not guess the part or omit
   required protection from the module datasheet.
-- Set `AppConfig::BUZZER_ACTIVE_HIGH` to the verified input polarity. The
-  committed candidate is `true`; it is not a measurement.
+- Set `SPL_BUZZER_ACTIVE_HIGH` in the ignored local `app_config.h` to the
+  verified input polarity (`1` for active-high, `0` for active-low). The
+  committed candidate is `1`; it is not a measurement. Firmware consumes the
+  validated value as `RuntimeConfig::BUZZER_ACTIVE_HIGH`.
 - The firmware writes the inactive latch before configuring GPIO26 as output.
   Confirm the real module remains silent through power-on and restart before
   running any longer scenario.

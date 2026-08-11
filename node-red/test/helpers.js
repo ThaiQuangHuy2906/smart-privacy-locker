@@ -27,6 +27,19 @@ function availability(lockerId = LOCKER_A, status = 'ONLINE') {
 function makeRuntime({ history, provider, telegramTransport, runtimeOptions = {}, telegramOptions = {} } = {}) {
   const clock = { value: Date.parse('2026-08-08T08:00:00.000Z') };
   const publications = [];
+  const linkedTelegramData = telegramTransport ? {
+    async persist() { return { inserted: true }; },
+    async getSettings(lockerId) {
+      return {
+        locker_id: lockerId,
+        telegram_enabled: true,
+        telegram_chat_id: '123456789',
+        telegram_user_id: '123456789',
+        telegram_username: 'phase2_fixture',
+        telegram_linked_at: '2026-08-08T07:59:00.000Z',
+      };
+    },
+  } : undefined;
   const authAdapter = {
     async verify(token) {
       if (token === 'expired') throw Object.assign(new Error('expired'), { status: 401 });
@@ -47,6 +60,7 @@ function makeRuntime({ history, provider, telegramTransport, runtimeOptions = {}
     history: history || { async query(request) { return { schema_version: 1,
       request_id: request.request_id, locker_id: request.locker_id, range: { from: '2026-08-01T00:00:00.000Z', to: '2026-08-08T00:00:00.000Z' },
       source: 'fixture', events: [] }; } },
+    data: linkedTelegramData,
     telegram, gemini: provider || null, timeoutMs: 5000, windowMs: 30000,
     staleAfterMs: 30000, now: () => clock.value, uuid: uuidSequence(), ...runtimeOptions });
   return { runtime, clock, publications };

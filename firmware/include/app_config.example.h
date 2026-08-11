@@ -3,6 +3,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Candidate only until the real module/driver polarity is measured. A legacy
+// Phase 1/2 app_config.h without this macro safely receives the same default
+// from runtime_config.h. Set this to 0 in the ignored local copy for active-low.
+#ifndef SPL_BUZZER_ACTIVE_HIGH
+#define SPL_BUZZER_ACTIVE_HIGH 1
+#endif
+
 // Copy this file to app_config.h only when a deployment-specific override is
 // necessary. app_config.h is intentionally ignored by Git.
 namespace AppConfig {
@@ -28,8 +35,4 @@ constexpr uint32_t DOOR_DEBOUNCE_MS = 50;
 // therefore is expected to read LOW when the magnet closes the candidate
 // circuit. P2-M01 must verify this polarity on the actual MC-38/board.
 constexpr bool MC38_CLOSED_LEVEL_HIGH = false;
-// Most active-buzzer driver modules used by the project are active-high. Copy
-// this complete file to ignored app_config.h and change the value only after
-// measuring the actual module/driver polarity. Boot always drives INACTIVE.
-constexpr bool BUZZER_ACTIVE_HIGH = true;
 }  // namespace AppConfig

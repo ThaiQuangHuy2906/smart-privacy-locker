@@ -188,3 +188,20 @@ test('ownership rejects malformed success payload and claim normalizes one RPC r
     (error) => error.status === 503 && error.code === 'AUTH_PROVIDER_INVALID_RESPONSE');
   assert.deepEqual(await adapter.claim('redacted-access-token', LOCKER_A), locker);
 });
+
+test('a session expiring during ownership lookup remains a 401 invalid session', async () => {
+  let calls = 0;
+  const gate = new AuthGate(new SupabaseAuthAdapter({
+    url: 'https://project.example.test', anonKey: 'anon_test_value',
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return { ok: true, status: 200, async json() { return { id: USER_A }; } };
+      }
+      return { ok: false, status: 401, async json() { return {}; } };
+    },
+  }));
+
+  assert.deepEqual(await gate.authorize(headers(), LOCKER_A),
+    { ok: false, status: 401, code: 'INVALID_SESSION' });
+});

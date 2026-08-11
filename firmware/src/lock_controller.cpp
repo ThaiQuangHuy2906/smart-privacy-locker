@@ -15,7 +15,10 @@ bool LockController::start(LockState desiredState, unsigned long now) {
     return false;
   }
   servo_.setPeriodHertz(50);
-  if (!servo_.attach(static_cast<int>(PinMap::SERVO_SIGNAL), 500, 2400)) {
+  // ESP32Servo::attach() returns the allocated PWM channel. Channel 0 is a
+  // valid first allocation, so its numeric return value is not a success flag.
+  servo_.attach(static_cast<int>(PinMap::SERVO_SIGNAL), 500, 2400);
+  if (!servo_.attached()) {
     return false;
   }
   const uint8_t angle = desiredState == LockState::LOCKED ? AppConfig::LOCK_ANGLE

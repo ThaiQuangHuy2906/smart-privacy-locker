@@ -3,7 +3,11 @@
 **Owner:** Nguyễn Văn Minh — 24127205
 
 **Canonical transport:** `Authorization: Bearer <Supabase access_token>`
-**Status:** implementation frozen at schema version 1; development FlowFuse and Supabase configuration exists and provisional auth/claim checks are expected, but the final generated bundle and sanitized P2-M03–P2-M05 two-user evidence remain `MANUAL — HARD-GATE Pending`.
+**Status:** contract frozen at schema version 1. Phase 2 automated checks and the
+deployed P2-M03–P2-M05 registration/session, cross-owner and one-time-claim
+gates pass. Phase 3 reuses this boundary for owner-protected data routes; its
+development-project P3-M04 owner-isolation/history gate passes. P3-M05's
+7/30-day, empty-bucket and local-midnight owner paths also pass.
 
 ## Trust boundary
 
@@ -28,14 +32,23 @@ side effects, or settings work.
 | `POST /api/v1/chatbot` | Bearer + owner | grounded live/history response |
 | `POST /api/v1/lockers/claim` | Bearer; atomic RPC determines claim | first claim only |
 | `GET /api/v1/lockers/:lockerId/state` | Bearer + owner | trusted/stale-aware UI state |
+| `GET /api/v1/lockers/:lockerId/history` | Bearer + owner | bounded newest-first event history |
+| `GET /api/v1/lockers/:lockerId/chart` | Bearer + owner | timezone-correct 7/30-day buckets |
+| `GET /api/v1/lockers/:lockerId/notification-settings` | Bearer + owner | owner-scoped settings |
+| `PUT /api/v1/lockers/:lockerId/notification-settings` | Bearer + owner | validated owner-scoped settings |
+| `POST /api/v1/lockers/:lockerId/telegram-link` | Bearer + owner | 10-minute one-time bot deep link |
+| `DELETE /api/v1/lockers/:lockerId/telegram-link` | Bearer + owner | revoke link and clear backend destination |
+| `POST /api/v1/lockers/:lockerId/telegram-test` | Bearer + owner + linked private chat | send one controlled test message |
+| `POST /api/v1/telegram/webhook` | exact Telegram webhook secret; one-time token carries owner/locker binding | consume private `/start`; no browser identity input |
 | `GET /api/v1/public-config` | public | Supabase URL and anon key only |
 
 Missing/malformed/expired/revoked token returns `401`. A verified user who does
 not own the selected locker returns `403`. Auth/ownership provider failure
-or malformed provider success returns `503`; each Node-RED provider request,
+or malformed provider success returns `503`; each authentication-provider request,
 including successful response-body parsing, has a bounded five-second timeout,
 the complete authorization gate has a 9-second
-aggregate deadline (shorter than the browser's 15-second deadline), and failures
+aggregate deadline. The browser uses bounded 15-second simple request/command,
+30-second database-backed view and 40-second grounded-chat deadlines, and failures
 are fail-closed and never
 reclassified as an invalid session. Claim conflict returns `409`; a successful
 table-returning claim RPC is normalized to its single locker row. CORS should allow
@@ -60,7 +73,7 @@ keeps the local session, leaves protected APIs fail-closed, and schedules one
 later retry. Logout calls `/auth/v1/logout`, clears
 the session immediately, disables controls, and removes sensitive UI state even
 if the remote logout request stalls or fails. Browser HTTP requests have a
-bounded 15-second timeout and periodic state polls are serialized. A physical
+bounded operation-specific timeout and periodic state polls are serialized. A physical
 command timeout is treated as an ambiguous result that must be reconciled with
 fresh state; the browser does not retry it automatically. The refresh token
 never travels to Node-RED; only the current access token does.
@@ -81,13 +94,22 @@ a fixed search path, is executable only by `authenticated`, and rejects missing
 ## Configuration boundary
 
 Frontend-safe: `SUPABASE_URL`, `SUPABASE_ANON_KEY`. Backend/deployment-only:
-`SUPABASE_SERVICE_ROLE_KEY`, MQTT credentials, Telegram token/chat ID, Gemini
-key, and `NODE_RED_CREDENTIAL_SECRET`. Phase 2 token verification/ownership uses
+`SUPABASE_SERVICE_ROLE_KEY`, MQTT credentials, Telegram bot token/webhook
+secret/private Chat and User IDs, Gemini key, and `NODE_RED_CREDENTIAL_SECRET`.
+`TELEGRAM_BOT_USERNAME` is public routing metadata, but is still supplied by
+the deployment rather than trusted from the browser. The Dashboard receives
+only a short-lived deep-link URL and sanitized connected status; it never
+accepts or returns a Telegram Chat ID. Phase 2 token verification/ownership uses
 the user token and anon key; it does not need service-role escalation. Logs and
 normalized events contain codes and verified user UUID where needed, never
 Authorization headers, access/refresh tokens, cookies, keys, email, or password.
 
 Automated P2-A03 covers canonical Bearer parsing, expired/missing tokens,
-spoofed identity, wrong ownership, deny-before-publish, and valid owner. It is
-contract evidence, not a substitute for P2-M03–P2-M05 against a real Supabase
-project and browser network capture.
+spoofed identity, wrong ownership, deny-before-publish and valid owner. The
+deployed P2-M03–P2-M05 evidence additionally covers registration/session,
+cross-owner isolation and atomic one-time claim against the development
+services. Phase 3 adapter tests prove that history/chart/settings preserve the
+same ownership gate. The forward migration, pgTAP owner-isolation contract,
+wrong-owner deny and correct-owner history path have also run on the development
+project (P3-M04). P3-M05 also passed with a disposable owned locker, two events
+across local midnight, protected 30-day history/chart requests and cleanup.

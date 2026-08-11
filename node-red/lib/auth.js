@@ -90,6 +90,9 @@ class SupabaseAuthAdapter {
       headers: { apikey: this.anonKey, Authorization: `Bearer ${accessToken}` },
       signal,
     }, async (response) => {
+      if (response.status === 401) {
+        throw authFailure(401, 'INVALID_SESSION', 'Invalid or expired session');
+      }
       if (!response.ok) throw authFailure(503, 'OWNERSHIP_UNAVAILABLE', 'Ownership lookup failed');
       const rows = await this.json(response);
       if (!Array.isArray(rows)) {
@@ -152,7 +155,10 @@ class AuthGate {
         const owns = await this.adapter.owns(authentication.accessToken, authentication.principal.id,
           lockerId, { signal: controller.signal });
         return owns ? authentication : { ok: false, status: 403, code: 'LOCKER_FORBIDDEN' };
-      } catch {
+      } catch (error) {
+        if (error?.status === 401) {
+          return { ok: false, status: 401, code: 'INVALID_SESSION' };
+        }
         return { ok: false, status: 503, code: 'OWNERSHIP_UNAVAILABLE' };
       }
     })();

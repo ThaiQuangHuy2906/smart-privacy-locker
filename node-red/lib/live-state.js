@@ -54,7 +54,13 @@ class LiveStateCache {
     if (value.timestamp && item.stateDeviceAt && Date.parse(value.timestamp) < Date.parse(item.stateDeviceAt)) {
       return false;
     }
-    item.state = { door: value.door, lock: value.lock, alarm: value.alarm, led: value.led };
+    item.state = {
+      door: value.door,
+      lock: value.lock,
+      alarm: value.alarm,
+      led: value.led,
+      wifi_connected: value.wifi_connected,
+    };
     item.door = value.door;
     item.stateObservedAt = observedAt;
     item.stateDeviceAt = value.timestamp;
@@ -96,6 +102,7 @@ class LiveStateCache {
       state: trusted ? { ...item.state, door: item.door } : {
         door: 'UNKNOWN', lock: item.state?.lock || 'UNKNOWN',
         alarm: item.state?.alarm || 'UNKNOWN', led: item.state?.led || 'UNKNOWN',
+        wifi_connected: null,
       },
       source: { state: item.stateSource, door: item.doorSource },
       device_time: { state: item.stateDeviceAt, door: item.doorDeviceAt },
