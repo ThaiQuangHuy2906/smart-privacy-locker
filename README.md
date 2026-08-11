@@ -1,6 +1,6 @@
 # Smart Privacy Locker
 
-ESP32/Node-RED implementation for an IoT privacy locker, delivered in three gated phases. **The Phase 1–3 software paths are implemented; hardware-dependent final gates are still pending** on `phase/3-thuy-data-integration`. Phase 3 adds CB3, YC4, YC5 and YC7 without changing ownership of the Phase 2 YC6/YC8 logic.
+ESP32/Node-RED implementation for an IoT privacy locker, delivered in three gated phases. **The Phase 1–3 software paths are implemented on `develop`; hardware-dependent final gates are still pending.** Phase 3 adds CB3, YC4, YC5 and YC7 without changing ownership of the Phase 2 YC6/YC8 logic.
 
 The source PDFs are read-only project records. Do not edit, move, or replace them.
 
@@ -34,7 +34,11 @@ Automated software evidence is not physical evidence. The Phase 3 forward migrat
 
 1. Install PlatformIO Core according to [firmware/README.md](firmware/README.md).
 2. Create `firmware/include/secrets.h` from `firmware/include/secrets.example.h`. It is ignored by Git. Do not use working credentials in any committed file.
-3. Before buying or powering hardware, review the candidate [BOM](hardware/bom.md), complete the exact-part [power budget](hardware/power-budget.md), then verify the [pin map](hardware/pin-map.md), [wiring baseline](hardware/wiring-diagram/phase-1-wiring.md) and [assembly checklist](hardware/assembly-guide.md).
+3. When the hardware arrives, follow [HDCT.md](HDCT.md) as the end-to-end
+   completion runbook. Before buying or powering anything, review the candidate
+   [BOM](hardware/bom.md), complete the exact-part [power budget](hardware/power-budget.md),
+   then verify the [pin map](hardware/pin-map.md), [wiring baseline](hardware/wiring-diagram/phase-1-wiring.md)
+   and [assembly checklist](hardware/assembly-guide.md).
 4. Run native contract tests and the ESP32 build:
 
    ```powershell
@@ -76,4 +80,4 @@ Automated software evidence is not physical evidence. The Phase 3 forward migrat
 
 ## Evidence and status
 
-The current Node suite passes 145/145, the memory simulator passes 8 assertions across 14 scenarios, the authenticated local broker passes 15 assertions, and the secret/config and dependency audits report zero findings. P3-M04, P3-M05, the deployed P3-M06 Mailtrap SMTP success/failure paths, and the non-destructive Telegram rollout subset are recorded in sanitized evidence; hardware and remaining full-E2E rows remain deferred or pending. The current generated FlowFuse artifact is 235,573 bytes with SHA-256 `27ab25fc70abf62b06cf5f5fca7f359339496a041fa920e672839e4aeb63fd15`. Use [docs/deployment-guide.md](docs/deployment-guide.md) and [docs/troubleshooting.md](docs/troubleshooting.md); never present simulator output as ESP32/buzzer proof.
+The current Node suite passes 145/145, the memory simulator passes 8 assertions across 14 scenarios, the authenticated local broker passes 15 assertions, and the secret/config and dependency audits report zero findings. P3-M04, P3-M05, the deployed P3-M06 Mailtrap SMTP success/failure paths, and the non-destructive Telegram rollout subset are recorded in sanitized evidence; hardware and remaining full-E2E rows remain deferred or pending. The current generated FlowFuse artifact is 235,945 bytes with SHA-256 `ee73551fac45c79b8706f0813595c386030e3acd32ed8fb4943f641d9d58afa8`. Use [docs/deployment-guide.md](docs/deployment-guide.md) and [docs/troubleshooting.md](docs/troubleshooting.md); never present simulator output as ESP32/buzzer proof.

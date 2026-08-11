@@ -121,7 +121,7 @@ The final locally verified artifacts can be distinguished from an older live
 deployment by these SHA-256 values:
 
 ```text
-27ab25fc70abf62b06cf5f5fca7f359339496a041fa920e672839e4aeb63fd15  node-red/flows.flowfuse.json
+ee73551fac45c79b8706f0813595c386030e3acd32ed8fb4943f641d9d58afa8  node-red/flows.flowfuse.json
 8b047fa6dee8c5c14d5ecf3a786cdab65ca0db06f36ae04fb349f0a359e78aca  supabase/migrations/202608090001_phase2_least_privilege_grants.sql
 5201ad4db326641c67fcd16a560eff134d4dea8c5b623b93e23ff3abcad0dc0f  supabase/migrations/202608110001_telegram_account_linking.sql
 27367ac2d06117f2343cb5914ab804cfaba3c6ccc46896a3255bf74a86b46b11  supabase/migrations/202608110002_telegram_link_consume_conflict_fix.sql

@@ -183,13 +183,21 @@ class SupabaseDataAdapter {
 
   async allEvents(lockerId, options = {}) {
     const rows = [];
+    const seenEventIds = new Set();
     for (let page = 0; page < MAX_EVENT_PAGES; page += 1) {
       const batch = await this.events(lockerId, {
         ...options,
         limit: EVENT_PAGE_SIZE,
         offset: page * EVENT_PAGE_SIZE,
       });
-      rows.push(...batch);
+      for (const event of batch) {
+        if (typeof event?.event_id !== 'string' || event.event_id.length === 0) {
+          throw dataError('DATA_INVALID_RESPONSE', 'Event query returned an invalid event ID');
+        }
+        if (seenEventIds.has(event.event_id)) continue;
+        seenEventIds.add(event.event_id);
+        rows.push(event);
+      }
       if (batch.length < EVENT_PAGE_SIZE) return rows;
     }
     throw dataError('EVENT_DATASET_TOO_LARGE',

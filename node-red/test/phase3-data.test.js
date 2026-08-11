@@ -240,7 +240,7 @@ test('Supabase chatbot history derives calendar boundaries from the locker timez
   assert.deepEqual(capturedRange, calendarRange(1, now, 'America/New_York'));
 });
 
-test('Phase 3 aggregation paginates instead of silently truncating after 1000 events', async () => {
+test('Phase 3 aggregation paginates without truncating or double-counting overlapping pages', async () => {
   const requests = [];
   const event = (index) => ({
     event_id: `50000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
@@ -248,7 +248,10 @@ test('Phase 3 aggregation paginates instead of silently truncating after 1000 ev
   });
   const pages = [
     Array.from({ length: 1000 }, (_value, index) => event(index + 1)),
-    [event(1001)],
+    // A concurrent insert before the offset boundary can make PostgREST
+    // repeat the last row from the previous page. The idempotency key must
+    // prevent that overlap from inflating chart/report/chatbot counts.
+    [event(1000), event(1001)],
   ];
   const adapter = new SupabaseDataAdapter({
     url: 'https://example.supabase.co', serviceRoleKey: 'test-service-role',

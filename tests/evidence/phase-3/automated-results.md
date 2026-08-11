@@ -1,6 +1,6 @@
 # Phase 3 automated results — 2026-08-11
 
-Branch: `phase/3-thuy-data-integration`
+Branch: `develop`
 
 | Gate | Result |
 |---|---|
@@ -9,7 +9,7 @@ Branch: `phase/3-thuy-data-integration`
 | `npm run test:broker` | PASS — 15 assertions on authenticated loopback broker |
 | `npm run audit` | PASS — 0 configuration/secret findings |
 | `npm audit --audit-level=high` | PASS — 0 vulnerabilities |
-| generated FlowFuse artifact + deterministic artifact test | PASS — SHA-256 `27ab25fc70abf62b06cf5f5fca7f359339496a041fa920e672839e4aeb63fd15` (235,573 bytes; 81 nodes; 7 tabs; 15 unique HTTP routes; no credential object) |
+| generated FlowFuse artifact + deterministic artifact test | PASS — SHA-256 `ee73551fac45c79b8706f0813595c386030e3acd32ed8fb4943f641d9d58afa8` (235,945 bytes; 81 nodes; 7 tabs; 15 unique HTTP routes; no credential object) |
 | Chrome/CDP responsive DOM + visual QA | PASS — 1440 px desktop plus exact 390/320 px mobile; no card overlap or horizontal overflow; no button below 44 px; skip-link/focus, reduced-motion, conditional settings and the local-only YC12 setup panel verified |
 | `pio test -e native` | PASS — 17/17 |
 | clean `pio run -e esp32dev` | PASS — RAM 16.2%, flash 84.2% |
@@ -18,7 +18,8 @@ Branch: `phase/3-thuy-data-integration`
 The Phase 3 Node tests cover alarm ACK/state/persistence, every canonical event
 mapping, duplicate/error handling, owner gates, offline history/chart/settings,
 independent history/chart failures, paginated event/settings reads beyond 1000
-rows, timestamp-less retained availability, 7/30-day local-time aggregation,
+rows, event-ID deduplication across concurrently shifted offset pages,
+timestamp-less retained availability, 7/30-day local-time aggregation,
 accessible zero buckets, email configuration preflight/content,
 bounded retry, ambiguous SMTP outcomes, restart recovery, canonical report-date
 dedupe and state-guarded database delivery transitions.

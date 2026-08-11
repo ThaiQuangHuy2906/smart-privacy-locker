@@ -14,11 +14,14 @@ firmware/.pio/
 
 # Node-RED machine-specific runtime and encrypted credentials
 node-red/.node-red/
+node-red/settings.js
 node-red/flows_*.json
 node-red/*.cred.json
 node-red/*.credentials.json
 node_modules/
 .tools/
+.playwright-cli/
+output/
 
 # Logs, captures, caches, and temporary evidence
 *.log

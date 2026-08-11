@@ -10,7 +10,7 @@
 
 Smart Privacy Locker là mô hình tủ bảo mật IoT mini dùng ESP32 để giám sát cửa, điều khiển khóa servo, còi báo động và đèn trong tủ. Người dùng thao tác qua FlowFuse Dashboard; Node-RED là backend bắt buộc đứng giữa Dashboard, MQTT Broker, ESP32, Supabase và các dịch vụ Telegram, Gmail, Gemini. DHT22 và OLED tạo thành luồng hiển thị cục bộ, không mặc định đưa nhiệt độ/độ ẩm lên Dashboard.
 
-Tại baseline lập kế hoạch, repository là greenfield, Git chưa có commit và chỉ có hai tài liệu PDF nguồn. Hiện repository đã có Phase 1 software baseline cùng build/test evidence; current implementation/lifecycle phải lấy từ Phase registry, Phase Completion Summary và Git evidence, không từ mô tả historical baseline này.
+Tại baseline lập kế hoạch, repository là greenfield, Git chưa có commit và chỉ có hai tài liệu PDF nguồn. Hiện repository đã có đủ Phase 1–3 software baseline cùng build/test evidence và project ở trạng thái `SOFTWARE_COMPLETE`; current implementation/lifecycle phải lấy từ Phase registry, Phase Completion Summary và Git evidence, không từ mô tả historical baseline này.
 
 ### Nguồn sự thật và audit tài liệu
 
@@ -53,7 +53,7 @@ Có **12 requirement** phải được triển khai đầy đủ; `Owner chính`
 |---|---|---|---|---|
 | 1 | Thái Quang Huy | 24127177 | CB2, YC1, YC3, YC12 | **COMPLETED** |
 | 2 | Nguyễn Văn Minh | 24127205 | CB1, YC6, YC8, YC9 | **COMPLETED** |
-| 3 | Mai Phương Thùy | 24127249 | CB3, YC4, YC5, YC7 | **ACTIVE** |
+| 3 | Mai Phương Thùy | 24127249 | CB3, YC4, YC5, YC7 | **COMPLETED** |
 
 ### Phase lifecycle và ranh giới quyền hạn
 
@@ -1048,15 +1048,15 @@ Mọi mục trong phần này là `MUST`. External-service `FINAL-GATE` có th�
 - Branch: `phase/2-minh-security-orchestration`; accepted implementation/evidence commit `5eef94b`; final Phase 2 documentation commit `478864e`; remote Phase branch verified at `478864e`.
 - Commits: `d7e1c95` — Phase 2 implementation; `9cea590` — implementation evidence; `10ceb08` — corrective review fixes; `43f2efc` — review documentation; `5eef94b` — complete secure orchestration acceptance; `478864e` — record Phase 2 acceptance commit; `967530d` — canonicalize generated FlowFuse export line endings across Git platforms.
 - Integration into `develop`: Phase 2 was fast-forwarded and pushed to `origin/develop` at `478864e`; the lifecycle transition was then committed/pushed at `a05ca06`. No merge commit, history rewrite or force push was used.
-- Next phase: Phase 3 `ACTIVE` on `phase/3-thuy-data-integration`, created and pushed from lifecycle commit `a05ca06`.
+- Next phase at this historical Phase 2 handoff: Phase 3 was `ACTIVE` on `phase/3-thuy-data-integration`, created and pushed from lifecycle commit `a05ca06`; Phase 3 has since completed and been integrated into `develop`.
 
 ## 7. Phase 3 — Mai Phương Thùy
 
 ### Phase Goal
 
-**Status: ACTIVE. Owner: Mai Phương Thùy — 24127249.**
+**Status: COMPLETED. Owner: Mai Phương Thùy — 24127249.**
 
-Phase này đã `ACTIVE` vì Phase 2 `COMPLETED` và đã được tích hợp/push trên `develop`; Phase 1/2 hardware final gates vẫn deferred. Triển khai CB3, YC4, YC5, YC7; nối actual buzzer và Supabase persistence vào YC6; nối history thật vào YC8; hoàn thiện Dashboard, full-system integration, regression, tài liệu, demo và release checklist. Không nhận ownership YC6/YC8 từ Minh.
+Phase này đã được kích hoạt sau khi Phase 2 `COMPLETED`, rồi hoàn tất và được tích hợp/push trên `develop`; Phase 1/2 hardware final gates vẫn deferred. Phase đã triển khai CB3, YC4, YC5, YC7; nối actual buzzer và Supabase persistence vào YC6; nối history thật vào YC8; hoàn thiện Dashboard, full-system integration, regression và tài liệu software. Demo/release vẫn chờ các final gate có evidence thật. Ownership YC6/YC8 vẫn thuộc Minh.
 
 ### Minimum Required Completion Path
 
@@ -1066,7 +1066,7 @@ MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `
 
 ### Dependencies
 
-- Phase 1 và Phase 2 software baselines đã `COMPLETED` trên `develop` với acceptance/evidence thực; Phase 3 được đặt `ACTIVE`. Hardware final gates từ Phase 1/2 có thể còn deferred và vẫn phải được đóng trước release.
+- Phase 1, Phase 2 và Phase 3 software baselines đã `COMPLETED` trên `develop` với acceptance/evidence thực; project hiện là `SOFTWARE_COMPLETE`. Hardware final gates có thể còn deferred và vẫn phải được đóng trước release.
 - MQTT/event/auth/history/time/counting contracts đã khóa ở Phase 2 với producer/consumer fixtures và documentation.
 - Active Buzzer module, MOSFET/protection/power wiring thật; power/pin implications phải được xác minh trong hardware-final workflow.
 - Supabase project/schema YC9, Node-RED secure dispatcher/cache, test users/lockers.
@@ -1246,11 +1246,11 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 - [x] **Terra/owner:** Build/test SOFTWARE-GATE phù hợp đã chạy: firmware, Node-RED, migrations/RLS, aggregation và regression; non-hardware manual gates có environment sẵn sàng có evidence thật.
 - [x] **Terra/owner:** Physical tests chưa chạy được giữ `[ ] DEFERRED — HARDWARE-FINAL-GATE`; `FINAL-GATE` thiếu account/credential giữ `Pending`, không giả PASS và vẫn block `FINAL_RELEASE_READY`.
 - [x] **Terra/owner:** Chạy final diff/source/secret/generated-flow/migration audit; không đổi owner YC6/YC8 hoặc frozen contract ngầm.
-- [ ] **Terra/owner:** Cập nhật `PLAN.md`, commit thay đổi thuộc Phase và ghi hash thật vào Phase Completion Summary. Source/docs đã cập nhật; commit mới chưa được user yêu cầu trong lượt audit này.
-- [ ] **Terra/owner:** Push Phase branch lên GitHub; nếu không có quyền, giữ Phase `ACTIVE` và ghi exact command.
-- [ ] **Terra/owner:** Khi SOFTWARE-GATE `PASS`, fast-forward merge Phase branch vào `develop` và push `develop`; không rewrite history hoặc force push.
-- [ ] **Terra/owner:** Chỉ sau integration push thành công, chuyển Phase 3 `ACTIVE → COMPLETED`, đặt project `SOFTWARE_COMPLETE` và dừng.
-- [ ] **Terra/owner:** Không đặt `FINAL_RELEASE_READY`; toàn bộ hardware-final/`FINAL-GATE` vẫn `[ ]`/`Pending` cho workflow sau software.
+- [x] **Terra/owner:** Phase 3 source/docs/evidence được commit trên Phase branch tại `55138a`.
+- [x] **Terra/owner:** `origin/phase/3-thuy-data-integration` đã được push tại `55138a`.
+- [x] **Terra/owner:** Phase branch đã được merge vào `develop`; `origin/develop` hiện tại ở merge commit `f60928f`, không rewrite history hoặc force push.
+- [x] **Terra/owner:** Sau integration push thành công, Phase 3 chuyển `ACTIVE → COMPLETED` và project chuyển sang `SOFTWARE_COMPLETE`.
+- [x] **Terra/owner:** Không đặt `FINAL_RELEASE_READY`; toàn bộ hardware-final/`FINAL-GATE` vẫn `[ ]`/`Pending` cho workflow sau software.
 
 ### Handoff
 
@@ -1266,16 +1266,16 @@ Mọi mục trong phần này là `MUST` cho final project acceptance. Để Pha
 
 ### Phase Completion Summary
 
-- Status: ACTIVE — source and SOFTWARE-GATE pass; the development Phase 3 forward migration plus P3-M04/P3-M05 hard gates pass. The automatic Telegram-link Dashboard/secret/webhook/private-Start/sanitized-status/test-message subset passes on the current deployment; preference replay/disconnect/relink and the remaining final gates are still pending. Lifecycle completion also requires a commit/push and `develop` integration.
+- Status: COMPLETED — Phase 3 source, SOFTWARE-GATE, commit/push and `develop` integration are complete. The development forward migration plus P3-M04/P3-M05 hard gates pass. The automatic Telegram-link Dashboard/secret/webhook/private-Start/sanitized-status/test-message subset passes on the current deployment; preference replay/disconnect/relink and the remaining final gates are still pending and continue to block `FINAL_RELEASE_READY`.
 - Implementation: CB3 controller/ACK/state with backward-compatible polarity config; YC4 migration/RLS/idempotent persistence and paginated history consumers; YC5 timezone aggregation/chart with accessible zero buckets; YC7 SMTP state machine with configuration preflight, atomic reservation, bounded retry and ambiguous-outcome protection; YC6/YC8 adapters; YC12 validated fresh Wi-Fi state and local-only captive-portal guidance; independently resilient history/chart panels; warm, responsive owner-facing Dashboard; current deployment/user/troubleshooting/evidence docs.
-- Automated tests: Node 145/145 PASS; simulator 8 assertions/14 scenarios PASS; authenticated loopback broker 15 assertions PASS; config/secret audit 0 findings; npm audit 0 vulnerabilities; PlatformIO native 17/17 PASS; clean `esp32dev` build PASS at 16.2% RAM and 84.2% flash; deterministic FlowFuse SHA-256 `27ab25fc70abf62b06cf5f5fca7f359339496a041fa920e672839e4aeb63fd15` (235,573 bytes, 81 nodes, 7 tabs, 15 unique HTTP routes, no credential object); prior Chrome/CDP responsive QA PASS at 1440 px desktop and exact 390/320 px mobile widths, including no card overlap or horizontal overflow, 44 px minimum targets, visible focus, reduced motion and the local-only YC12 setup panel. The automatic Telegram-link UI is additionally covered by DOM/behavior regressions, including initial logout/Telegram controls honoring `hidden`, blocked-popup fallback, private `/start`/`/help`/`/settings`, malformed-header rejection and retry-safe unknown Supabase errors. Its attempted Playwright CLI visual rerun on 2026-08-11 was blocked by an upstream Windows/Node 24 `UV_HANDLE_CLOSING` assertion; the deployed Dashboard/secret/webhook/private-Start/sanitized-status/test-message subset was instead revalidated directly. Software/compile results still do not imply hardware evidence.
+- Automated tests: Node 145/145 PASS; simulator 8 assertions/14 scenarios PASS; authenticated loopback broker 15 assertions PASS; config/secret audit 0 findings; npm audit 0 vulnerabilities; PlatformIO native 17/17 PASS; clean `esp32dev` build PASS at 16.2% RAM and 84.2% flash; deterministic FlowFuse SHA-256 `ee73551fac45c79b8706f0813595c386030e3acd32ed8fb4943f641d9d58afa8` (235,945 bytes, 81 nodes, 7 tabs, 15 unique HTTP routes, no credential object); prior Chrome/CDP responsive QA PASS at 1440 px desktop and exact 390/320 px mobile widths, including no card overlap or horizontal overflow, 44 px minimum targets, visible focus, reduced motion and the local-only YC12 setup panel. The automatic Telegram-link UI is additionally covered by DOM/behavior regressions, including initial logout/Telegram controls honoring `hidden`, blocked-popup fallback, private `/start`/`/help`/`/settings`, malformed-header rejection, retry-safe unknown Supabase errors and event-ID deduplication across overlapping offset pages. Its attempted Playwright CLI visual rerun on 2026-08-11 was blocked by an upstream Windows/Node 24 `UV_HANDLE_CLOSING` assertion; the deployed Dashboard/secret/webhook/private-Start/sanitized-status/test-message subset was instead revalidated directly. Software/compile results still do not imply hardware evidence.
 - Manual HARD-GATE tests: P3-M04 PASS on the development project. P3-M05 PASS for deployed 7/30-day owner views, empty buckets and controlled `Asia/Ho_Chi_Minh` local-midnight data with cleanup.
 - Manual FINAL-GATE tests remaining: P3-M01–P3-M03 and P3-M07–P3-M12 remain Pending; P3-M06 deployed SMTP success/definite-failure PASS is recorded, but no buzzer hardware or final physical E2E evidence is claimed.
-- Known issues: this audit reproduced and fixed the ESP32Servo channel-zero initialization bug, bounded-data response-body/error normalization, late auth expiry handling, same-domain Dashboard request locking, stale/raw UI states, locker-timezone drift across history/chart/YC8 context, browser deadlines that were too short for database-backed views, the visible-but-unissued Telegram fallback button, and missing private bot-command guidance; no remaining reproducible software defect is known in the automated scope. The unexecuted manual gates above remain release risks, not PASS. Local Supabase CLI/`psql`/Docker were unavailable, so the live database evidence comes from the separately recorded development-project run. No physical result is inferred from the simulator or ESP32 compile.
+- Known issues: the completed audits reproduced and fixed the ESP32Servo channel-zero initialization bug, bounded-data response-body/error normalization, late auth expiry handling, same-domain Dashboard request locking, stale/raw UI states, locker-timezone drift across history/chart/YC8 context, browser deadlines that were too short for database-backed views, the visible-but-unissued Telegram fallback button, missing private bot-command guidance and duplicate aggregation caused by overlapping offset pages; no remaining reproducible software defect is known in the automated scope. The unexecuted manual gates above remain release risks, not PASS. Local Supabase CLI/`psql`/Docker were unavailable, so the live database evidence comes from the separately recorded development-project run. No physical result is inferred from the simulator or ESP32 compile.
 - Deferred SHOULD/OPTIONAL items: advanced retry/dead-letter infrastructure, distributed scheduler coordination and query-plan tuning.
-- Branch: `phase/3-thuy-data-integration`
-- Commit: `fdc7e4d` — current checked-out baseline; the audited hardening/UI/docs working-tree changes are not yet committed or pushed.
-- Integration into `develop`: Pending; Phase branch push and merge were not performed.
+- Branch: `develop`; accepted Phase 3 implementation/evidence commit `55138a` remains at `origin/phase/3-thuy-data-integration`.
+- Commit: `f60928f` — current pushed `origin/develop` integration baseline; the later local audit fixes are not yet committed or pushed.
+- Integration into `develop`: completed and pushed at merge commit `f60928f`; no history rewrite or force push was used.
 - Project state after completion: `SOFTWARE_COMPLETE`; hardware workflow follows.
 
 ## 8. End-to-End Test Checklist
@@ -1492,7 +1492,7 @@ Demo phải chạy trên một release candidate/build ID đã ghi, dùng dữ l
 
 ### Final release checklist
 
-- [ ] Phase 1, Phase 2, Phase 3 đều `COMPLETED` bằng SOFTWARE-GATE evidence và integration thật trên `develop`; project đã ở `SOFTWARE_COMPLETE`.
+- [x] Phase 1, Phase 2, Phase 3 đều `COMPLETED` bằng SOFTWARE-GATE evidence và integration thật trên `develop`; project đã ở `SOFTWARE_COMPLETE`. Đây chỉ là software prerequisite, không thay thế các release gate còn trống bên dưới.
 - [ ] 12 requirement có traceability requirement → owner → module → test → evidence.
 - [ ] Critical = 0 và High = 0; Medium có workaround/decision được chấp nhận.
 - [ ] Firmware clean build, Node-RED deploy/export, Supabase migrations/RLS và relevant automated tests đã chạy trên release candidate.

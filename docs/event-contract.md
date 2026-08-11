@@ -73,11 +73,12 @@ an internal call after the HTTP Bearer/ownership gate; it contains no JWT.
 Response echoes `schema_version`, `request_id`, and `locker_id`; includes a UTC
 half-open `range`, newest-first event summaries, and `source` provenance. The
 backend paginates Supabase results in deterministic `(occurred_at,event_id)`
-order so aggregation/chatbot/report counts are not silently truncated at the
-Data API's 1000-row page. A controlled `EVENT_DATASET_TOO_LARGE` error is
-returned if the configured safety ceiling is exceeded. Node-RED—not
-Gemini—computes open/alert counts. Adapter/contract tests and the deployed
-owner-scoped history path pass.
+order and deduplicates overlapping offset pages by `event_id`, so a concurrent
+insert cannot inflate aggregation/chatbot/report counts and results are not
+silently truncated at the Data API's 1000-row page. A controlled
+`EVENT_DATASET_TOO_LARGE` error is returned if the configured safety ceiling is
+exceeded. Node-RED—not Gemini—computes open/alert counts. Adapter/contract tests
+and the deployed owner-scoped history path pass.
 
 ## Notification delivery status
 

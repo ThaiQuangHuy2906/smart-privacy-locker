@@ -56,6 +56,8 @@ UTC/local midnight from appearing under different dates in the history, chart,
 chatbot and daily report views.
 
 History consumers page deterministically by `(occurred_at DESC, event_id DESC)`
-instead of relying on the Data API's first 1000 rows. The backend fails with
-`EVENT_DATASET_TOO_LARGE` at its explicit safety ceiling rather than returning a
-plausible but incomplete chart/report/chatbot count.
+instead of relying on the Data API's first 1000 rows. Because a concurrent
+insert can shift an offset boundary, the adapter deduplicates page overlap by
+the immutable `event_id`. The backend fails with `EVENT_DATASET_TOO_LARGE` at
+its explicit safety ceiling rather than returning a plausible but incomplete
+chart/report/chatbot count.
