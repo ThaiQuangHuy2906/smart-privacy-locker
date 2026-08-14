@@ -162,7 +162,7 @@ cho kết quả 0 broken link.
 | Config/secret audit | PASS — 0 finding |
 | `npm audit` và `npm audit --omit=dev` | PASS — 0 vulnerability |
 | JavaScript syntax | PASS — 39 file |
-| JSON parse | PASS — 28 file |
+| JSON parse | PASS — 33 file |
 | PowerShell parser | PASS — 5 file |
 | Firmware native unit tests | PASS — 17/17 |
 | PlatformIO ESP32 build | PASS — RAM 52.940/327.680 byte (16,2%); flash 1.103.737/1.310.720 byte (84,2%) |
