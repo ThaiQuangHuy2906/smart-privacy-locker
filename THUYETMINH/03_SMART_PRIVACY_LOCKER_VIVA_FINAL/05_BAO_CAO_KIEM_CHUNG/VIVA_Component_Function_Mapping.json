@@ -1,0 +1,117 @@
+{
+  "status": "PASS",
+  "source": "Thuyết minh đã nộp, Mục 2.1.3; vị trí đối chiếu với F3D mới nhất",
+  "components": {
+    "01A": {
+      "name": "MC-38 reed trên khung",
+      "functional_ids": "CB1 · YC4 · YC6",
+      "planned_location": "Khung phải, đối diện nam châm cửa"
+    },
+    "01B": {
+      "name": "Nam châm MC-38 trên cửa",
+      "functional_ids": "CB1 · YC4 · YC6",
+      "planned_location": "Mép phải cánh cửa"
+    },
+    "02A": {
+      "name": "Servo SG90",
+      "functional_ids": "CB2",
+      "planned_location": "Góc phải khoang kỹ thuật"
+    },
+    "02B": {
+      "name": "Tay servo + thanh truyền",
+      "functional_ids": "CB2",
+      "planned_location": "Nối servo với chốt"
+    },
+    "02C": {
+      "name": "Chốt khóa",
+      "functional_ids": "CB2",
+      "planned_location": "Sát mép phải cửa"
+    },
+    "03": {
+      "name": "Active Buzzer 5 V",
+      "functional_ids": "CB3 · YC6",
+      "planned_location": "Trên khay, gần vùng thoát âm"
+    },
+    "04": {
+      "name": "DHT22",
+      "functional_ids": "YC1",
+      "planned_location": "Vách sau khoang chứa"
+    },
+    "05A": {
+      "name": "Mặt hiển thị OLED",
+      "functional_ids": "YC1",
+      "planned_location": "Mặt trước nắp khoang kỹ thuật"
+    },
+    "05B": {
+      "name": "PCB OLED phía sau",
+      "functional_ids": "YC1",
+      "planned_location": "Ngay sau cửa sổ OLED"
+    },
+    "06": {
+      "name": "Dải LED WS2812B",
+      "functional_ids": "YC3",
+      "planned_location": "Mặt dưới vách ngăn kỹ thuật"
+    },
+    "07": {
+      "name": "ESP32 DevKit V1",
+      "functional_ids": "CB1 · CB2 · CB3 · YC1 · YC3 · YC12",
+      "planned_location": "Khay điện tử trong khoang kỹ thuật"
+    },
+    "08": {
+      "name": "Breadboard 830 lỗ",
+      "functional_ids": "CB1 · CB2 · CB3 · YC1 · YC3",
+      "planned_location": "Giữa khay kỹ thuật"
+    },
+    "09": {
+      "name": "MOSFET D4184",
+      "functional_ids": "CB2 · CB3 · YC3",
+      "planned_location": "Cạnh ESP32 và đầu nối tải"
+    },
+    "10": {
+      "name": "Jack nguồn DC 5 V/3 A gắn tủ",
+      "functional_ids": "CB1 · CB2 · CB3 · YC1 · YC3",
+      "planned_location": "Mặt sau; nguồn đi qua công tắc"
+    },
+    "11": {
+      "name": "Công tắc nguồn",
+      "functional_ids": "CB1 · CB2 · CB3 · YC1 · YC3",
+      "planned_location": "Mặt sau, nối tiếp trước BUS_5V_SW"
+    },
+    "12": {
+      "name": "Khoang kỹ thuật",
+      "functional_ids": "Vùng kết cấu",
+      "planned_location": "Phía trên khoang chứa"
+    },
+    "13": {
+      "name": "Khoang chứa",
+      "functional_ids": "Vùng sử dụng",
+      "planned_location": "Phía dưới vách ngăn kỹ thuật"
+    },
+    "14": {
+      "name": "Nắp khoang kỹ thuật tháo rời",
+      "functional_ids": "Kết cấu bảo trì",
+      "planned_location": "Mặt trước khoang kỹ thuật"
+    },
+    "15": {
+      "name": "Hệ thống quản lý dây",
+      "functional_ids": "Kết cấu bảo vệ",
+      "planned_location": "Gờ phải và vách sau"
+    },
+    "16": {
+      "name": "Hai bản lề cửa",
+      "functional_ids": "Kết cấu cửa",
+      "planned_location": "Mép trái cánh cửa"
+    },
+    "17": {
+      "name": "Tấm che dây phía sau",
+      "functional_ids": "Kết cấu bảo vệ",
+      "planned_location": "Sau khoang chứa"
+    }
+  },
+  "qualifiers": {
+    "YC4": "Dùng dữ liệu trạng thái MC-38, không có phần cứng riêng.",
+    "YC6": "Dùng sự kiện MC-38, Active Buzzer và dịch vụ Telegram.",
+    "YC12": "Khả năng WiFiManager trong firmware ESP32.",
+    "software": "Node-RED, MQTT, Supabase, Telegram, Gmail và Gemini không phải chi tiết 3D."
+  }
+}

@@ -39,5 +39,6 @@ for recovery/full state or ask the operator to inspect the deployment using the
 troubleshooting guide.
 
 Before installing hardware, follow `hardware/bom.md`,
-`hardware/power-budget.md`, `hardware/wiring-diagram/phase-1-wiring.md` and
-`hardware/assembly-guide.md`; the Dashboard cannot prove electrical safety.
+`hardware/power-budget.md` and the single canonical
+`HUONG_DAN_LAP_MACH_THEO_THU_TU.md`; the Dashboard cannot prove electrical
+safety. After assembly, execute `HUONG_DAN_CHAY_HE_THONG.md`.

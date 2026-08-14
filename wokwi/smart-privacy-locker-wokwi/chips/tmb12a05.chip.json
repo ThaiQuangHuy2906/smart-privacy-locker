@@ -1,0 +1,5 @@
+{
+  "name": "TMB12A05 LOW-trigger module (simulation)",
+  "author": "Smart Privacy Locker",
+  "pins": ["VCC", "GND", "IN", "SOUND_OUT", "", ""]
+}

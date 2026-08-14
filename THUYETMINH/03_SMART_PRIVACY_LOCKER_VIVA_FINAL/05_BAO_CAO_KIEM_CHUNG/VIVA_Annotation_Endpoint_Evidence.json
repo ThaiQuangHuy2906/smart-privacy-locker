@@ -1,0 +1,487 @@
+{
+  "status": "PASS",
+  "verification_result": "PASS",
+  "method": "Fixed source-render coordinates mapped through deterministic crop/paste transforms; every record is rendered as a colored arrow plus target dot.",
+  "source_f3d": {
+    "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\Smart_Privacy_Locker_2_1.f3d",
+    "bytes": 879036,
+    "sha256": "952C9DC516304B4D54C5CAFB1EB40B13A8F54367086E4128AC262A8EBA59C0E3",
+    "fresh_reopen_expected_sha256": "952C9DC516304B4D54C5CAFB1EB40B13A8F54367086E4128AC262A8EBA59C0E3",
+    "fresh_reopen_hash_match": true,
+    "fresh_reopen_verified_at": "2026-07-22T05:52:04+07:00",
+    "fresh_reopen_result": "passed"
+  },
+  "raw_renders": {
+    "exterior": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1A_Exterior_Closed.png",
+      "bytes": 711770,
+      "sha256": "AEE7F04287CC2F74928859015C140C15311217517B88858A059C8F4B0126D0F2",
+      "modified_at": "2026-07-22T05:49:59.426744+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    },
+    "interior": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1B_Interior_Open.png",
+      "bytes": 842567,
+      "sha256": "ED23D65E353BA09B8F2BAE29FCC5779C59C72CEA344F1215784B003C43B3D264",
+      "modified_at": "2026-07-22T05:50:04.914454+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    },
+    "technical": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1D_Technical_Compartment.png",
+      "bytes": 908777,
+      "sha256": "333BD83BAA86C524011956DFA60AA4820432915C568F6D7738A1CB25FF14E5E4",
+      "modified_at": "2026-07-22T05:50:08.597047+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    },
+    "exploded": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1E_Exploded_View.png",
+      "bytes": 799011,
+      "sha256": "4AD3F45DFB12DCFF196BF31BFE2279DFCC2FD0F27600E429AF1CC4E9ADDDF63F",
+      "modified_at": "2026-07-22T05:50:14.182691+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    },
+    "annotated": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\_staging\\raw_annotated_base.png",
+      "bytes": 842567,
+      "sha256": "ED23D65E353BA09B8F2BAE29FCC5779C59C72CEA344F1215784B003C43B3D264",
+      "modified_at": "2026-07-22T05:50:05.558574+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    },
+    "dimension": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\_staging\\raw_dimension_base.png",
+      "bytes": 216478,
+      "sha256": "70E6AEF076F7C291D991374EC919F5FC2CFA6A06125A0C38353AB9C4CFE3035E",
+      "modified_at": "2026-07-22T05:50:01.198515+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    },
+    "lock": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\_staging\\raw_lock_detail.png",
+      "bytes": 846242,
+      "sha256": "A3695FD27FB1B296E388B5FCAD22B166B6F95B0B2423426884872E2508C4A41B",
+      "modified_at": "2026-07-22T05:50:10.486788+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    },
+    "mc38": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\_staging\\raw_mc38_detail.png",
+      "bytes": 826233,
+      "sha256": "262E1B963F4B529792A6C910564DD9B4A06A3E921884BE301E53E11BA5185CB8",
+      "modified_at": "2026-07-22T05:50:12.280853+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    },
+    "rear": {
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\_staging\\raw_rear_view.png",
+      "bytes": 607500,
+      "sha256": "0154A02433D3FDD0ED08209855EA7538CC2E9E91063EEDD332B6C7B81BCBA6F7",
+      "modified_at": "2026-07-22T05:50:02.970293+07:00",
+      "size_px": [
+        3600,
+        2400
+      ]
+    }
+  },
+  "endpoint_count": 21,
+  "rendered_endpoint_count": 21,
+  "records": [
+    {
+      "callout_id": "12",
+      "annotated_file": "2.1C_Annotated_Components_VIVA.png",
+      "source_render": "2.1B_Interior_Open.png",
+      "source_point_px": [
+        2250,
+        650
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "13",
+      "annotated_file": "2.1C_Annotated_Components_VIVA.png",
+      "source_render": "2.1B_Interior_Open.png",
+      "source_point_px": [
+        2200,
+        1570
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "14",
+      "annotated_file": "2.1C_Annotated_Components_VIVA.png",
+      "source_render": "2.1A_Exterior_Closed.png",
+      "source_point_px": [
+        1700,
+        650
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "15",
+      "annotated_file": "2.1C_Annotated_Components_VIVA.png",
+      "source_render": "2.1B_Interior_Open.png",
+      "source_point_px": [
+        2750,
+        1100
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "16",
+      "annotated_file": "2.1C_Annotated_Components_VIVA.png",
+      "source_render": "2.1B_Interior_Open.png",
+      "source_point_px": [
+        1300,
+        1450
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "17",
+      "annotated_file": "2.1C_Annotated_Components_VIVA.png",
+      "source_render": "2.1B_Interior_Open.png",
+      "source_point_px": [
+        1920,
+        1490
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "07",
+      "annotated_file": "2.1C1_Annotated_Electronics_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        1580,
+        430
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "08",
+      "annotated_file": "2.1C1_Annotated_Electronics_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        1830,
+        610
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "09",
+      "annotated_file": "2.1C1_Annotated_Electronics_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        2520,
+        620
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "03",
+      "annotated_file": "2.1C1_Annotated_Electronics_VIVA.png",
+      "source_render": "raw_annotated_base.png",
+      "source_point_px": [
+        2380,
+        690
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "02A",
+      "annotated_file": "2.1C2_Annotated_Lock_MC38_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        2825,
+        700
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "02B",
+      "annotated_file": "2.1C2_Annotated_Lock_MC38_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        2855,
+        590
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "02C",
+      "annotated_file": "2.1C2_Annotated_Lock_MC38_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        2915,
+        585
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "01A",
+      "annotated_file": "2.1C2_Annotated_Lock_MC38_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        2370,
+        1550
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "01B",
+      "annotated_file": "2.1C2_Annotated_Lock_MC38_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        1510,
+        1540
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "04",
+      "annotated_file": "2.1C3_Annotated_Sensors_Power_VIVA.png",
+      "source_render": "raw_annotated_base.png",
+      "source_point_px": [
+        2560,
+        1100
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "05A",
+      "annotated_file": "2.1C3_Annotated_Sensors_Power_VIVA.png",
+      "source_render": "raw_annotated_base.png",
+      "source_point_px": [
+        1990,
+        665
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "06",
+      "annotated_file": "2.1C3_Annotated_Sensors_Power_VIVA.png",
+      "source_render": "2.1E_Exploded_View.png",
+      "source_point_px": [
+        1876,
+        1327
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "05B",
+      "annotated_file": "2.1C3_Annotated_Sensors_Power_VIVA.png",
+      "source_render": "raw_annotated_base.png",
+      "source_point_px": [
+        2100,
+        635
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "10",
+      "annotated_file": "2.1C3_Annotated_Sensors_Power_VIVA.png",
+      "source_render": "raw_rear_view.png",
+      "source_point_px": [
+        1875,
+        825
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    },
+    {
+      "callout_id": "11",
+      "annotated_file": "2.1C3_Annotated_Sensors_Power_VIVA.png",
+      "source_render": "raw_rear_view.png",
+      "source_point_px": [
+        1685,
+        878
+      ],
+      "source_size_px": [
+        3600,
+        2400
+      ],
+      "rendered": true,
+      "validation": "PASS"
+    }
+  ],
+  "generated_files": [
+    {
+      "name": "2.1A_Exterior_Closed_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1A_Exterior_Closed_VIVA.png",
+      "bytes": 548578,
+      "sha256": "5f9218a5c2ebb65af4aa1eed0da27daec45e197d06786d8bba1799964f9f33a9"
+    },
+    {
+      "name": "2.1B_Interior_Open_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1B_Interior_Open_VIVA.png",
+      "bytes": 664394,
+      "sha256": "58143c158850dbc947aa57c2a3f72c6f6ee7d3fb6b2972221fb13e3125b29ffd"
+    },
+    {
+      "name": "2.1C_Annotated_Components_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1C_Annotated_Components_VIVA.png",
+      "bytes": 1119437,
+      "sha256": "a9f4903bf61b87ba6bdb263cc84fa0dff7aeb47acc57b0db12e154c988c7626b"
+    },
+    {
+      "name": "2.1C1_Annotated_Electronics_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1C1_Annotated_Electronics_VIVA.png",
+      "bytes": 1285239,
+      "sha256": "9f08a83eb66d268f6e954554b9fd3d07f1c16d970663dd4edbb5eba30a34ca4d"
+    },
+    {
+      "name": "2.1C2_Annotated_Lock_MC38_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1C2_Annotated_Lock_MC38_VIVA.png",
+      "bytes": 1035892,
+      "sha256": "b44accf43ec91c572c7e1ff03e3de4fb52d6bd72d160f6767c6f49708320c7d0"
+    },
+    {
+      "name": "2.1C3_Annotated_Sensors_Power_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1C3_Annotated_Sensors_Power_VIVA.png",
+      "bytes": 1219544,
+      "sha256": "db5f95ba4818128beecbbf99c47361c606147b6b64f3b8e0d860beb07543a12c"
+    },
+    {
+      "name": "2.1D_Technical_Compartment_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1D_Technical_Compartment_VIVA.png",
+      "bytes": 1104460,
+      "sha256": "3bebd8618f3b33df0c783b3ac79ea730b19a2b67bd6d4fd041f4bbaceaf618eb"
+    },
+    {
+      "name": "2.1E_Assembly_Service_View_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1E_Assembly_Service_View_VIVA.png",
+      "bytes": 725291,
+      "sha256": "875e01a8aac0b802ba63fe930137759203d3e8392cd701526381937c725d3ae8"
+    },
+    {
+      "name": "2.1F_Dimensioned_View_VIVA.png",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1F_Dimensioned_View_VIVA.png",
+      "bytes": 316782,
+      "sha256": "5c079e630b5f5bf5949693b0dec3d9aae66cce14801c7141e5381411728146dd"
+    },
+    {
+      "name": "2.1_Design_Board_VIVA.pdf",
+      "path": "D:\\TAI_LIEU_HCMUS_K24\\Năm 2 - Kì 3\\Vật lý cho Công nghệ thông tin\\THUYETMINH\\03_FUSION_BUILD_OUTPUT\\smart_privacy_locker_v2_1\\2.1_Design_Board_VIVA.pdf",
+      "bytes": 9084673,
+      "sha256": "b1e25b5eac3130dfbf919b68f0f01652b1fb2ddf7bf2a3e4a92f4ef6d315cff0"
+    }
+  ]
+}

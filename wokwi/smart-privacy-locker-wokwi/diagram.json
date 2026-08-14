@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "author": "Smart Privacy Locker",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 25, "left": 35, "attrs": {} },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht",
+      "top": -210,
+      "left": 410,
+      "attrs": { "temperature": "25", "humidity": "55" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "dhtPullup",
+      "top": -120,
+      "left": 520,
+      "rotate": 90,
+      "attrs": { "value": "5100" }
+    },
+    {
+      "type": "board-ssd1306",
+      "id": "oled",
+      "top": -210,
+      "left": 690,
+      "attrs": { "i2cAddress": "0x3c" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo",
+      "top": -20,
+      "left": 1030,
+      "attrs": { "horn": "double" }
+    },
+    { "type": "wokwi-neopixel", "id": "pixel", "top": 230, "left": 1070, "attrs": {} },
+    {
+      "type": "wokwi-resistor",
+      "id": "pixelDataResistor",
+      "top": 225,
+      "left": 900,
+      "rotate": 90,
+      "attrs": { "value": "330" }
+    },
+    { "type": "wokwi-vcc", "id": "external5V", "top": 95, "left": 880, "attrs": {} },
+    { "type": "wokwi-gnd", "id": "commonGnd", "top": 380, "left": 900, "attrs": {} },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "door",
+      "top": 510,
+      "left": 800,
+      "attrs": { "bounce": "1" }
+    },
+    {
+      "type": "chip-tmb12a05",
+      "id": "buzzerModule",
+      "top": 500,
+      "left": 455,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "buzzerInputResistor",
+      "top": 510,
+      "left": 335,
+      "rotate": 90,
+      "attrs": { "value": "4700" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzerTransducer",
+      "top": 505,
+      "left": 650,
+      "attrs": { "mode": "smooth", "volume": "0.1" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "title",
+      "top": -315,
+      "left": 35,
+      "attrs": { "text": "SMART PRIVACY LOCKER - SO DO WOKWI DAY DU" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "espLabel",
+      "top": -15,
+      "left": 35,
+      "attrs": { "text": "ESP32 DevKitC - logic 3.3V" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "dhtLabel",
+      "top": -255,
+      "left": 390,
+      "attrs": { "text": "DHT22 - GPIO4 - pull-up 5.1k len 3V3" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "oledLabel",
+      "top": -255,
+      "left": 690,
+      "attrs": { "text": "OLED SSD1306 - SDA21/SCL22 - 0x3C" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "servoLabel",
+      "top": -70,
+      "left": 980,
+      "attrs": { "text": "SG90 - GPIO18 - nguon tai 5V" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "pixelLabel",
+      "top": 180,
+      "left": 950,
+      "attrs": { "text": "WS2812B pixel 1 - GPIO25 qua 330R" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "loadPowerLabel",
+      "top": 80,
+      "left": 660,
+      "attrs": { "text": "5V NGOAI: chi SG90 + WS2812; GND noi chung ESP32" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "capacitorLabel",
+      "top": 335,
+      "left": 980,
+      "attrs": { "text": "Mach that: tu 470uF sat WS2812 (+ vao 5V, - vao GND)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "doorLabel",
+      "top": 465,
+      "left": 760,
+      "attrs": { "text": "MC-38 mo phong bang switch: trai=CLOSED, phai=OPEN" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "buzzerLabel",
+      "top": 450,
+      "left": 350,
+      "attrs": { "text": "TMB12A05 LOW-trigger: VCC=3V3, IN=GPIO26 qua 4.7k" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "buzzerSimulationLabel",
+      "top": 610,
+      "left": 430,
+      "attrs": { "text": "Chip + piezo la mo hinh module 3 chan; HIGH=im, LOW=keu" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "serialLabel",
+      "top": 675,
+      "left": 35,
+      "attrs": { "text": "Serial 115200: L/U khoa-mo | 1/0 LED | A/a coi | S state | H help" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:3V3", "dht:VCC", "red", [ "h45", "v-205", "h210" ] ],
+    [ "esp:GND.1", "dht:GND", "black", [ "h60", "v-185", "h210" ] ],
+    [ "esp:4", "dht:SDA", "green", [ "h85", "v-150", "h155" ] ],
+    [ "dhtPullup:1", "dht:SDA", "green", [ "h-40", "v-20" ] ],
+    [ "dhtPullup:2", "dht:VCC", "red", [ "h-70", "v-35" ] ],
+    [ "esp:3V3", "oled:VCC", "red", [ "h35", "v-235", "h500" ] ],
+    [ "esp:GND.1", "oled:GND", "black", [ "h50", "v-215", "h500" ] ],
+    [ "esp:21", "oled:SDA", "green", [ "h120", "v-170", "h390" ] ],
+    [ "esp:22", "oled:SCL", "blue", [ "h135", "v-150", "h390" ] ],
+    [ "esp:18", "servo:PWM", "orange", [ "h180", "v-70", "h650" ] ],
+    [ "external5V:VCC", "servo:V+", "red", [ "v-45", "h130" ] ],
+    [ "commonGnd:GND", "servo:GND", "black", [ "h95", "v-360" ] ],
+    [ "esp:25", "pixelDataResistor:1", "green", [ "h260", "v110", "h460" ] ],
+    [ "pixelDataResistor:2", "pixel:DIN", "green", [ "h120" ] ],
+    [ "external5V:VCC", "pixel:VDD", "red", [ "v90", "h180" ] ],
+    [ "commonGnd:GND", "pixel:VSS", "black", [ "v-95", "h170" ] ],
+    [ "esp:GND.2", "commonGnd:GND", "black", [ "h285", "v135", "h430" ] ],
+    [ "esp:27", "door:2", "green", [ "h210", "v300", "h350" ] ],
+    [ "door:1", "commonGnd:GND", "black", [ "h65", "v-100" ] ],
+    [ "esp:26", "buzzerInputResistor:1", "purple", [ "h95", "v260", "h90" ] ],
+    [ "buzzerInputResistor:2", "buzzerModule:IN", "purple", [ "h65" ] ],
+    [ "esp:3V3", "buzzerModule:VCC", "red", [ "h20", "v375", "h260" ] ],
+    [ "esp:GND.1", "buzzerModule:GND", "black", [ "h35", "v355", "h260" ] ],
+    [ "buzzerModule:SOUND_OUT", "buzzerTransducer:2", "orange", [ "h55" ] ],
+    [ "buzzerTransducer:1", "commonGnd:GND", "black", [ "h140", "v-125" ] ]
+  ],
+  "dependencies": {}
+}

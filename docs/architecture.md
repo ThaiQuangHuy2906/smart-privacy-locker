@@ -126,5 +126,5 @@ the device is live.
 
 See [mqtt-contract.md](mqtt-contract.md), [event-contract.md](event-contract.md),
 [database-design.md](database-design.md) and
-[../hardware/assembly-guide.md](../hardware/assembly-guide.md) for the exact
-contracts and physical safety gates.
+[../HUONG_DAN_LAP_MACH_THEO_THU_TU.md](../HUONG_DAN_LAP_MACH_THEO_THU_TU.md)
+for the exact contracts and physical safety gates.

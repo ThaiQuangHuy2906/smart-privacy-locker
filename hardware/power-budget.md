@@ -15,10 +15,10 @@ use a marketplace title or a “typical” value from another clone.
 | ESP32 DevKit including radio | 1 | 5 V input | TBD | TBD | TBD | TBD |
 | SG90-class servo | 1 | 5 V load | TBD | TBD stall | TBD | TBD |
 | WS2812-family pixel(s) at configured brightness | TBD | 5 V load | TBD | TBD | TBD | TBD |
-| Active buzzer/driver | 1 | rated load rail | TBD | TBD | TBD | TBD |
+| TMB12A05 LOW-trigger buzzer module | 1 | ESP32 3.3 V rail (selected prototype wiring) | TBD | TBD | TBD | bench inactive HIGH silent; active current/sound pending |
 | SSD1306 OLED | 1 | 3.3 V | TBD | TBD | TBD | TBD |
 | DHT22/AM2302 | 1 | 3.3 V | TBD | TBD | TBD | TBD |
-| Logic buffer and other modules | TBD | 5 V/3.3 V | TBD | TBD | TBD | TBD |
+| Logic buffer if fitted, and other modules | TBD | 5 V/3.3 V | TBD | TBD | TBD | TBD |
 | **Total** |  |  | **TBD** |  | **TBD** |  |
 
 Project acceptance policy:

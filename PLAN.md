@@ -171,7 +171,7 @@ Hardening guidance để Terra không biến ý tưởng tốt thành blocker:
 |---|---|---|---|
 | ESP32 DevKit V1 Type-C thực tế dùng pin label/board profile nào? | Dùng candidate pin map ở Section 4, kiểm tra trực tiếp board trước khi nối tải | Huy / Phase 1 | Chặn wiring và firmware hardware |
 | Góc `LOCK`/`UNLOCK` và hình học chốt? | Cấu hình, không hard-code rải rác; hiệu chuẩn không tải rồi có tải | Huy / Phase 1 | Chặn acceptance CB2 |
-| Buzzer module active-high/active-low, dòng tải và có cần MOSFET? | Cấu hình polarity; dùng MOSFET nếu dòng/điện áp module yêu cầu | Thùy / Phase 3; dùng power notes của Huy từ Phase 1 | Chặn CB3 và tích hợp YC6 |
+| Buzzer module active-high/active-low, dòng tải và có cần MOSFET? | Specimen LOW-trigger: local active-low, VCC 3V3, GPIO26 qua 4,7 kΩ; inactive HIGH bench PASS, active/current/full-load còn pending | Thùy / Phase 3; dùng power notes của Huy từ Phase 1 | Chặn phần còn lại của CB3 và tích hợp YC6 |
 | WS2812B có bao nhiêu pixel và dòng cực đại? | Đo strip thật; giới hạn brightness để 5 V/3 A vẫn có margin | Huy / Phase 1 | Chặn full-load acceptance |
 | MQTT Broker/FlowFuse deployment, TLS và credential được cấp ở đâu? | Broker có authentication; TLS bắt buộc nếu đi qua Internet | Nhóm, Huy khóa config / Phase 1 | Chặn MQTT integration thật |
 | Locker được pre-provision/claim bằng mã như thế nào? | `LOCKER-001` được tạo server-side ở trạng thái chưa claim; claim một lần qua backend/RPC đã xác thực bằng một thao tác có điều kiện/constraint đơn giản. Chỉ cần cơ chế phức tạp hơn nếu test thật chứng minh có race cần xử lý | Minh / Phase 2 | Chặn ownership end-to-end |
@@ -595,9 +595,9 @@ UI rules:
 |---|---:|---|
 | MC-38 | GPIO 27 | `INPUT_PULLUP` nếu wiring phù hợp; xác nhận logic đảo |
 | Servo SG90 signal | GPIO 18 | PWM; servo lấy 5 V từ rail nguồn, không từ GPIO/3.3 V |
-| Active Buzzer control | GPIO 26 | Phase 3 xác nhận polarity/MOSFET; GPIO không cấp dòng tải |
+| Active Buzzer control | GPIO 26 | LOW-trigger: `IN` qua 4,7 kΩ, module `VCC→3V3`, `GND` chung; public baseline active-low; GPIO không cấp VCC/tải |
 | DHT22 data | GPIO 4 | Cấp và kéo data lên 3.3 V; dùng 4.7–5.1 kΩ nếu module chưa có; không kéo GPIO lên 5 V |
-| WS2812B data | GPIO 25 | Baseline dùng buffer 74AHCT125/74HCT14 cấp 5 V, rồi điện trở nối tiếp 330–470 Ω gần DIN |
+| WS2812B data | GPIO 25 | Revision demo dùng Direct-D qua 330–470 Ω gần DIN và bắt buộc qua direct/full-load gate; nếu không ổn định thì đổi sang đúng 74AHCT125 không đảo hoặc hai cổng 74HCT14 nối tiếp, không dùng SN74HC125N như TTL buffer |
 | OLED SDA | GPIO 21 | I2C mặc định; pull-up nhìn thấy từ ESP32 phải về 3.3 V hoặc qua level shifter đã xác minh |
 | OLED SCL | GPIO 22 | I2C mặc định; pull-up nhìn thấy từ ESP32 phải về 3.3 V hoặc qua level shifter đã xác minh |
 
@@ -652,7 +652,7 @@ Khởi tạo nền tảng repository và firmware ESP32; khóa pin map/MQTT cont
 | `firmware/src/environment_monitor.*`, `display_controller.*` | DHT22/OLED YC1 |
 | `firmware/src/led_controller.*` | WS2812B YC3 |
 | `firmware/test/` | Parser/state/dedupe tests chạy không cần hardware khi khả thi |
-| `hardware/pin-map.md`, `hardware/wiring-diagram/`, `hardware/assembly-guide.md` | Pin, wiring, common ground, nguồn, ảnh kết nối |
+| `hardware/pin-map.md`, `hardware/power-budget.md`, `HUONG_DAN_LAP_MACH_THEO_THU_TU.md`, `HUONG_DAN_CHAY_HE_THONG.md` | Pin, wiring, common ground, nguồn, ảnh kết nối và acceptance; các wiring/assembly guide cũ là legacy chờ xác nhận xóa |
 | `docs/requirements.md`, `docs/architecture.md`, `docs/mqtt-contract.md` | Baseline requirement/architecture/shared contract |
 | `tests/test-plan.md`, `tests/evidence/phase-1/` | Test spec và evidence thật, không chứa secret |
 | `PLAN.md` | Chỉ cập nhật trạng thái/evidence/commit/remote state thực |
@@ -812,7 +812,7 @@ Mọi mục trong phần này là `MUST`. `SHOULD`/`OPTIONAL` còn defer không 
 - Planned broker/simulator tests: P1-S05/P1-S06 remain PLANNED SOFTWARE-GATE scenarios for the Phase 2 harness. They are not hardware evidence and do not create a circular dependency that blocks this Phase 1 handoff.
 - Deferred HARDWARE-FINAL-GATE tests: P1-M01–P1-M11 remain `[ ]` because the group has not bought/received ESP32 or modules. P1-M09 remains the physical ESP32 Wi-Fi/broker reconnect/LWT check and P1-M02 must determine mechanical self-holding versus holding torque before any servo-policy change. Section 8/full-system hardware tests remain mandatory before final release/demo.
 - Known issues: PlatformIO Core 6.1.18 fails from the current Windows path containing Vietnamese characters; documented ASCII-path build workaround was used. Default Arduino partition build uses 83.7% flash (16.3% remaining). Candidate pin map vẫn chờ physical as-built verification; trạng thái này không phải `VERIFIED`.
-- Deferred SHOULD/OPTIONAL items at the original Phase 1 handoff: `boot_id`/sequence telemetry and optional local TLS. The later pre-purchase electrical audit supersedes the old conditional WS2812B note: the 5 V data path now requires a 5 V-powered 74AHCT125/74HCT14 level shifter, 330–470 Ω series resistor and 470–1000 µF local bulk capacitor unless the exact purchased module's primary datasheet proves an equivalent safe interface. No optional scope was used to replace a MUST.
+- Deferred SHOULD/OPTIONAL items at the original Phase 1 handoff: `boot_id`/sequence telemetry and optional local TLS. The later pre-purchase electrical audit supersedes the old conditional WS2812B note: the 5 V data path now requires a 5 V-powered 74AHCT125, or two cascaded 74HCT14 inverter gates so the output is not inverted, plus a 330–470 Ω series resistor and 470–1000 µF local bulk capacitor unless the exact purchased module's primary datasheet proves an equivalent safe interface. No optional scope was used to replace a MUST.
 - Branch: `phase/1-huy-firmware-foundation` pushed to `origin/phase/1-huy-firmware-foundation`.
 - Accepted baseline commit: `4dd72fa` — Phase 1 source/docs/PDF baseline trước workflow-transition commit; remote branch HEAD là source of truth cho commit mới nhất.
 - Integration: `develop` được tạo tại accepted Phase-1 HEAD và push; không yêu cầu Pull Request.
@@ -1068,7 +1068,7 @@ MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `
 
 - Phase 1, Phase 2 và Phase 3 software baselines đã `COMPLETED` trên `develop` với acceptance/evidence thực; project hiện là `SOFTWARE_COMPLETE`. Hardware final gates có thể còn deferred và vẫn phải được đóng trước release.
 - MQTT/event/auth/history/time/counting contracts đã khóa ở Phase 2 với producer/consumer fixtures và documentation.
-- Active Buzzer module, MOSFET/protection/power wiring thật; power/pin implications phải được xác minh trong hardware-final workflow.
+- Active Buzzer LOW-trigger/TMB12A05 theo revision đã chọn (`VCC→3V3`, `IN←4,7 kΩ←GPIO26`); active/current/boot/full-load implications vẫn phải được xác minh trong hardware-final workflow.
 - Supabase project/schema YC9, Node-RED secure dispatcher/cache, test users/lockers.
 - Telegram/Gmail/Gemini/MQTT/Supabase credentials cho MANUAL tests ở secret store; không commit.
 - Dashboard endpoint và report recipients/test mailbox đã xác nhận.
@@ -1094,7 +1094,7 @@ MANUAL `FINAL-GATE`, Section 8 E2E, full-load và release tests có thể còn `
 | `supabase/tests/` | RLS, aggregation, dedupe/idempotency/timezone tests |
 | `node-red/flows.json`, `node-red/README.md`, `node-red/test/` | Persistence/history/chart/email/final integration flows/tests |
 | `dashboard/README.md`, `dashboard/assets/` | Final UI behavior/assets; không chứa mock production data |
-| `hardware/wiring-diagram/`, `hardware/assembly-guide.md` | Buzzer/MOSFET/full-load wiring và assembly final |
+| `HUONG_DAN_LAP_MACH_THEO_THU_TU.md`, `HUONG_DAN_CHAY_HE_THONG.md`, `hardware/power-budget.md` | Wiring revision, trình tự lắp và full-load/final acceptance; các assembly/wiring guide cũ chỉ là legacy chờ xác nhận xóa |
 | `tests/test-plan.md`, `tests/test-cases.*`, `tests/evidence/phase-3/`, `tests/traceability.md` | System/security/reliability/regression evidence |
 | `docs/database-design.md`, `docs/user-guide.md`, `docs/deployment-guide.md`, `docs/troubleshooting.md`, `docs/demo-script.md` | Tài liệu cuối |
 | `README.md`, `PLAN.md` | Quick start/status/release evidence thực |
@@ -1109,7 +1109,7 @@ Các bullet CB3/board/power/cơ khí cần phần cứng thật vẫn là `MUST`
   - Cách kiểm tra: walkthrough dependency và chạy Phase 1/2 smoke/regression baseline.
   - Điều kiện được tick: dependency thật sẵn sàng, blocker được ghi, contract change nếu có được version hóa và có producer/consumer evidence.
 
-- [ ] **[MUST]** Xác nhận Active Buzzer polarity, driver/MOSFET và power wiring an toàn.
+- [ ] **[MUST]** Xác nhận Active Buzzer LOW-trigger ở revision `VCC→3V3`, `IN←4,7 kΩ←GPIO26` và power wiring an toàn.
   - File/module dự kiến: pin/config, wiring diagram, power guide.
   - Kết quả phải đạt: active-high/low cấu hình; safe default INACTIVE khi boot; GPIO không cấp dòng tải; common ground/protection đúng.
   - Cách kiểm tra: MANUAL đo logic/điện áp/dòng, boot/restart, disconnected control và buzzer duration an toàn.
@@ -1333,7 +1333,7 @@ Quy tắc dùng bảng:
 | [ ] E2E-41 | Gemini thiếu dữ liệu | Xóa/không có data trong scope rồi hỏi | Trả lời không đủ dữ liệu; không bịa số/event | Automated + MANUAL — FINAL-GATE | Context/answer + assertion |
 | [ ] E2E-42 | Gemini API lỗi | Controlled invalid key/quota/network response | UI lỗi kiểm soát hoặc deterministic facts fallback; không leak secret | MANUAL — FINAL-GATE | Sanitized provider/UI logs |
 | [ ] E2E-43 | Controls khi Offline | Device LWT offline hoặc MQTT disconnected | Controls disabled, lý do đúng; door UNKNOWN; không publish | MANUAL — FINAL-GATE | UI + broker capture |
-| [ ] E2E-44 | Servo + LED + buzzer full load | OLED/DHT/MQTT chạy; LED max allowed; buzzer ON; actuate servo | 5 V ổn định, không brownout/reset/MQTT loss/unsafe heat | MANUAL — FINAL-GATE | Voltage/current, video, serial/broker log |
+| [ ] E2E-44 | Servo + LED + buzzer full load | OLED/DHT/MQTT chạy; LED max allowed; buzzer ON; actuate servo | Rail 5 V và 3V3 ổn định, không brownout/reset/MQTT loss/unsafe heat | MANUAL — FINAL-GATE | Voltage/current, video, serial/broker log |
 | [ ] E2E-45 | Full demo regression | Chạy toàn bộ Section 11 trên release candidate từ login đến recovery | 12 requirements demo bằng data thật, không mock/secret, không Critical/High defect | MANUAL — FINAL-GATE | Full rehearsal video + signed checklist/build ID |
 
 ## 9. Manual Hardware Checklist
@@ -1349,24 +1349,24 @@ Mọi mục trong section này là **MANUAL hardware**, chưa được thực hi
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Hiệu chuẩn góc LOCK/UNLOCK không tải; ghi giới hạn an toàn trước khi lắp linkage.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Lắp chốt có giới hạn cơ khí/khe hở; không để servo stall kéo dài ở hai đầu hành trình.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Test servo có tải lặp lại khi cửa căn chỉnh đúng; ghi lỗi cơ khí, nhiệt và dòng.
-- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 3]** Xác minh Active Buzzer active-high/active-low, voltage/current và safe boot state.
-- [ ] **[MUST khi phần cứng yêu cầu | DEFERRED — HARDWARE-FINAL-GATE | Phase 3]** Dùng MOSFET/driver đúng nếu buzzer cần 5 V/dòng vượt GPIO; xác minh gate/control/common ground và linh kiện bảo vệ phù hợp module.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 3]** Buzzer specimen đã có inactive bench PASS với VCC `3V3`, local active-low và GPIO qua 4,7 kΩ; còn xác minh LOW có âm trên GPIO26, voltage/current, 10 safe boots, ACK/state và full-load.
+- [ ] **[MUST nếu revision 3V3 không qua active/current/full-load gate | DEFERRED — HARDWARE-FINAL-GATE | Phase 3]** Dừng dùng wiring hiện tại và thiết kế lại interface/nguồn đã xác minh; không tự nối lại VCC 5 V với input 3,3 V đã thất bại.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Cấp DHT22 và pull-up data về 3.3 V; lắp 4.7–5.1 kΩ nếu module chưa tích hợp; tuyệt đối không để pull-up 5 V đi thẳng vào GPIO; đặt sensor trong khoang chứa.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh OLED SSD1306 địa chỉ I2C và exact-board datasheet; baseline cấp 3.3 V với SDA/SCL pull-up 3.3 V, hoặc dùng level shifter đã xác minh nếu board bắt buộc 5 V; kiểm tra vị trí quan sát ở mặt trước khoang kỹ thuật.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Đo số pixel WS2812B thực, current worst case và đặt brightness limit phù hợp nguồn.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Lắp điện trở 330–470 Ω nối tiếp data WS2812B và tụ 470–1000 µF gần đầu nguồn strip.
-- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Dùng baseline buffer 74AHCT125/74HCT14 cấp 5 V giữa ESP32 và WS2812 DIN; chỉ bỏ/thay khi primary datasheet của đúng part đã mua và phép đo rail chứng minh mức logic an toàn.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Dùng baseline 74AHCT125 không đảo, hoặc hai cổng đảo 74HCT14 mắc nối tiếp, cấp 5 V giữa ESP32 và WS2812 DIN; chỉ bỏ/thay khi primary datasheet của đúng part đã mua và phép đo rail chứng minh mức logic an toàn.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác minh nguồn DC 5 V/3 A đúng cực, công suất và chất lượng; jack/công tắc/terminal không lỏng hoặc quá nhiệt.
-- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Tất cả thiết bị dùng common ground; tách đường nguồn tải (servo/LED/buzzer) khỏi logic, chỉ nối ground theo thiết kế.
+- [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Tất cả thiết bị dùng common ground; servo/LED dùng nhánh tải 5 V, còn buzzer specimen dùng ESP32 `3V3` theo wiring đã kiểm thử một phần; GPIO không cấp dòng tải.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Dùng dây đủ tiết diện cho tải; mối nối cách điện, có strain relief và không để dây trần chạm vỏ/linh kiện.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Lắp tụ 470–1000 µF đúng cực/rating gần nguồn WS2812; chọn decoupling/bulk nhánh servo từ exact-part datasheet và phép đo, không thêm linh kiện ngẫu nhiên để che nguồn thiếu dòng.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE | Phase 1]** Xác nhận không đồng thời cấp nguồn ngoài và USB theo đường có thể back-feed; chỉ dùng topology được tài liệu chính thức của đúng board cho phép.
 - [ ] **[MUST | DEFERRED — HARDWARE-FINAL-GATE]** Hoàn tất `hardware/bom.md` và `hardware/power-budget.md` bằng model/datasheet/dòng đo thật trước khi mua chốt nguồn hoặc chạy full-load.
-- [ ] **[MUST | FINAL-GATE]** Đo rail 5 V và theo dõi brownout khi boot, Servo + LED, rồi Servo + LED + Buzzer full load.
+- [ ] **[MUST | FINAL-GATE]** Đo cả rail 5 V và 3V3, theo dõi brownout khi boot, Servo + LED, rồi Servo + LED + Buzzer full load.
 - [ ] **[MUST | FINAL-GATE]** Xác nhận ESP32, OLED, MQTT và DHT22 vẫn ổn định trong full-load test.
 - [ ] **[MUST | FINAL-GATE]** Kiểm tra nhiệt độ/âm lượng/thời lượng buzzer và LED trong giới hạn demo an toàn.
 - [ ] **[MUST | FINAL-GATE]** Kiểm tra jack nguồn, công tắc và phương án ngắt nguồn khẩn cấp dễ tiếp cận.
-- [ ] **[MUST | FINAL-GATE]** Cố định ESP32, breadboard/PCB, MOSFET, servo, buzzer và connectors trên khay; không để linh kiện rơi vào khoang chứa.
+- [ ] **[MUST | FINAL-GATE]** Cố định ESP32, breadboard/PCB, servo, buzzer và connectors trên khay; chỉ thêm driver/MOSFET nếu revision được thiết kế lại; không để linh kiện rơi vào khoang chứa.
 - [ ] **[SHOULD]** Nắp khoang kỹ thuật tháo được để bảo trì nhưng được cố định chắc khi vận hành.
 - [ ] **[MUST | FINAL-GATE]** Dây được đi sát vách, có quản lý dây và tấm che; không cản cửa, chốt hoặc vật dụng.
 - [ ] **[MUST | FINAL-GATE]** Đối chiếu kích thước danh nghĩa tổng thể 300 × 250 × 220 mm, khoang chứa 260 × 170 × 190 mm và vỏ 10 mm; ghi rõ sai số/gia công thực.

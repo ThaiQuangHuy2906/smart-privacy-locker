@@ -1,1 +1,19 @@
 node-red/flows.flowfuse.json text eol=lf
+
+# Preserve binary and hash-verified deliverables byte-for-byte across checkouts.
+*.docx binary
+*.f3d binary
+*.f3z binary
+*.pdf binary
+*.png binary
+*.step binary
+*.stp binary
+*.wasm binary
+*.zip binary
+
+# Keep Wokwi package inputs stable so its deterministic ZIP reproduces on Windows too.
+wokwi/smart-privacy-locker-wokwi/** text eol=lf
+wokwi/smart-privacy-locker-wokwi/**/*.wasm binary -eol
+
+# The VIVA package contains a checksum manifest for every enclosed artifact.
+THUYETMINH/03_SMART_PRIVACY_LOCKER_VIVA_FINAL/** binary

@@ -4,6 +4,8 @@
 !.env.example
 firmware/include/app_config.h
 firmware/include/secrets.h
+arduino/SmartPrivacyLocker/app_config.h
+arduino/SmartPrivacyLocker/private/
 
 # PlatformIO build and editor output
 .pio/
@@ -11,6 +13,7 @@ firmware/.pio/
 .pioenvs/
 .piolibdeps/
 .vscode/
+arduino/SmartPrivacyLocker/build/
 
 # Node-RED machine-specific runtime and encrypted credentials
 node-red/.node-red/
@@ -27,6 +30,8 @@ output/
 *.log
 *.tmp
 *.cache
+__pycache__/
+*.py[cod]
 tests/evidence/private/
 docs/private/
 

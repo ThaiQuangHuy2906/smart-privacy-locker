@@ -419,22 +419,33 @@ test('Phase 3 deployment docs and firmware compatibility use the executable runt
   const architecture = fs.readFileSync(path.join(root, 'docs', 'architecture.md'), 'utf8');
   const chatbotGrounding = fs.readFileSync(path.join(root, 'docs', 'chatbot-grounding.md'), 'utf8');
   const authOwnership = fs.readFileSync(path.join(root, 'docs', 'auth-ownership.md'), 'utf8');
+  const appConfigExample = fs.readFileSync(path.join(root, 'firmware', 'include',
+    'app_config.example.h'), 'utf8');
   const runtimeConfig = fs.readFileSync(path.join(root, 'firmware', 'include', 'runtime_config.h'), 'utf8');
   const firmwareMain = fs.readFileSync(path.join(root, 'firmware', 'src', 'main.cpp'), 'utf8');
+  const mqttClient = fs.readFileSync(path.join(root, 'firmware', 'src', 'mqtt_client.cpp'), 'utf8');
   const pinMap = fs.readFileSync(path.join(root, 'hardware', 'pin-map.md'), 'utf8');
-  const buzzerWiring = fs.readFileSync(path.join(root, 'hardware', 'wiring-diagram',
-    'phase-3-buzzer-wiring.md'), 'utf8');
+  const assemblyGuide = fs.readFileSync(path.join(root,
+    'HUONG_DAN_LAP_MACH_THEO_THU_TU.md'), 'utf8');
   for (const key of ['GMAIL_APP_PASSWORD', 'EMAIL_FROM']) {
     assert.match(nodeRedReadme, new RegExp(`\\b${key}\\b`));
     assert.match(builder, new RegExp(`['\"]${key}['\"]`));
   }
   assert.doesNotMatch(nodeRedReadme, /\bGMAIL_SMTP_PASSWORD\b|\bGMAIL_FROM\b/);
+  assert.match(appConfigExample, /#define\s+SPL_BUZZER_ACTIVE_HIGH\s+0\b/);
+  assert.match(runtimeConfig,
+    /#ifndef\s+SPL_BUZZER_ACTIVE_HIGH[\s\S]*?#define\s+SPL_BUZZER_ACTIVE_HIGH\s+0\b/);
   assert.match(runtimeConfig, /SPL_BUZZER_ACTIVE_HIGH/);
   assert.match(firmwareMain, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
   assert.doesNotMatch(firmwareMain, /AppConfig::BUZZER_ACTIVE_HIGH/);
+  assert.match(mqttClient,
+    /const bool statePublished = publishState\([\s\S]*?statePublished && publishAvailability\("ONLINE"/);
+  assert.match(mqttClient,
+    /if \(!statePublished \|\| !onlinePublished\)[\s\S]*?disconnectWithOfflineFallback\(\)[\s\S]*?scheduleRetry\(now\)/);
   assert.match(pinMap, /SPL_BUZZER_ACTIVE_HIGH/);
-  assert.match(buzzerWiring, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
-  assert.doesNotMatch(`${pinMap}\n${buzzerWiring}`, /AppConfig::BUZZER_ACTIVE_HIGH/);
+  assert.match(pinMap, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
+  assert.match(assemblyGuide, /SPL_BUZZER_ACTIVE_HIGH\s+0/);
+  assert.doesNotMatch(`${pinMap}\n${assemblyGuide}`, /AppConfig::BUZZER_ACTIVE_HIGH/);
   assert.match(requirements, /Requirement traceability — Phases 1–3/);
   assert.match(architecture, /Phase 1–3 architecture/);
   assert.match(chatbotGrounding, /Phase 3 now connects the\s+same frozen history contract/);

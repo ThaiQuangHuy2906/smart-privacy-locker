@@ -5,11 +5,17 @@
 | ID | Command | Scope | Expected result |
 |---|---|---|---|
 | P1-A01 | `python -m platformio run -e esp32dev -t clean` then `python -m platformio run -e esp32dev` (use the documented temporary ASCII drive mapping only if the Xtensa toolchain mangles the Vietnamese Windows path) | pinned firmware build | exit 0; no ignored compiler error |
+| P1-A01B | `.\arduino\verify-sketch.ps1` | Arduino IDE source parity and isolated profile build using Arduino-ESP32 2.0.17 plus pinned libraries | 30 mirrored source files match byte-for-byte; clean compile exits 0 within the default partition |
+| P1-A01C | `.\arduino\verify-arduino-ide.ps1` | Arduino IDE global core/library environment and GUI-equivalent build | source parity passes; global core 2.0.17/pinned libraries compile cleanly within the default partition |
 | P1-A02 | `python -m platformio test -e native` | valid action/UUID/locker/requester parse plus Phase 2/3 firmware regressions | full current native suite passes 17/17 |
 | P1-A03 | same native suite | malformed JSON/no ACK ID; correlatable missing field; invalid action/locker; stale check | error semantics pass |
 | P1-A04 | same native suite | duplicate cache/ACK replay and cold-boot state | original state preserved with `duplicate:true`; lock `UNKNOWN` |
 
-The exact executed results are in `evidence/phase-1/automated-results.md`. The literal fixtures are in `firmware/test/test_command_contract/test_main.cpp`; no mock asserts an internal implementation call.
+The historical Phase 1 results are in
+`evidence/phase-1/automated-results.md`; the Arduino IDE conversion recheck is
+in `evidence/phase-3/arduino-ide-results.md`. The literal fixtures are in
+`firmware/test/test_command_contract/test_main.cpp`; no mock asserts an
+internal implementation call.
 
 ## Deferred HARDWARE-FINAL-GATE tests
 
@@ -22,8 +28,8 @@ All P1-M01–P1-M11 rows remain `[ ] DEFERRED — HARDWARE-FINAL-GATE` until a r
 | P1-M03 | Observe 5 V rail and serial/broker while SG90 starts/reverses. | No brownout, ESP32 reset, or MQTT loss; measured margin recorded. | meter/scope image plus timestamped serial/broker log |
 | P1-M04 | Connect DHT22/OLED; run several 2.5-second cycles. | OLED shows plausible temperature/humidity and continues updating. | OLED image/video plus serial diagnostic |
 | P1-M05 | Safely disconnect DHT data/sensor, then restore it. | OLED shows DHT22 error; firmware/MQTT remains responsive; no DHT topic/card exists. | video and broker topic inventory |
-| P1-M06 | Send `LED_ON` then `LED_OFF`; check configured brightness and supply. | LED and ACK/state agree; data/power stable. | video, LED count/brightness, voltage/current note |
-| P1-M07 | Keep LED ON while operating SG90. | OLED/ESP32/MQTT remain stable; no abnormal flicker/reset. | video plus broker/serial log |
+| P1-M06 | Record Direct-D or Shifted-S, exact strip/count, data length and resistor; send `LED_ON` then `LED_OFF`. For Direct-D, first record a primary-datasheet input threshold compatible with 3.3 V at the measured rail, then run at least 20 ON/OFF cycles and 10 cold boots at the documented one-pixel/brightness-32 starting point. | LED and ACK/state agree; no wrong color, flicker, missed update or random boot flash; data/power remain stable. A Direct-D functional pass applies only to the tested specimen/wiring, and it closes the final gate only with the matching datasheet/rail evidence. | video, path, exact strip/datasheet, LED count/brightness, data length/resistor, voltage/current note |
+| P1-M07 | Keep LED ON while operating SG90 and exercise Wi-Fi/MQTT reconnect. | OLED/ESP32/MQTT remain stable; no abnormal flicker/reset. Any repeatable Direct-D data failure forces Shifted-S or removal of the physical LED from the release. | video plus broker/serial log |
 | P1-M08 | Send USB `R`, use phone to join `Locker-Setup`, enter test Wi-Fi, restart. | Captive portal works, credentials stay only in NVS, MQTT reconnects without reflash. | redacted screen recording and broker log |
 | P1-M09 | Abruptly stop Wi-Fi or broker, then restore it. Repeat more than once. If a controlled real condition can make the local/send-level `PubSubClient::subscribe()` call return false, capture that separately. Broker ACL is a deployment prerequisite, not a required firmware-detection test: PubSubClient 2.8 does not expose broker SUBACK grant/rejection. | Interruption produces retained LWT `OFFLINE`, bounded retry, then retained `ONLINE` and full state after recovery. A local/send-level `subscribe()` failure produces no false `ONLINE`/full state, sets device MQTT state false, disconnects, and retries with the same bounded backoff. | timestamped serial/broker capture; local/send-failure setup if actually available |
 | P1-M10 | First set lock known, then restart board; observe SG90 before new command. Send `GET_STATE`, then a new lock action. | No boot motion/replay; cold state lock `UNKNOWN`, alarm inactive, LED off, door `UNKNOWN`; only new action confirms lock. No MC-38 stable-sample verification is required in Phase 1. | servo video, boot log, broker transcript |
@@ -112,7 +118,10 @@ the separately recorded P3-M06 SMTP evidence or remaining hardware evidence.
 
 ## Phase 3 manual gates still pending
 
-- P3-M01/P3-M02/P3-M03/P3-M11/P3-M12: hardware/full E2E evidence is pending.
+- P3-M01/P3-M02/P3-M03/P3-M11/P3-M12: hardware/full E2E evidence remains
+  pending. The 2026-08-15 COM4 upload and isolated buzzer inactive HIGH at
+  module VCC 3V3 are partial evidence only; LOW sound on GPIO26, repeated boot,
+  ACK/state, measurements and combined load have not closed these rows.
 - [x] P3-M04 — `MANUAL — HARD-GATE PASS`: forward migration, disposable-user
   pgTAP owner isolation, wrong-owner `LOCKER_FORBIDDEN` and correct-owner
   protected history completed on the development project.

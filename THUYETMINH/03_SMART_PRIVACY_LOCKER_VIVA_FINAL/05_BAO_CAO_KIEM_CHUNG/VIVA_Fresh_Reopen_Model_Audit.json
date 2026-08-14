@@ -1,0 +1,600 @@
+{
+  "verified_at": "2026-07-22T05:52:04+07:00",
+  "f3d": {
+    "document_name": "Untitled",
+    "fusion_container_root_name": "Untitled",
+    "root_component_name": "Smart_Privacy_Locker",
+    "capture_design_history": true,
+    "component_count_including_root": 25,
+    "body_count": 340,
+    "solid_body_count": 340,
+    "user_parameter_count": 29,
+    "timeline_count": 118,
+    "timeline_health_issues": [],
+    "bounding_box_mm": {
+      "min_x": -150.01,
+      "min_y": -0.03,
+      "min_z": -0.02,
+      "max_x": 150.02,
+      "max_y": 223.03,
+      "max_z": 250.02,
+      "width": 300.03,
+      "depth": 223.06,
+      "height": 250.04
+    },
+    "mechanical_integration": {
+      "status": "PASS",
+      "contact_tolerance_mm": 0.01,
+      "results": {
+        "latch_coupler_to_latch": 0.0,
+        "latch_coupler_to_drop": 0.0,
+        "jack_flange_to_back_panel": 0.0,
+        "jack_nut_to_back_panel": 0.0,
+        "switch_bezel_to_back_panel": 0.0,
+        "left_retainer_to_left_channel": 0.0,
+        "left_retainer_to_rear_cover": 0.0,
+        "right_retainer_to_right_channel": 0.0,
+        "right_retainer_to_rear_cover": 0.0,
+        "esp32_standoff_lf_to_breadboard": 0.0,
+        "esp32_standoff_lf_to_pcb": 0.0,
+        "esp32_standoff_rf_to_breadboard": 0.0,
+        "esp32_standoff_rf_to_pcb": 0.0,
+        "esp32_standoff_lr_to_breadboard": 0.0,
+        "esp32_standoff_lr_to_pcb": 0.0,
+        "esp32_standoff_rr_to_breadboard": 0.0,
+        "esp32_standoff_rr_to_pcb": 0.0,
+        "cover_screw_tl_to_boss": 0.0,
+        "cover_head_tl_to_cover": 0.0,
+        "cover_screw_tr_to_boss": 0.0,
+        "cover_head_tr_to_cover": 0.0,
+        "cover_screw_bl_to_boss": 0.0,
+        "cover_head_bl_to_cover": 0.0,
+        "cover_screw_br_to_boss": 0.0,
+        "cover_head_br_to_cover": 0.0
+      }
+    },
+    "routing_connectivity": {
+      "status": "PASS",
+      "route_count": 26,
+      "segment_body_count": 159,
+      "endpoint_tolerance_mm": 0.1,
+      "continuity_tolerance_mm": 0.01,
+      "endpoint_results": [
+        {
+          "route": "CB1_MC38_GND",
+          "source": [
+            "08_MC38_Frame_Sensor",
+            "MC38_Ground_Lead"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_GND"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "CB1_MC38_SIG",
+          "source": [
+            "08_MC38_Frame_Sensor",
+            "MC38_Sensor_Lead"
+          ],
+          "target": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_CB1_MC38"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "CB2_SERVO_5V",
+          "source": [
+            "21_Cable_Management",
+            "BUS_5V_SW"
+          ],
+          "target": [
+            "06_Servo_SG90",
+            "Servo_Pin_5V"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "CB2_SERVO_GND",
+          "source": [
+            "21_Cable_Management",
+            "BUS_GND"
+          ],
+          "target": [
+            "06_Servo_SG90",
+            "Servo_Pin_GND"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "CB2_SERVO_PWM",
+          "source": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_CB2_Servo_PWM"
+          ],
+          "target": [
+            "06_Servo_SG90",
+            "Servo_Pin_PWM"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "CB3_BUZZER_5V",
+          "source": [
+            "21_Cable_Management",
+            "BUS_5V_SW"
+          ],
+          "target": [
+            "16_Active_Buzzer",
+            "Buzzer_Pin_5V"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "CB3_BUZZER_GND",
+          "source": [
+            "21_Cable_Management",
+            "BUS_GND"
+          ],
+          "target": [
+            "16_Active_Buzzer",
+            "Buzzer_Pin_GND"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "CB3_BUZZER_SIG",
+          "source": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_CB3_Buzzer"
+          ],
+          "target": [
+            "16_Active_Buzzer",
+            "Buzzer_Pin_SIGNAL"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_DC_NEG_TO_GND_BUS",
+          "source": [
+            "17_DC_Jack",
+            "DC_Jack_Ground_Terminal"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_GND"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_DC_POS_TO_SWITCH",
+          "source": [
+            "17_DC_Jack",
+            "DC_Jack_Positive_Terminal"
+          ],
+          "target": [
+            "18_Power_Switch",
+            "Power_Switch_Input_Terminal"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_ESP32_3V3_FEED",
+          "source": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_3V3"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_3V3"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_ESP32_5V",
+          "source": [
+            "21_Cable_Management",
+            "BUS_5V_SW"
+          ],
+          "target": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_5V"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_ESP32_GND",
+          "source": [
+            "21_Cable_Management",
+            "BUS_GND"
+          ],
+          "target": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_GND"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_SWITCHED_5V_TO_BUS",
+          "source": [
+            "18_Power_Switch",
+            "Power_Switch_Output_Terminal"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_5V_SW"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_DHT22_3V3",
+          "source": [
+            "10_DHT22",
+            "DHT22_Pin_3V3"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_3V3"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_DHT22_DATA",
+          "source": [
+            "10_DHT22",
+            "DHT22_Pin_DATA"
+          ],
+          "target": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_YC1_DHT_DATA"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_DHT22_GND",
+          "source": [
+            "10_DHT22",
+            "DHT22_Pin_GND"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_GND"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_OLED_3V3",
+          "source": [
+            "11_OLED_SSD1306",
+            "OLED_Pin_3V3"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_3V3"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_OLED_GND",
+          "source": [
+            "11_OLED_SSD1306",
+            "OLED_Pin_GND"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_GND"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_OLED_SCL",
+          "source": [
+            "11_OLED_SSD1306",
+            "OLED_Pin_SCL"
+          ],
+          "target": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_YC1_I2C_SCL"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_OLED_SDA",
+          "source": [
+            "11_OLED_SSD1306",
+            "OLED_Pin_SDA"
+          ],
+          "target": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_YC1_I2C_SDA"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_LED_5V",
+          "source": [
+            "12_LED_Strip_WS2812B",
+            "LED_Pad_5V"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_5V_SW"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_LED_DATA",
+          "source": [
+            "12_LED_Strip_WS2812B",
+            "LED_Pad_DATA"
+          ],
+          "target": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_YC3_LED_DATA"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_LED_GND_TO_MOSFET_LOAD",
+          "source": [
+            "12_LED_Strip_WS2812B",
+            "LED_Pad_GND"
+          ],
+          "target": [
+            "15_MOSFET_D4184",
+            "MOSFET_Pin_DRAIN_LOAD"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_MOSFET_GATE",
+          "source": [
+            "15_MOSFET_D4184",
+            "MOSFET_Pin_GATE"
+          ],
+          "target": [
+            "13_ESP32_DevKit",
+            "ESP32_Pin_YC3_MOSFET_GATE"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_MOSFET_SOURCE_TO_GND",
+          "source": [
+            "15_MOSFET_D4184",
+            "MOSFET_Pin_SOURCE_GND"
+          ],
+          "target": [
+            "21_Cable_Management",
+            "BUS_GND"
+          ],
+          "source_gap_mm": 0.0,
+          "target_gap_mm": 0.0
+        }
+      ],
+      "continuity_results": [
+        {
+          "route": "CB1_MC38_GND",
+          "segment_count": 9,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "CB1_MC38_SIG",
+          "segment_count": 12,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "CB2_SERVO_5V",
+          "segment_count": 5,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "CB2_SERVO_GND",
+          "segment_count": 5,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "CB2_SERVO_PWM",
+          "segment_count": 7,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "CB3_BUZZER_5V",
+          "segment_count": 4,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "CB3_BUZZER_GND",
+          "segment_count": 6,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "CB3_BUZZER_SIG",
+          "segment_count": 6,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_DC_NEG_TO_GND_BUS",
+          "segment_count": 6,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_DC_POS_TO_SWITCH",
+          "segment_count": 4,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_ESP32_3V3_FEED",
+          "segment_count": 3,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_ESP32_5V",
+          "segment_count": 3,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_ESP32_GND",
+          "segment_count": 4,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "PWR_SWITCHED_5V_TO_BUS",
+          "segment_count": 6,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_DHT22_3V3",
+          "segment_count": 8,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_DHT22_DATA",
+          "segment_count": 11,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_DHT22_GND",
+          "segment_count": 8,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_OLED_3V3",
+          "segment_count": 4,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_OLED_GND",
+          "segment_count": 4,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_OLED_SCL",
+          "segment_count": 5,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC1_OLED_SDA",
+          "segment_count": 5,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_LED_5V",
+          "segment_count": 8,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_LED_DATA",
+          "segment_count": 9,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_LED_GND_TO_MOSFET_LOAD",
+          "segment_count": 7,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_MOSFET_GATE",
+          "segment_count": 6,
+          "maximum_internal_gap_mm": 0.0
+        },
+        {
+          "route": "YC3_MOSFET_SOURCE_TO_GND",
+          "segment_count": 4,
+          "maximum_internal_gap_mm": 0.0
+        }
+      ],
+      "topology": {
+        "positive": "DC jack -> power switch -> BUS_5V_SW",
+        "negative": "DC jack -> BUS_GND",
+        "pin_level_qualifier": "Logical CAD pin names are verified geometrically; numeric ESP32 GPIO assignment remains a firmware/pinout decision outside the submitted report."
+      }
+    },
+    "named_view_count": 28,
+    "named_views": [
+      "01_Exterior_Closed",
+      "Door_Closed_0deg",
+      "VIVA_00_START_HERE",
+      "VIVA_02_Exterior_Closed_Isometric",
+      "02_Exterior_Front",
+      "VIVA_01_Exterior_Front",
+      "VIVA_06_Dimension_Front",
+      "VIVA_13_Annotated_OLED_Context",
+      "03_Exterior_Rear",
+      "VIVA_05_Rear_Power",
+      "VIVA_12_Annotated_Power_Context",
+      "04_Interior_Open",
+      "Door_Open_105deg",
+      "VIVA_03_Interior_Open",
+      "VIVA_08_Annotated_Interior_Context",
+      "05_Interior_Front",
+      "06_Technical_Compartment",
+      "Technical_Compartment_Cover_Removed",
+      "VIVA_04_Technical_Compartment",
+      "VIVA_09_Annotated_Electronics_Context",
+      "VIVA_14_Annotated_DHT_LED_Context",
+      "07_Locking_Mechanism_Detail",
+      "VIVA_10_Annotated_Lock_Context",
+      "08_MC38_Detail",
+      "VIVA_11_Annotated_MC38_Context",
+      "09_Exploded_View",
+      "10_Dimensioned_View",
+      "VIVA_07_Dimension_Side"
+    ],
+    "door_joint": {
+      "name": "Joint_Door_Revolute",
+      "minimum_degrees": 0.0,
+      "maximum_degrees": 105.0,
+      "drive_test_after_reopen": "passed"
+    }
+  },
+  "step": {
+    "document_name": "Untitled",
+    "body_count": 340,
+    "solid_body_count": 340,
+    "bounding_box_mm": {
+      "min_x": -150.01,
+      "min_y": -0.03,
+      "min_z": -0.02,
+      "max_x": 150.02,
+      "max_y": 223.03,
+      "max_z": 250.02,
+      "width": 300.03,
+      "depth": 223.06,
+      "height": 250.04
+    },
+    "invalid_bodies": []
+  },
+  "sha256": {
+    "f3d": "952C9DC516304B4D54C5CAFB1EB40B13A8F54367086E4128AC262A8EBA59C0E3",
+    "step": "F415D863D2D649A854163CD1172152E21F4CC9A5014B80E26F7271D821A41DCE"
+  },
+  "verification_result": "passed"
+}

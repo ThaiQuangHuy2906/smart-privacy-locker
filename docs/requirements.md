@@ -32,7 +32,7 @@ event, history and authentication interfaces without transferring ownership.
 
 | Requirement | Owner | Module(s) | Verification | Current evidence |
 |---|---|---|---|---|
-| CB3 | Mai Phương Thùy — 24127249 | `alarm_controller`, `main`, ACK/state, Dashboard **Kiểm tra còi/Tắt còi** (`ALARM_ON/OFF`) | P3-A01; P3-M01/P3-M02 | native/build software PASS; physical buzzer/polarity/current pending |
+| CB3 | Mai Phương Thùy — 24127249 | `alarm_controller`, `main`, ACK/state, Dashboard **Kiểm tra còi/Tắt còi** (`ALARM_ON/OFF`) | P3-A01; P3-M01/P3-M02 | native/build software PASS; COM4 upload and isolated inactive HIGH with module VCC 3V3 observed PASS; LOW sound on GPIO26, repeated boot, ACK/current/full-load pending |
 | YC4 | Mai Phương Thùy — 24127249 | Supabase migrations/RLS, `data`, runtime persistence/history, Dashboard history | P3-A02/P3-A03; P3-M03/P3-M04 | automated tests PASS; dev migration, pgTAP owner isolation, wrong-owner deny and correct-owner history PASS; physical producers pending |
 | YC5 | Mai Phương Thùy — 24127249 | timezone aggregation, 7/30-day chart and accessible data table | P3-A04; P3-M05 | automated boundary/zero-bucket/UI tests PASS; deployed owner, 7/30-day, empty-bucket and local-midnight boundary paths PASS |
 | YC7 | Mai Phương Thùy — 24127249 | notification settings, scheduler, email renderer/delivery state machine | P3-A05/P3-A06; P3-M06 | automated retry/dedupe/ambiguous-outcome tests PASS; deployed Mailtrap SMTP success and controlled definite failure PASS |

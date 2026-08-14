@@ -162,7 +162,9 @@ custom SMTP remains a separate service and does not configure YC7.
 
 ## 4. Firmware and hardware
 
-Build/test with PlatformIO, then flash only after the board, low-voltage power,
-GPIO labels and candidate wiring have been checked. Validate the buzzer module
-polarity/current and safe boot with appropriate lab supervision before running
-P3-M01/P3-M11. Simulator results are software evidence, not hardware evidence.
+Build the synchronized sketch with the pinned Arduino IDE/core/library profile,
+and keep the PlatformIO native/ESP32 builds as independent automated evidence.
+Flash only after the board, low-voltage power, GPIO labels and candidate wiring
+have been checked. Validate the buzzer module polarity/current and safe boot
+with appropriate lab supervision before running P3-M01/P3-M11. Simulator and
+compile results are software evidence, not hardware evidence.

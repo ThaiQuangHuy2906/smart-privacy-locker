@@ -1,13 +1,18 @@
 # Phase 3 evidence index
 
 - `automated-results.md` records reproducible local software gates.
+- `arduino-ide-results.md` records the pinned Arduino build plus the
+  2026-08-15 CH340/COM4 upload and isolated buzzer inactive-path observation.
+  It explicitly leaves GPIO26 active sound, repeated boot, ACK/state and
+  combined-load gates pending.
 - `live-service-results.md` records the sanitized development migration,
   P3-M04 owner-isolation/history pass and the complete P3-M05 7/30-day,
   empty-bucket and local-midnight evidence, plus the P3-M06 deployed SMTP
   success and controlled definite-failure paths. It also records the
   2026-08-11 Telegram Dashboard/secret/webhook/private-Start/link/test-message
   and sanitized-browser-response subset.
-- Hardware P3-M01–P3-M03/P3-M11/P3-M12 remain pending. The destructive or
+- Hardware P3-M01–P3-M03/P3-M11/P3-M12 remain pending despite that partial
+  inactive-path observation. The destructive or
   state-changing Telegram preference re-enable, consumed-token replay and
   disconnect/relink lifecycle checks also remain unticked until they are run
   against a controlled account/locker and sanitized.

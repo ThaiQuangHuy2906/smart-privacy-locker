@@ -1,0 +1,6 @@
+ESP32Servo@3.0.7
+DHT sensor library@1.4.6
+Adafruit Unified Sensor@1.1.15
+Adafruit SSD1306@2.5.15
+Adafruit GFX Library@1.12.1
+Adafruit NeoPixel@1.12.5
