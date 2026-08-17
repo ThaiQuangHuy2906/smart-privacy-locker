@@ -26,9 +26,9 @@ constexpr uint32_t COMMAND_MAX_FUTURE_SKEW_SECONDS = 30;
 constexpr size_t RECENT_COMMAND_CACHE_SIZE = 16;
 // The current mechanism has no separate latch. The logical LOCK command closes
 // the door with the servo arm; UNLOCK opens it.
-constexpr uint8_t LOCK_ANGLE = 170;
-constexpr uint8_t UNLOCK_ANGLE = 80;
-constexpr uint32_t SERVO_SETTLE_MS = 550;
+constexpr uint8_t LOCK_ANGLE = 80;
+constexpr uint8_t UNLOCK_ANGLE = 170;
+constexpr uint32_t SERVO_SETTLE_MS = 2000;
 constexpr uint32_t DHT_READ_INTERVAL_MS = 2500;
 constexpr uint32_t DISPLAY_REFRESH_INTERVAL_MS = 1000;
 constexpr uint8_t OLED_I2C_ADDRESS = 0x3C;

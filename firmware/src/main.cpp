@@ -237,8 +237,12 @@ void loop() {
   stateManager.setWifiConnected(wifiProvisioning.isConnected());
   mqttClient.tick(now, stateManager);
 
+  // mqttClient.tick() can synchronously start the servo from its MQTT callback.
+  // Refresh the timestamp so elapsed time is never calculated from a value
+  // captured before LockController::start().
+  const unsigned long actuatorNow = millis();
   LockState completedLockState = LockState::UNKNOWN;
-  if (lockController.tick(now, &completedLockState) && lockCommandInFlight) {
+  if (lockController.tick(actuatorNow, &completedLockState) && lockCommandInFlight) {
     stateManager.setLock(completedLockState);
     inFlightLockAck.state = stateManager.current();
     rememberAndPublish(inFlightLockAck);
