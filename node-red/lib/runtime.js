@@ -1,7 +1,8 @@
 'use strict';
 
 const { createHash, randomUUID } = require('node:crypto');
-const { validateAck, validateAvailability, validateDoor, validateState } = require('./contracts');
+const { validateAck, validateAvailability, validateDoor, validateHeartbeat,
+  validateState } = require('./contracts');
 const { LiveStateCache } = require('./live-state');
 const { CommandDispatcher, domain } = require('./dispatcher');
 const { UnauthorizedDetector } = require('./security');
@@ -208,6 +209,7 @@ class Phase2Runtime {
   async ingest(topic, payload, observedAt = this.now()) {
     let validation;
     if (topic.endsWith('/availability')) validation = validateAvailability(topic, payload);
+    else if (topic.endsWith('/heartbeat')) validation = validateHeartbeat(topic, payload);
     else if (topic.endsWith('/state')) validation = validateState(topic, payload);
     else if (topic.endsWith('/telemetry/door')) validation = validateDoor(topic, payload);
     else if (topic.endsWith('/ack')) validation = validateAck(topic, payload);
@@ -221,7 +223,13 @@ class Phase2Runtime {
 
     const { lockerId, value } = validation;
     if (topic.endsWith('/availability')) {
-      this.cache.ingestAvailability(lockerId, value, observedAt);
+      const updated = this.cache.ingestAvailability(lockerId, value, observedAt);
+      if (!updated) {
+        pushBounded(this.diagnostics,
+          { code: 'LATE_AVAILABILITY', topic, observed_at: new Date(observedAt).toISOString() },
+          this.diagnosticLimit);
+        return { accepted: false, type: 'availability', code: 'LATE_AVAILABILITY' };
+      }
       if (!value.sent_at) {
         return { accepted: true, type: 'availability', persisted: false };
       }
@@ -235,16 +243,37 @@ class Phase2Runtime {
       }));
       return { accepted: true, type: 'availability', persisted: true };
     }
+    if (topic.endsWith('/heartbeat')) {
+      const updated = this.cache.ingestHeartbeat(lockerId, observedAt);
+      if (!updated) {
+        const code = 'HEARTBEAT_WITHOUT_CURRENT_ONLINE';
+        pushBounded(this.diagnostics,
+          { code, topic, observed_at: new Date(observedAt).toISOString() },
+          this.diagnosticLimit);
+        return { accepted: false, type: 'heartbeat', code };
+      }
+      return { accepted: true, type: 'heartbeat', persisted: false };
+    }
     if (topic.endsWith('/state')) {
       const updated = this.cache.ingestState(lockerId, value, observedAt);
       return { accepted: updated, type: 'state', code: updated ? undefined : 'LATE_STATE' };
     }
     if (topic.endsWith('/ack')) {
       const result = this.dispatcher.processAck(value);
-      if (result.ok) {
+      const correlated = Boolean(result.pending);
+      if (correlated) {
         this.cache.ingestState(lockerId, { ...value.device_state, timestamp: value.timestamp }, observedAt, 'mqtt:ack');
+      } else {
+        pushBounded(this.diagnostics, {
+          code: result.code,
+          topic,
+          locker_id: lockerId,
+          command_id: value.command_id,
+          observed_at: new Date(observedAt).toISOString(),
+        }, this.diagnosticLimit);
       }
-      return { accepted: true, type: 'ack', result };
+      return { accepted: correlated, type: 'ack',
+        code: correlated ? undefined : result.code, result };
     }
 
     const before = this.cache.snapshot(lockerId, observedAt).state;

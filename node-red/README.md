@@ -1,9 +1,22 @@
 # Node-RED application deployment
 
+> Audit snapshot 2026-08-17: `npm test` passes 156/156, simulator 10 assertions
+> across 15 scenarios, authenticated loopback broker 17 assertions, and the
+> config/dependency audits report zero findings. External FlowFuse/Supabase/
+> Telegram/Gemini/SMTP state was not redeployed or rerun in this audit.
+
 `flows.json` separates MQTT validation/cache, auth/dispatcher/ACK/timeout,
 unauthorized/Telegram, history/chatbot, Dashboard APIs, persistence/chart and
 daily reports. Core logic is in
 small modules under `lib/`; no giant Function node owns the trust boundary.
+
+The dispatcher rejects unknown/late/mismatched ACKs for pending completion and
+routes those schema-valid anomalies as `accepted:false` bounded diagnostics.
+The runtime also validates the non-retained device heartbeat and refreshes only
+the active `ONLINE` connection generation; it does not persist a periodic
+`DEVICE_ONLINE` event. Dashboard corrections are documented in
+[../dashboard/README.md](../dashboard/README.md). Regenerate the FlowFuse
+artifact after every source change and run the deterministic artifact test.
 
 ## Install and configure
 
@@ -112,6 +125,12 @@ ONLINE availability plus full state from the current connection generation;
 restart/old ACK cannot restore a request. Invalid MQTT payload produces a safe
 bounded diagnostic containing only code, topic, and observed time—never raw
 payload/token.
+
+Valid heartbeat on `locker/{locker_id}/heartbeat` is non-retained and refreshes
+the liveness observation only after current-generation `ONLINE`. It cannot make
+an explicitly `OFFLINE`, retained-only or pre-reconnect generation trustworthy.
+Firmware follows heartbeat with a full-state refresh, so controls still depend
+on validated current state rather than liveness alone.
 
 The validated full-state `wifi_connected` boolean is retained in the live
 cache and exposed to the owner Dashboard only while that state is fresh and

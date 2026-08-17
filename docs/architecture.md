@@ -1,5 +1,10 @@
 # Phase 1–3 architecture
 
+> Audit status 2026-08-17: this architecture matches the current source, with
+> the explicit limitations below. The as-built SG90 arm directly closes/opens
+> the door; there is no separate latch or position/current feedback. Automated
+> software paths pass, while physical E2E/full-load remains open.
+
 ## Trust and data boundaries
 
 The Dashboard authenticates directly with Supabase Auth, then sends only the
@@ -56,7 +61,7 @@ old connectivity value.
 | `ack_publisher` | Serialize ACK and cache bounded results | duplicate replay preserves the original result/state/error and adds `duplicate:true` |
 | `mqtt_client` | Broker lifecycle | unique client ID, LWT, retained availability/state, bounded retry and subscription |
 | `wifi_provisioning` | WiFiManager lifecycle | captive portal/non-blocking processing and USB-local reset |
-| `lock_controller` | CB2 SG90 | attach/write after a valid action, settle, detach, then confirm state |
+| `lock_controller` | CB2 SG90 direct door arm | attach/write after a valid action, settle, detach, then confirm the logical commanded state; no position/current feedback proves physical travel |
 | `led_controller` | YC3 WS2812B | configured brightness/pixel count; changes only on LED actions |
 | `alarm_controller` | CB3 active buzzer | configurable active-high/low polarity, safe boot inactive and non-blocking state change |
 | `environment_monitor` | YC1 DHT22 | 2.5-second polling with valid/error readings |
@@ -107,6 +112,13 @@ environment/display refresh. Servo and buzzer work are state transitions; an
 incoming MQTT callback does not block for motion or replay an already cached
 command as a new physical action.
 
+The compatibility enums `LOCKED`/`UNLOCKED` remain in MQTT/database/UI, but on
+the current prototype they mean “the SG90 control cycle reached its configured
+close/open deadline.” The controller cannot detect a jam, detached horn,
+insufficient force or manually opened door. MC-38 `CLOSED/OPEN` and physical
+test evidence are separate outcome signals; the system must not claim a
+tamper-resistant mechanical lock from the servo ACK alone.
+
 ## Recovery and safe boot
 
 At cold boot, the source of truth is:
@@ -119,10 +131,20 @@ The SG90 is not attached in `setup()`, the buzzer is driven to its configured
 inactive level, no stored command is replayed, and no lock position is inferred
 from NVS. After broker reconnect the firmware sends the command subscription,
 then publishes retained `ONLINE` and full state only after local/send-level
-subscription success. PubSubClient 2.8 does not expose broker SUBACK grant
+subscription success. It publishes retained `ONLINE` immediately followed by
+retained full state; consumers require that same-generation state after ONLINE,
+so the brief bootstrap cannot enable controls on old retained data.
+PubSubClient 2.8 does not expose broker SUBACK grant
 confirmation, so the broker ACL remains a deployment prerequisite. Consumers
 must use availability and staleness, not retained state alone, to decide whether
-the device is live.
+the device is live. A non-retained heartbeat followed by retained full-state
+refresh every 10 seconds keeps a quiet healthy device fresh without generating
+periodic online-history events.
+
+The software findings and their corrected status are tracked in
+[../BAO_CAO_RA_SOAT_CODEBASE.md](../BAO_CAO_RA_SOAT_CODEBASE.md). The remaining
+architectural limit is that QoS0 can leave an ambiguous physical outcome and
+the SG90 has no position feedback; neither warrants automatic actuator retry.
 
 See [mqtt-contract.md](mqtt-contract.md), [event-contract.md](event-contract.md),
 [database-design.md](database-design.md) and

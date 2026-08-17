@@ -8,6 +8,12 @@
 > [12_24127177_24127205_24127249.pdf](12_24127177_24127205_24127249.pdf).
 > Những ô `CHƯA CHỐT` phải được thay bằng evidence thật trước khi xuất PDF.
 
+> Audit 2026-08-17: source/build/test tự động đạt trong phạm vi ghi ở
+> [BAO_CAO_RA_SOAT_CODEBASE.md](BAO_CAO_RA_SOAT_CODEBASE.md). Người lắp ráp đã
+> quan sát riêng lẻ OLED, DHT22, MC-38/Telegram, 10 LED WS2812B và SG90; nguồn
+> ngoài, buzzer tích hợp, tải đồng thời và E2E cuối chưa đủ bằng chứng. Không
+> chuyển các quan sát riêng lẻ thành “hoàn thành toàn hệ thống”.
+
 ## 1. Trang bìa
 
 **ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH**<br>
@@ -40,8 +46,8 @@
 
 | Mã | Luồng chức năng được đăng ký | Sinh viên phụ trách | Trạng thái/evidence cuối | Thay đổi so với đề xuất |
 |---|---|---|---|---|
-| CB1 | MC-38 phát hiện trạng thái cửa → ESP32 → MQTT → Node-RED/FlowFuse → Dashboard hiển thị | Nguyễn Văn Minh — 24127205 | `CHƯA CHỐT`: cần video MC-38 thật, MQTT state và Dashboard cùng trạng thái | Không |
-| CB2 | Dashboard gửi lệnh khóa/mở → Node-RED/FlowFuse → MQTT → ESP32 → servo SG90 điều khiển chốt | Thái Quang Huy — 24127177 | `CHƯA CHỐT`: cần video cơ khí + correlated ACK + retained state | Không |
+| CB1 | MC-38 phát hiện trạng thái cửa → ESP32 → MQTT → Node-RED/FlowFuse → Dashboard hiển thị | Nguyễn Văn Minh — 24127205 | `PARTIAL / USER-REPORTED`: MC-38 đã tạo Telegram; còn cần video đồng bộ contact, telemetry/state, event và Dashboard | Không |
+| CB2 | Dashboard gửi lệnh đóng/mở → Node-RED/FlowFuse → MQTT → ESP32 → SG90 trực tiếp điều khiển cánh cửa | Thái Quang Huy — 24127177 | `PARTIAL / USER-REPORTED`: servo chạy ở đóng `170°`/mở `80°`; còn cần video cơ khí, MC-38 outcome, correlated ACK, retained state và tải | Cơ cấu as-built bỏ chốt, tay servo trực tiếp đóng/mở; phải mô tả trung thực và xác nhận cách khai báo thay đổi với giảng viên |
 | CB3 | Dashboard/luồng cảnh báo gửi lệnh → MQTT → ESP32 → active buzzer LOW-trigger phát/tắt âm | Mai Phương Thùy — 24127249 | `CHƯA CHỐT`: inactive HIGH ở VCC 3V3 đã quan sát; còn GPIO26 LOW/HIGH, ACK/state, boot lặp và full-load | Không thay đổi chức năng; chỉ hiệu chỉnh wiring module từ VCC 5 V trong đề xuất sang VCC 3V3 theo specimen thật |
 
 Ghi chú: thay đổi `VCC` của buzzer là thay đổi chi tiết triển khai phần cứng để
@@ -53,8 +59,8 @@ báo cáo chỉ được có tối đa **một** chức năng như vậy.
 
 | YC | Chức năng đã đăng ký | Sinh viên phụ trách | Điểm tối đa theo đề xuất | Evidence phải có trước khi ghi hoàn thành | Thay đổi so với đề xuất |
 |---:|---|---|---:|---|---|
-| YC1 | DHT22 → ESP32 → OLED hiển thị nhiệt độ/độ ẩm | Thái Quang Huy — 24127177 | 1,5 | ảnh/video DHT22 thật đổi giá trị và OLED hiển thị ổn định | Không |
-| YC3 | Website/Dashboard → backend → MQTT → ESP32 → WS2812B đổi trạng thái | Thái Quang Huy — 24127177 | 1,5 | video pixel thật + ACK/state + gate direct/full-load | Không |
+| YC1 | DHT22 → ESP32 → OLED hiển thị nhiệt độ/độ ẩm | Thái Quang Huy — 24127177 | 1,5 | Đã quan sát giá trị trên OLED; cần ảnh/video nhiều chu kỳ, lỗi/khôi phục sensor và firmware release | Không |
+| YC3 | Website/Dashboard → backend → MQTT → ESP32 → WS2812B đổi trạng thái | Thái Quang Huy — 24127177 | 1,5 | Đã quan sát đủ 10 pixel sáng; cần video ON/OFF + ACK/state + 20 chu kỳ/direct/full-load | Không |
 | YC12 | ESP32 cung cấp WiFiManager captive portal để cấu hình Wi-Fi | Thái Quang Huy — 24127177 | 1,0 | video `Locker-Setup`, lưu Wi-Fi và reboot tự kết nối lại | Không |
 | YC4 | Lưu lịch sử hoạt động theo thời gian trên Supabase | Mai Phương Thùy — 24127249 | 1,5 | record database thật, chống trùng và đúng owner | Không |
 | YC5 | Đọc dữ liệu cloud và hiển thị lịch sử/biểu đồ trên Dashboard | Mai Phương Thùy — 24127249 | 1,5 | ảnh history và chart 7/30 ngày, có bucket 0 | Không |
@@ -74,6 +80,10 @@ evidence của đúng chức năng đã PASS.
 - Không đổi người phụ trách so với đề xuất.
 - CB3 giữ nguyên chức năng active buzzer; revision phần cứng chốt
   `VCC→ESP32 3V3`, `GND→GND`, `IN←4,7 kΩ←GPIO26`, active-low.
+- CB2 có sai lệch cơ khí thực tế: không còn chốt, tay SG90 trực tiếp đóng/mở
+  cửa. Nhóm phải hỏi giảng viên liệu đây được tính là một “cập nhật chức năng”
+  hay chỉ là revision triển khai, rồi ghi nhất quán; không được vừa ghi “không
+  thay đổi” vừa chụp một cơ cấu khác mô tả.
 - Nếu trạng thái thực tế trước ngày nộp khác bốn dòng trên, nhóm phải sửa bảng
   chức năng và cột thay đổi trung thực; không được giữ mô tả “hoàn thành” khi
   evidence không tồn tại.
@@ -92,7 +102,7 @@ hoàn chỉnh:
    - OLED SSD1306;
    - DHT22;
    - MC-38 và nam châm;
-   - SG90 và cơ cấu chốt;
+   - SG90 và tay đòn trực tiếp đóng/mở cửa; ghi rõ **không có chốt khóa riêng**;
    - WS2812B;
    - module active buzzer LOW-trigger TMB12A05;
    - nguồn tải 5 V, công tắc và common GND.
@@ -125,7 +135,7 @@ Mỗi ảnh phải chụp rõ trạng thái/đầu ra, che token/email/credentia
 | 2 | Trang đăng nhập/đăng ký | YC9 — Supabase Auth |
 | 3 | Claim/chọn locker và trạng thái owner | YC9 — ownership và RLS |
 | 4 | Dashboard live: MQTT, device, door, lock, alarm, LED | CB1/CB2/CB3 — trạng thái và điều khiển thiết bị |
-| 5 | Lệnh LOCK/UNLOCK đã có ACK/state | CB2 — điều khiển SG90 |
+| 5 | Lệnh đóng/mở (`LOCK/UNLOCK` ở contract) đã có ACK/state và MC-38 outcome | CB2 — SG90 direct-arm; state logic không phải feedback vị trí |
 | 6 | Lệnh LED ON/OFF đã có ACK/state | YC3 — điều khiển WS2812B từ web |
 | 7 | Alarm/unauthorized event | CB3 + YC6 — buzzer và cảnh báo mở trái phép |
 | 8 | History | YC4 — lưu lịch sử Supabase |
@@ -137,6 +147,12 @@ Mỗi ảnh phải chụp rõ trạng thái/đầu ra, che token/email/credentia
 
 Không cần cố nhét tất cả ảnh vào một trang. Ưu tiên ảnh đọc được, mỗi ảnh có
 caption ngay bên dưới và cùng kích thước hợp lý.
+
+Khi chụp Dashboard, dùng đúng artifact đã sinh lại sau lượt sửa 2026-08-17.
+Bản hiện tại dịch `COMMAND_SUCCEEDED` và Telegram `failed`, có spinner pending,
+tự retry startup 503 và hiển thị unknown khi stale/no-data. Đối chiếu
+API/MQTT/database và timestamp; nếu ảnh còn hành vi cũ thì kiểm version/deploy/
+cache, không lựa ảnh che lỗi. ACK servo vẫn không thay feedback cơ khí.
 
 ---
 
@@ -203,3 +219,7 @@ dẫn trên lớp nếu có cập nhật.
 
 - [ ] Nội dung phản ánh đúng phần việc thật. Theo yêu cầu môn học, báo cáo
   không trung thực có chế tài rất nặng; không điền kết quả/điểm theo kỳ vọng.
+- [ ] Toàn bộ gate bắt buộc trong
+  [HUONG_DAN_TEST_END_TO_END.md](HUONG_DAN_TEST_END_TO_END.md) có trạng thái và
+  bằng chứng; cả nhóm đã ôn theo
+  [ON_TAP_VAN_DAP_CHI_TIET.md](ON_TAP_VAN_DAP_CHI_TIET.md).

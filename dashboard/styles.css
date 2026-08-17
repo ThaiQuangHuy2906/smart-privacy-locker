@@ -875,6 +875,10 @@ select:focus {
   color: transparent;
 }
 
+.control-button[data-pending="true"]::after {
+  color: var(--primary);
+}
+
 .control-button[data-pending="true"]::after,
 form[data-pending="true"] .button[type="submit"]::after {
   content: "";

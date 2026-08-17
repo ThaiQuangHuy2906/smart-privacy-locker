@@ -31,6 +31,14 @@ class DeviceSimulator {
       timestamp: this.timestamp(), ...overrides }, { retain: true });
   }
 
+  heartbeat() {
+    if (!this.online) return false;
+    this.publish(this.topic('heartbeat'), { schema_version: 1, locker_id: this.lockerId,
+      sent_at: this.timestamp() }, { retain: false });
+    this.publishState();
+    return true;
+  }
+
   door(state, overrides = {}) {
     const previous = this.state.door;
     if (state === previous) return;

@@ -81,6 +81,15 @@ function validateAvailability(topic, payload) {
   return result;
 }
 
+function validateHeartbeat(topic, payload) {
+  const result = common(payload, topic, 'heartbeat');
+  if (!result.ok) return result;
+  if (!utc(result.value.sent_at, true)) {
+    return { ok: false, code: 'INVALID_HEARTBEAT' };
+  }
+  return result;
+}
+
 function validateAck(topic, payload) {
   const result = common(payload, topic, 'ack');
   if (!result.ok) return result;
@@ -116,5 +125,5 @@ function expectedState(action, state) {
 module.exports = {
   SCHEMA_VERSION, UUID, UUID_V4, ACTIONS, safeJson, utc, topicLocker,
   validDeviceState, validateState, validateDoor, validateAvailability,
-  validateAck, validateCommand, expectedState,
+  validateHeartbeat, validateAck, validateCommand, expectedState,
 };

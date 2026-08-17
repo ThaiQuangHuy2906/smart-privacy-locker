@@ -18,6 +18,7 @@ void MqttClient::begin(MqttMessageCallback messageCallback) {
   messageCallback_ = messageCallback;
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
   retryTimer_.clear();
+  heartbeatTimer_.clear();
   bufferReady_ = mqtt_.setBufferSize(RuntimeConfig::MQTT_PACKET_SIZE);
   if (!bufferReady_) {
     Serial.println("MQTT buffer allocation failed; connection attempts are suppressed");
@@ -40,7 +41,26 @@ void MqttClient::tick(unsigned long now, StateManager& state) {
     mqtt_.loop();
     if (!mqtt_.connected()) {
       state.setMqttConnected(false);
+      heartbeatTimer_.clear();
       scheduleRetry(now);
+      return;
+    }
+    if (heartbeatTimer_.due(static_cast<uint32_t>(now),
+                            AppConfig::MQTT_HEARTBEAT_INTERVAL_MS)) {
+      // Heartbeat is deliberately non-retained. A retained full-state refresh
+      // follows it so the backend can prove both current liveness and current
+      // state without creating periodic DEVICE_ONLINE history rows.
+      const bool heartbeatPublished = publishHeartbeat();
+      const bool statePublished = heartbeatPublished && publishState(state.current(), true);
+      if (!heartbeatPublished || !statePublished) {
+        state.setMqttConnected(false);
+        heartbeatTimer_.clear();
+        disconnectWithOfflineFallback();
+        scheduleRetry(now);
+        Serial.println("MQTT heartbeat/state publish failed; disconnected and retry scheduled");
+        return;
+      }
+      heartbeatTimer_.reset(static_cast<uint32_t>(now));
     }
     return;
   }
@@ -142,6 +162,7 @@ bool MqttClient::publishDoorTransition(DoorState previous, DoorState current,
 }
 
 void MqttClient::disconnectGracefully() {
+  heartbeatTimer_.clear();
   disconnectWithOfflineFallback();
 }
 
@@ -203,16 +224,16 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
 
   // PubSubClient 2.8 returns true after its local transport writes the
   // SUBSCRIBE packet; it does not wait for or expose the broker SUBACK grant.
-  // Callbacks run from a later mqtt_.loop(). Publish the retained full state
-  // first and ONLINE last, so ONLINE never advertises an incomplete bootstrap.
+  // Callbacks run from a later mqtt_.loop(). Publish ONLINE immediately before
+  // full state. The backend requires the state observation to follow ONLINE,
+  // so controls cannot become trusted during the brief two-packet bootstrap.
+  // If state publication fails, the retained OFFLINE repair below closes that
+  // incomplete bootstrap before reconnecting.
   state.setMqttConnected(true);
-  const bool statePublished = publishState(state.current(), true);
-  const bool onlinePublished = statePublished && publishAvailability("ONLINE", true);
+  const bool onlinePublished = publishAvailability("ONLINE", true);
+  const bool statePublished = onlinePublished && publishState(state.current(), true);
   if (!statePublished || !onlinePublished) {
     state.setMqttConnected(false);
-    // Best-effort repair if the retained connected state was written before a
-    // later publication failed. Availability OFFLINE is handled below.
-    publishState(state.current(), true);
     disconnectWithOfflineFallback();
     scheduleRetry(now);
     Serial.println("MQTT retained bootstrap publish failed; disconnected and retry scheduled");
@@ -221,8 +242,33 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
 
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
   retryTimer_.clear();
-  Serial.println("MQTT command SUBSCRIBE packet sent; retained state and availability published");
+  heartbeatTimer_.reset(static_cast<uint32_t>(now));
+  Serial.println("MQTT command SUBSCRIBE packet sent; retained availability and state published");
   return true;
+}
+
+bool MqttClient::publishHeartbeat() {
+  if (!mqtt_.connected()) {
+    return false;
+  }
+  JsonDocument document;
+  document["schema_version"] = 1;
+  document["locker_id"] = AppConfig::LOCKER_ID;
+  char timestamp[25] = {};
+  if (formatUtcTimestamp(timestamp, sizeof(timestamp))) {
+    document["sent_at"] = timestamp;
+  } else {
+    document["sent_at"] = nullptr;
+  }
+
+  char topic[96] = {};
+  char payload[160] = {};
+  makeTopic("heartbeat", topic, sizeof(topic));
+  if (serializeJson(document, payload, sizeof(payload)) >= sizeof(payload)) {
+    Serial.println("Heartbeat serialization failed");
+    return false;
+  }
+  return mqtt_.publish(topic, payload, false);
 }
 
 bool MqttClient::publishAvailability(const char* status, bool retained) {

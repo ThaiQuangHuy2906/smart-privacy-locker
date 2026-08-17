@@ -15,6 +15,8 @@ broker.subscribe('locker/+/telemetry/door', (topic, payload, metadata) => receiv
 simulator.connect();
 assert.equal(broker.retained.get('locker/LOCKER-001/availability').status, 'ONLINE');
 assert.equal(broker.retained.get('locker/LOCKER-001/state').door, 'CLOSED');
+assert.equal(simulator.heartbeat(), true);
+assert.equal(broker.retained.has('locker/LOCKER-001/heartbeat'), false);
 simulator.door('OPEN');
 assert.equal(broker.retained.has('locker/LOCKER-001/telemetry/door'), false);
 assert.equal(broker.retained.get('locker/LOCKER-001/state').door, 'OPEN');
@@ -36,7 +38,7 @@ simulator.disconnect(); simulator.connect(); simulator.receiveCommand(fixture.co
 assert.equal(broker.retained.get('locker/LOCKER-001/availability').status, 'ONLINE');
 
 process.stdout.write(JSON.stringify({
-  result: 'PASS', assertions: 8, scenarios: fixture.modes.length + 4,
+  result: 'PASS', assertions: 10, scenarios: fixture.modes.length + 5,
   retained_topics: [...broker.retained.keys()],
   note: 'Simulator/memory-broker software evidence only; not hardware evidence.'
 }, null, 2) + '\n');

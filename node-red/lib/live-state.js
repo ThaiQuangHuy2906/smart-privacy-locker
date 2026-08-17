@@ -48,6 +48,21 @@ class LiveStateCache {
     return true;
   }
 
+  ingestHeartbeat(lockerId, observedAt) {
+    const item = this.entry(lockerId);
+    const generation = this.ingressGeneration();
+    if (item.availability !== 'ONLINE'
+        || item.availabilityGeneration !== generation
+        || observedAt < item.availabilityObservedAt) {
+      return false;
+    }
+    // Heartbeats are non-retained proof that the current MQTT session is
+    // alive. They refresh liveness only; the full state published immediately
+    // afterwards must still pass its own freshness and ordering checks.
+    item.availabilityObservedAt = observedAt;
+    return true;
+  }
+
   ingestState(lockerId, value, observedAt, source = 'mqtt:state') {
     const item = this.entry(lockerId);
     if (observedAt < item.stateObservedAt) return false;

@@ -1,260 +1,378 @@
-# Báo cáo rà soát toàn bộ Smart Privacy Locker
+# Báo cáo rà soát toàn bộ codebase — Smart Privacy Locker
 
-- Ngày rà soát cuối: **15/08/2026**
-- Nhánh: `develop`
-- Commit nền tại thời điểm rà soát: `0e3a21f278df656b05ea9a3310b68ee770ae8008`
+> Ngày rà soát: 2026-08-17
+>
+> Nhánh được quan sát: `develop`
+>
+> Commit nền tại thời điểm bắt đầu: `1604481`
+> Kết luận: **đủ điều kiện software handoff; chưa đủ điều kiện
+> `FINAL_RELEASE_READY` hoặc tuyên bố E2E phần cứng hoàn tất**.
 
-## 1. Kết luận ngắn
+## 1. Kết luận điều hành
 
-Các lỗi xác định được trong firmware, cấu hình buzzer, trình tự MQTT, mô hình
-Wokwi và tài liệu đã được sửa. Toàn bộ gate phần mềm có thể chạy trên máy hiện
-tại đều PASS. Năm file hướng dẫn trùng lặp đã được xóa sau khi người dùng xác
-nhận rõ phạm vi.
+Không phát hiện lỗi P0 đã được chứng minh trong phạm vi source và môi trường
+kiểm thử hiện có. Các nền tảng chính — firmware contract, safe boot, command
+correlation, Node-RED auth/ownership, Supabase RLS, persistence, Telegram
+linking, Gemini grounding và email idempotency — có thiết kế tốt và test tự
+động mạnh.
 
-Không thể tuyên bố hệ thống thực tế “đúng 100%” tại thời điểm này. Ba nhóm gate
-chưa thể chạy là:
+Tuy nhiên, sản phẩm còn ba nhóm chặn nghiệm thu P1:
 
-1. ESP32 hiện không cắm vào máy; Windows chỉ đang thấy `COM8` và `COM9` là cổng
-   Bluetooth. `COM4` là bằng chứng bench lịch sử ngày 15/08/2026, không phải
-   cổng hiện tại.
-2. Máy không có Supabase CLI và Docker nên chưa thể clean-rebuild database rồi
-   chạy lại pgTAP/RLS trên database cục bộ.
-3. Không có `WOKWI_CLI_TOKEN`, vì vậy custom chip, sơ đồ và firmware Wokwi đã
-   compile/lint/build được nhưng phiên mô phỏng CLI đầy đủ chưa chạy được.
+1. chưa hoàn tất phép đo và acceptance nguồn ngoài/tải đồng thời;
+2. cơ cấu hiện không có chốt, SG90 trực tiếp đóng/mở cửa và không có feedback,
+   nên nhãn “LOCKED/khóa” và ACK success có thể bị hiểu mạnh hơn khả năng thật;
+3. chưa chạy trọn bộ E2E cuối trên đúng phần cứng/deployment release, gồm còi
+   GPIO26, 20 chu kỳ, fault recovery và các gate live cần thiết.
 
-Do đó, trạng thái trung thực là: **code/build/automated regression PASS; SQL
-runtime, Wokwi runtime và full physical E2E chưa kiểm chứng trong vòng rà soát
-này**. Quy tắc PASS đầy đủ nằm trong
-[HUONG_DAN_CHAY_HE_THONG.md](HUONG_DAN_CHAY_HE_THONG.md).
+Lượt khắc phục sau audit đã sửa các lỗi phần mềm được tái hiện: heartbeat MQTT,
+future-skew, ACK anomaly diagnostics, kiểm tra lỗi publish, sáu lỗi UI state/
+đồng bộ, auth-mode, secure MQTT example, thuật ngữ đóng/mở cửa và Wokwi help.
+Regression test, clean build và Chrome/CDP browser matrix đều đã chạy lại.
 
-## 2. Phạm vi đã rà soát
+Các thay đổi này xử lý nguyên nhân phần mềm khiến thiết bị bị xem là stale sau
+hơn 30 giây: ESP32 nay gửi heartbeat không retained kèm refresh full-state mỗi
+10 giây; backend chỉ dùng heartbeat đúng generation để làm mới liveness mà
+không tạo lịch sử online giả. Chúng không thể chứng minh hoặc sửa bằng code cho
+sụt áp, brownout, dây lỏng, servo kẹt hay thiếu feedback cơ khí.
 
-Đã kiểm tra các nhóm sau, bao gồm cả file tracked và file mới đang có trong
-working tree:
+## 2. Quy ước mức độ
 
-- firmware ESP32 C/C++, cấu hình PlatformIO, unit test native và bản Arduino
-  IDE mirror;
-- Node-RED/FlowFuse source, generated flow, Dashboard HTML/CSS/JavaScript,
-  simulator và local authenticated MQTT broker;
-- migration/test SQL của Supabase ở mức đọc và đối chiếu tĩnh;
-- PowerShell scripts đồng bộ, verify và đóng gói;
-- toàn bộ JSON, JavaScript, Markdown và liên kết file nội bộ;
-- BOM, pin map, power budget, tài liệu kiến trúc/deployment/test/evidence;
-- project Wokwi, sơ đồ dây, firmware demo, custom chip C/JSON/WASM và ZIP;
-- `TCTA_YÊU CẦU BÁO CÁO CUỐI KỲ.pdf` hai trang;
-- `TCTA_QUY ĐỊNH ĐỒ ÁN CUỐI KỲ.pdf` bốn trang;
-- đề xuất nhóm `12_24127177_24127205_24127249.pdf` 22 trang để lấy đúng tên,
-  MSSV, người phụ trách và các chức năng đã đăng ký.
-
-Hai PDF quy định đã được render và xem trực quan từng trang, không chỉ lấy text.
-Nội dung báo cáo được tạo ở
-[NOI_DUNG_BAO_CAO_CUOI_KY.md](NOI_DUNG_BAO_CAO_CUOI_KY.md); các điểm số vẫn để
-ở trạng thái có điều kiện cho tới khi có evidence thật, tránh khai kết quả chưa
-chạy.
-
-## 3. Các lỗi/phát hiện đã xử lý
-
-### F-01 — Sai mặc định polarity của buzzer LOW-trigger
-
-Trước khi sửa, public example và runtime fallback dùng
-`SPL_BUZZER_ACTIVE_HIGH=1`, trái với module LOW-level-trigger đã chọn. Điều này
-có thể khiến lệnh ON/OFF đảo nghĩa và làm còi hoạt động ngoài ý muốn.
-
-Đã sửa:
-
-- public example và fallback đều dùng `SPL_BUZZER_ACTIVE_HIGH=0`;
-- HIGH là inactive, LOW là active;
-- setup nạp latch inactive HIGH trước khi đổi GPIO26 thành `OUTPUT`;
-- mirror Arduino được đồng bộ byte-for-byte với 30 file nguồn production;
-- thêm assertion hồi quy để public default không bị đổi ngược về sau.
-
-### F-02 — Tài liệu buzzer còn mô tả topology 5 V/MOSFET cũ
-
-Một số comment và tài liệu còn mô tả buzzer 5 V qua driver/MOSFET, trong khi
-specimen đã kiểm tra là module ba chân LOW-trigger cấp từ ESP32 `3V3`.
-
-Đã thống nhất topology hiện tại:
-
-```text
-ESP32 3V3    -> buzzer VCC/+
-ESP32 GND    -> buzzer GND/-
-ESP32 GPIO26 -> điện trở 4,7 kΩ -> buzzer IN/S/I/O
-```
-
-Điện trở 4,7 kΩ chỉ hạn dòng tín hiệu, không nâng HIGH 3,3 V thành 5 V. Vì vậy
-nó không giải quyết được chênh mức tham chiếu khi module vẫn cấp VCC 5 V. Việc
-còi im lúc bootloader nhưng kêu lại sau hard reset phù hợp với một đầu vào tự
-kéo lên VCC khi GPIO high-impedance, rồi bị GPIO chủ động giữ ở 3,3 V sau khi
-firmware chạy. Đây là suy luận từ hiện tượng bench; chưa có sơ đồ chính xác của
-mạch module ba chân để coi nó là đặc tính datasheet.
-
-Datasheet được liên kết chỉ mô tả **buzzer rời** TMB12A05: rated 5 V, operating
-3–7 V, không mô tả tầng transistor/input của module. Vì thế cấu hình `VCC=3V3`
-được chốt cho đúng specimen đã thử, nhưng phép đo dòng, 10 lần boot và full-load
-vẫn bắt buộc.
-
-### F-03 — MQTT có thể báo ONLINE dù retained bootstrap chưa đầy đủ
-
-Luồng connect trước đây không xử lý kết quả thất bại của hai publish retained
-ban đầu và phát ONLINE trước full state. Một client khác có thể nhìn thấy ONLINE
-trong khi state chưa được thiết lập đầy đủ.
-
-Đã sửa:
-
-- subscribe thành công mới bắt đầu bootstrap;
-- publish retained full state trước, ONLINE sau;
-- nếu state hoặc ONLINE publish thất bại: hạ state kết nối, thử sửa retained
-  state, phát OFFLINE và lên lịch retry;
-- nếu OFFLINE không ghi được, đóng transport thay vì gửi clean MQTT DISCONNECT,
-  để broker có thể áp dụng Last Will đã đăng ký;
-- chỉ cho phép connect khi PubSubClient cấp được buffer 1024 byte;
-- thêm regression assertion về thứ tự và failure path.
-
-### F-04 — Kích thước MQTT phụ thuộc riêng PlatformIO
-
-Kích thước packet ứng dụng được đưa về
-`RuntimeConfig::MQTT_PACKET_SIZE = 1024`; PubSubClient được resize và kiểm tra
-return value ở runtime. Arduino IDE và PlatformIO vì vậy dùng cùng contract,
-không dựa vào build flag riêng của một toolchain.
-
-### F-05 — Wokwi dùng buzzer thụ động/polarity không khớp module thật
-
-Đã thay bằng custom chip `TMB12A05 LOW-trigger module (simulation)`:
-
-- nhận `VCC`, `GND`, `IN` như module ba chân;
-- chỉ active khi VCC HIGH, GND LOW và IN LOW;
-- IN mặc định pull-up để safe inactive khi chưa được drive;
-- tạo sóng âm khoảng 2,4 kHz cho transducer mô phỏng;
-- firmware Wokwi pre-load HIGH trước `pinMode(OUTPUT)` và dùng LOW/HIGH ổn định,
-  không dùng `tone()` để che polarity của module.
-
-Sơ đồ đã được bố trí lại thành các vùng logic 3,3 V, tải ngoài 5 V, cửa và
-buzzer; các phần tử đều có nhãn và không chồng lên nhau. Nó có DHT22 + pull-up,
-OLED, SG90, WS2812B + điện trở data, MC-38 mô phỏng bằng switch, module buzzer +
-4,7 kΩ, nguồn tải ngoài và common GND. Tụ 470 µF được ghi nhãn vì Wokwi không
-mô phỏng đầy đủ hành vi nguồn/tụ/dòng stall.
-
-### F-06 — Trùng nhiều tài liệu lắp mạch
-
-Đã chọn đúng hai tài liệu vận hành chuẩn:
-
-1. [HUONG_DAN_LAP_MACH_THEO_THU_TU.md](HUONG_DAN_LAP_MACH_THEO_THU_TU.md) —
-   nguồn duy nhất để lắp dây theo thứ tự.
-2. [HUONG_DAN_CHAY_HE_THONG.md](HUONG_DAN_CHAY_HE_THONG.md) — nguồn duy nhất để
-   cài/nạp/chạy và nghiệm thu sau khi lắp.
-
-Các hướng dẫn legacy đã được xóa sau khi người dùng xác nhận. Kiểm thử artifact
-đã được chuyển sang đọc hướng dẫn chuẩn thay vì phụ thuộc file cũ.
-
-### F-07 — Không có kiểm tra tự động liên kết Markdown
-
-Đã thêm `tools/check-markdown-links.js`. Script bỏ qua code fence, URL ngoài và
-anchor, rồi xác minh mọi đích file cục bộ. Vòng cuối sau khi tạo báo cáo này phải
-cho kết quả 0 broken link.
-
-## 4. Kết quả kiểm chứng thực tế
-
-| Gate | Kết quả thực tế |
+| Mức | Nghĩa trong báo cáo này |
 |---|---|
-| Node test | PASS — 145/145; 0 fail, 0 skipped, 0 todo |
-| Memory simulator | PASS — 8 assertion trên 14 scenario |
-| Authenticated local MQTT broker | PASS — 15 assertion; anonymous bị từ chối |
-| Config/secret audit | PASS — 0 finding |
-| `npm audit` và `npm audit --omit=dev` | PASS — 0 vulnerability |
-| JavaScript syntax | PASS — 39 file |
-| JSON parse | PASS — 33 file |
-| PowerShell parser | PASS — 5 file |
-| Firmware native unit tests | PASS — 17/17 |
-| PlatformIO ESP32 build | PASS — RAM 52.940/327.680 byte (16,2%); flash 1.103.737/1.310.720 byte (84,2%) |
-| Arduino isolated profile | PASS — 1.107.893 byte flash (84%); 52.968 byte RAM (16%) |
-| Arduino IDE global environment | PASS — CLI 1.5.1, core 2.0.17, đúng toàn bộ library pin; 1.107.681 byte flash (84%); 52.960 byte RAM (16%) |
-| Arduino source parity | PASS — 30 file production/mirror khớp SHA-256 |
-| FlowFuse regeneration | PASS — 235.945 byte; SHA-256 `ee73551fac45c79b8706f0813595c386030e3acd32ed8fb4943f641d9d58afa8` |
-| Wokwi custom chip compile | PASS — WASM 66.402 byte |
-| Wokwi diagram lint | PASS, không có error/warning; 3 dòng info cho loại part được CLI ghi là undocumented/unsupported catalog |
-| Wokwi firmware build | PASS — RAM 22.432 byte (6,8%); flash 321.613 byte (24,5%) |
-| Wokwi ZIP | PASS — 12 file, build output/private config bị loại; hai lần đóng gói cùng SHA-256 `0f21f00741750243f7acb71a65a7d0074d316e9317f0b5b3dea58ede4c069857` |
-| Markdown local links sau khi xóa tài liệu legacy và chuyển gói `THUYETMINH` | PASS — 40 file, 61 link, 0 broken |
-| `git diff --check` | PASS — không có whitespace error; cảnh báo LF→CRLF là cấu hình line-ending của working tree, không phải diff error |
-| Supabase clean rebuild + pgTAP | **UNAVAILABLE** — không có Supabase CLI/Docker |
-| Wokwi runtime simulation | **UNAVAILABLE** — không có `WOKWI_CLI_TOKEN` |
-| ESP32 upload/full physical E2E hiện tại | **UNAVAILABLE** — board chưa cắm; chỉ có Bluetooth COM8/COM9 |
+| P0 | Rò dữ liệu/quyền nghiêm trọng, nguy cơ an toàn tức thời hoặc hệ thống cốt lõi không thể dùng; phải dừng release ngay. |
+| P1 | Chặn demo/nghiệm thu/release vì an toàn, claim sản phẩm hoặc thiếu bằng chứng bắt buộc. Có thể là blocker kiểm chứng chứ không nhất thiết là bug source. |
+| P2 | Lỗi chức năng/đồng bộ/UX/độ tin cậy quan trọng, cần sửa trước bản cuối nhưng có workaround hoặc không phá toàn hệ thống. |
+| P3 | Lỗi nhỏ, nợ tài liệu/mô phỏng/hardening hoặc polish. |
 
-Ba dòng `info` của Wokwi linter không phải lỗi kết nối. Chính tài liệu diagram
-format của Wokwi liệt kê `board-esp32-devkit-c-v4` là microcontroller được hỗ
-trợ; hai part còn lại là ký hiệu VCC/GND dùng để biểu diễn rõ nguồn tải ngoài và
-common ground. Nếu Wokwi đổi catalog trong tương lai, phải lint lại trước demo.
+Trạng thái test:
 
-## 5. File trùng lặp đã xóa theo xác nhận
+- `PASS`: đã chạy và đạt trong đúng phạm vi nêu;
+- `FAIL`: đã chạy và không đạt;
+- `UNAVAILABLE`: không có phần cứng/dịch vụ/source đầu vào để chạy;
+- `NOT RUN`: có thể có lịch sử, nhưng audit hiện tại không chạy lại;
+- `PARTIAL / USER-REPORTED`: có quan sát thật nhưng thiếu thủ tục/bằng chứng đầy
+  đủ để nâng thành PASS cuối.
 
-Năm file sau đã được xóa sau khi người dùng xác nhận:
+## 3. Phạm vi và nguồn sự thật
 
-1. `HUONG_DAN_LAP_MACH_CHI_TIET.md`
-2. `HDCT.md`
-3. `hardware/assembly-guide.md`
-4. `hardware/wiring-diagram/phase-1-wiring.md`
-5. `hardware/wiring-diagram/phase-3-buzzer-wiring.md`
+Đã rà soát:
 
-Các file `firmware/README.md`, `arduino/README.md`, BOM, pin map, power budget,
-architecture, deployment, contract, test plan và evidence **không** được xem là
-hướng dẫn lắp mạch trùng lặp; chúng là tài liệu kỹ thuật/truy vết cho subsystem.
-Các PDF môn học và proposal cũng là hồ sơ nguồn, nên giữ nguyên.
+- yêu cầu chính thức trong hai PDF quy định/báo cáo, đề xuất nhóm 12 và kế hoạch
+  dự án;
+- firmware modular PlatformIO và Arduino IDE mirror;
+- Wokwi standalone;
+- Node-RED runtime/modules/flows, Dashboard HTML/CSS/JS;
+- Supabase migrations, RLS, pgTAP/live-gate scripts;
+- simulator/broker test tools;
+- BOM, pin map, power budget, Fusion/VIVA package;
+- toàn bộ Markdown chuẩn hiện hành và các snapshot evidence.
 
-## 6. File đầu ra chính
+Nguồn được ưu tiên theo thứ tự: source/config thực tế → test/build thực chạy →
+contract/migration → tài liệu chuẩn → bằng chứng lịch sử → lời báo cáo của người
+lắp ráp. Không dùng simulator làm bằng chứng vật lý.
 
-- Lắp mạch: [HUONG_DAN_LAP_MACH_THEO_THU_TU.md](HUONG_DAN_LAP_MACH_THEO_THU_TU.md)
-- Test sau lắp: [HUONG_DAN_CHAY_HE_THONG.md](HUONG_DAN_CHAY_HE_THONG.md)
-- Nội dung report: [NOI_DUNG_BAO_CAO_CUOI_KY.md](NOI_DUNG_BAO_CAO_CUOI_KY.md)
-- Wokwi source: [wokwi/smart-privacy-locker-wokwi](wokwi/smart-privacy-locker-wokwi)
-- Wokwi ZIP: [wokwi/smart-privacy-locker-wokwi.zip](wokwi/smart-privacy-locker-wokwi.zip)
-- Arduino sketch: [arduino/SmartPrivacyLocker/SmartPrivacyLocker.ino](arduino/SmartPrivacyLocker/SmartPrivacyLocker.ino)
-- Evidence Arduino: [tests/evidence/phase-3/arduino-ide-results.md](tests/evidence/phase-3/arduino-ide-results.md)
+### 3.1. Tài liệu lịch sử được giữ nguyên
 
-## 7. Nguồn chính thức đã đối chiếu
+Các file dưới `tests/evidence/` là snapshot tại ngày chạy. Ba file Markdown
+trong `THUYETMINH/03_SMART_PRIVACY_LOCKER_VIVA_FINAL/` thuộc gói có manifest.
+Chúng không được viết lại để “cập nhật trạng thái”, vì làm vậy sẽ sai lệch lịch
+sử hoặc phá integrity/hash. Trạng thái mới được ghi ở tài liệu hiện hành và
+[HUONG_DAN_TEST_END_TO_END.md](HUONG_DAN_TEST_END_TO_END.md).
 
-- [Espressif ESP32 GPIO API](https://docs.espressif.com/projects/arduino-esp32/en/latest/api/gpio.html)
-- [Espressif ESP32 datasheet](https://documentation.espressif.com/esp32_datasheet_en.pdf)
-- [Espressif esptool troubleshooting](https://docs.espressif.com/projects/esptool/en/latest/esp32/troubleshooting.html)
-- [Espressif boot mode selection — BOOT/EN/RTS/DTR](https://docs.espressif.com/projects/esptool/en/latest/esp32/advanced-topics/boot-mode-selection.html)
-- [Wokwi diagram format và linter](https://docs.wokwi.com/diagram-format)
-- [Wokwi CLI usage](https://docs.wokwi.com/wokwi-ci/cli-usage)
-- [Wokwi custom chips to WASM](https://docs.wokwi.com/guides/custom-chips-to-wasm)
-- [Wokwi custom-chip project configuration](https://docs.wokwi.com/vscode/project-config)
-- [PubSubClient 2.8 source](https://github.com/knolleary/pubsubclient/blob/v2.8/src/PubSubClient.cpp)
-- [ArduinoJson `measureJson()` v7](https://arduinojson.org/v7/api/json/measurejson/)
-- [Jiangsu Huaneng TMB12A05 raw-buzzer datasheet](https://datasheet.lcsc.com/datasheet/pdf/2a16321f74deffcaef3942d9437fae37.pdf?productCode=C96093)
-- [TowerPro SG90 product data](https://towerpro.com.tw/product/sg90-7/)
-- [Aosong AM2302/DHT22 product data](https://www.aosong.com/en/Products/info.aspx?itemid=2294&lcid=139)
+## 4. Đối chiếu yêu cầu môn học
 
-## 8. Điều kiện để nâng trạng thái lên full-system PASS
+Đã xác nhận từ PDF chính thức:
 
-Chỉ nâng khi cùng một revision source và cùng wiring cuối đã hoàn thành toàn bộ
-`SYS-01` đến `SYS-11`, đặc biệt:
+- nhóm 2–3 sinh viên; nhóm hiện có 3 thành viên;
+- phải thể hiện cả hai họ luồng
+  `input → ESP → MQTT → backend → frontend` và
+  `frontend → backend → MQTT → ESP → output`;
+- các thiết bị được dùng trong các luồng/hạng mục chấm phải phân biệt theo yêu
+  cầu đề;
+- báo cáo cần trang bìa, bảng chức năng/chủ sở hữu/thay đổi, ảnh sản phẩm có
+  chú thích, ảnh web có tên chức năng và bảng tự đánh giá;
+- số chức năng thêm/xóa/cập nhật so với đề xuất không vượt quá một;
+- tên file nộp:
+  `12_24127177_24127205_24127249_FINAL.PDF`;
+- vấn đáp dùng hệ số hiểu `K`; nội dung/evidence phải trung thực.
 
-- đo rail/continuity/dòng và chạy full-load;
-- buzzer GPIO26 LOW/HIGH, 10 cold boot + 10 EN, ACK/state đúng;
-- sensor, OLED, MC-38, SG90, WS2812B và nguồn tải thật;
-- WiFiManager, mất/kết nối lại Wi-Fi và MQTT;
-- Supabase clean migration/RLS/pgTAP;
-- Dashboard/Node-RED/MQTT/ESP32 end-to-end;
-- lưu ảnh/video/log đã loại credential.
+Mapping người phụ trách khớp đề xuất:
 
-Compile, simulator hoặc Wokwi PASS riêng lẻ không được dùng để thay thế các gate
-vật lý này.
+| Thành viên | Phạm vi đăng ký |
+|---|---|
+| Thái Quang Huy — 24127177 | CB2, YC1, YC3, YC12 |
+| Nguyễn Văn Minh — 24127205 | CB1, YC6, YC8, YC9 |
+| Mai Phương Thùy — 24127249 | CB3, YC4, YC5, YC7 |
 
-## 9. Ghi nhận chuyển gói Fusion/VIVA vào repository
+Rủi ro yêu cầu lớn nhất là CB2 vẫn được mô tả “khóa/mở khóa” trong code/UI/báo
+cáo, trong khi as-built đã bỏ chốt. Trước khi nộp, nhóm phải mô tả đúng là tay
+servo đóng/mở cửa, hoặc bổ sung một cơ cấu khóa thật và re-test; không được để
+ảnh/caption tuyên bố có chốt không tồn tại.
 
-Theo xác nhận của người dùng, toàn bộ thư mục `THUYETMINH` gồm 34 file
-(39.349.988 byte) đã được chuyển từ thư mục môn học vào repository. File chính
-hiện ở
-`THUYETMINH/03_SMART_PRIVACY_LOCKER_VIVA_FINAL/01_MO_HINH_FUSION_CHINH/Smart_Privacy_Locker_v2.1_Final.f3d`.
-SHA-256 trước và sau khi chuyển đều là
-`952c9dc516304b4d54c5cafb1eb40b13a8f54367086e4128ac262a8eba59c0e3`.
+## 5. Kết quả kiểm thử đã chạy trong audit
 
-Ba script chạy trong Fusion trước đây hard-code đường dẫn cũ. Chúng đã được đổi
-sang thứ tự resolve an toàn: biến môi trường `SPL_THUYETMINH_WORKSPACE`, vị trí
-tương đối từ `__file__` khi có, rồi mới dùng fallback tuyệt đối của vị trí mới
-khi chạy qua Fusion MCP không định nghĩa `__file__`. JSON audit trong gói final
-vẫn giữ đường dẫn lịch sử vì đó là evidence của lần build cũ, không phải cấu
-hình runtime. Việc chuyển file và kiểm tra hash đạt mức `ARTIFACT_VERIFIED`; mô
-hình không được mở/chỉnh sửa bằng Fusion trong thao tác di chuyển này.
+### 5.1. Firmware và Arduino
+
+| Kiểm tra | Kết quả | Ghi chú |
+|---|---|---|
+| `pio test -e native` | PASS — 20/20 | Contract, cold boot, door, alarm, future-skew và wrap-safe heartbeat/retry. |
+| Clean `pio run -e esp32dev` | PASS | RAM 16.2%, flash 84.3%. |
+| Build trực tiếp ở đường dẫn Unicode Windows | FAIL do môi trường/toolchain path | Xtensa mangling đường dẫn tiếng Việt; không phải compiler error source. |
+| Build qua ánh xạ ổ ASCII tạm `R:` | PASS | Không copy source, không commit output; workaround được ghi trong firmware README. |
+| Arduino production mirror | PASS | 30 tệp đồng bộ byte-for-byte. |
+| Arduino profile compile | PASS | 1,108,993 byte flash (Arduino CLI làm tròn 84%), 52,976 byte RAM (16%). |
+| Wokwi clean build | PASS | RAM 6.8%, flash 24.5%; chỉ chứng minh mô phỏng đơn giản. |
+
+### 5.2. Node-RED/backend/simulator
+
+| Lệnh | Kết quả |
+|---|---|
+| `npm test` | PASS — 156/156 |
+| `npm run test:simulator` | PASS — 10 assertion / 15 scenario |
+| `npm run test:broker` | PASS — 17 assertion, broker cục bộ có xác thực |
+| `npm run audit` | PASS — 0 finding |
+| `npm audit --omit=dev --audit-level=low` | PASS — 0 vulnerability production |
+| Syntax JavaScript first-party | PASS — 39 file |
+| Python AST Fusion/CAD scripts | PASS — 6 file |
+
+Các kết quả trên là bằng chứng phần mềm. Broker cục bộ không thay broker deploy;
+simulator không thay ESP32, điện áp, chuyển động hoặc âm thanh thật.
+
+### 5.3. Browser/UI
+
+Đã dùng Chrome headless/CDP với API mock an toàn, ở desktop 1280 × 720 và
+mobile 320 × 800; đã kiểm focus, reduced motion, trạng thái no-data/fresh/stale,
+pending và lỗi startup. `playwright-cli 0.1.18` trên Node `v24.14.1` không khả
+dụng do cùng assertion upstream `UV_HANDLE_CLOSING` ở wrapper và lệnh trực
+tiếp; không tự ý đổi/pin runtime để che giới hạn môi trường này.
+
+PASS:
+
+- `lang="vi"`, một H1 và cấu trúc H2 rõ;
+- không document horizontal overflow;
+- 27 target tương tác khả kiến, không target nào nhỏ hơn 24 × 24 CSS px theo
+  effective target check;
+- focus outline 3 px;
+- 10 ARIA live/status regions hiện diện;
+- reduced-motion làm animation gần như tức thời;
+- bố cục desktop/mobile rõ, responsive, không tràn ngang;
+- public-config 503 giữ auth disabled, tự retry sau 5 giây và phục hồi;
+- `COMMAND_SUCCEEDED`/Telegram `failed` được dịch đúng;
+- spinner pending 17 px có màu độc lập và khóa cả hai nút cùng domain;
+- stale lock/alarm/LED hiển thị unknown và khóa mọi actuator control;
+- login/register có đúng một submit, full-name chỉ ở registration và password
+  autocomplete đúng mode.
+
+### 5.4. Supabase/live services
+
+Audit hiện tại **không chạy lại** clean migration/pgTAP/FlowFuse/Telegram/
+Gemini/SMTP trên dịch vụ thật vì đó là external state, cần scope/credential test
+và có side effect. Các snapshot đã làm sạch trước đây ghi nhận các gate live
+tương ứng đã PASS ở phiên bản/ngày của chúng; chúng không tự chứng minh
+deployment hiện tại vẫn giống hệt.
+
+### 5.5. CAD/VIVA package
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Verify package bình thường | UNAVAILABLE/FAIL precondition | Thiếu thư mục source build-output dùng để so sánh nguồn. |
+| `verify --no-source-compare` | PASS | Gói tự chứa 23 file gồm manifest, 22 record, 9 image và strict allowlist. |
+
+Kết luận đúng: package hiện tự nhất quán theo manifest; audit không chứng minh
+nó còn byte-for-byte khớp một source build-output đã không còn trong workspace.
+
+## 6. Phát hiện và trạng thái khắc phục
+
+### 6.1. P0
+
+Không có P0 đã được tái hiện hoặc chứng minh. Điều này không phải cam kết hệ
+thống không thể có lỗi; live production và phần cứng E2E chưa được audit đầy đủ.
+
+### 6.2. P1 — chặn final release
+
+| ID | Phát hiện | Bằng chứng/tác động | Điều kiện đóng |
+|---|---|---|---|
+| P1-01 | Nguồn ngoài và tải đồng thời chưa được acceptance | Jack/phân phối/switch/bảo vệ chưa có bảng đo; servo + 10 LED + buzzer + radio có thể sụt áp, reset, nóng hoặc back-feed. | Điền exact-part budget, đo idle/peak/tải đầy, 20 chu kỳ/soak và đạt mọi tiêu chí `hardware/power-budget.md`. |
+| P1-02 | “Khóa” cơ khí không khớp as-built và ACK servo không có feedback | Đã bỏ chốt; tay servo trực tiếp đóng/mở. SG90 open-loop, firmware chờ 550 ms rồi đặt state logic; jam/disconnected horn vẫn có thể được báo success. | Đổi semantics/caption/UI thành đóng/mở + dùng MC-38 xác nhận, hoặc bổ sung chốt/limit feedback và re-test. Không tuyên bố chống cạy trước khi có bằng chứng. |
+| P1-03 | Chưa có final E2E release evidence | Còi GPIO26 active, exact rail, hai chiều đề bài, live lifecycle, reconnect và full-load chưa chạy trọn trên cùng version/wiring. | Chạy toàn bộ gate bắt buộc trong `HUONG_DAN_TEST_END_TO_END.md`, lưu correlation/video/đo và cập nhật test plan. |
+
+P1-03 là blocker kiểm chứng, không phải khẳng định source sai. Người dùng đã
+quan sát một số linh kiện riêng lẻ hoạt động; bằng chứng đó được ghi `PARTIAL /
+USER-REPORTED`, không bị bỏ qua và cũng không bị nâng quá mức.
+
+### 6.3. P2 — lỗi/độ tin cậy quan trọng
+
+| ID | Thành phần | Trạng thái khắc phục | Bằng chứng/giới hạn còn lại |
+|---|---|---|---|
+| P2-01 | Dashboard state | **FIXED** — no-data/stale lock, alarm và LED dùng `UNKNOWN`; stale khóa control. | DOM regression và Chrome fresh→stale PASS. |
+| P2-02 | Dashboard Telegram | **FIXED** — map đủ delivery status có fallback an toàn. | Regression và Chrome `failed` → “gửi thất bại” PASS. |
+| P2-03 | Dashboard control | **FIXED** — spinner có màu độc lập, giữ `aria-busy` và khóa cùng domain. | Chrome đo spinner 17 px, opacity 1. |
+| P2-04 | Dashboard startup | **FIXED** — retry public config mỗi 5 giây; auth fail-closed đến khi sẵn sàng. | Regression và Chrome 503→recovery PASS. |
+| P2-05 | Dashboard label | **FIXED** — exhaustive command map và fallback không lộ raw enum. | Regression và Chrome localization PASS. |
+| P2-06 | Firmware validator | **FIXED** — khi đồng hồ đã sync, command tương lai quá 30 giây bị `INVALID_ISSUED_AT`. | Native future-skew regression PASS; khi chưa sync không thể áp time bound đáng tin cậy. |
+| P2-07 | Node-RED observability | **FIXED** — unknown/late/mismatch ACK trả `accepted:false` và diagnostic bounded. | ACK correlation regressions PASS; không chứa raw payload/secret. |
+| P2-08 | MQTT QoS0 outcome | **FIXED phần quan sát** — firmware log mọi ACK/state/door publish failure, giữ timeout/GET_STATE và không retry actuator. | QoS0 vẫn có outcome mơ hồ theo thiết kế; không thể biến ACK mất thành exactly-once. |
+| P2-09 | MQTT liveness | **FIXED** — heartbeat không retained + full-state refresh mỗi 10 giây; generation-safe backend ingestion. | Regression 30 giây, simulator và broker PASS. Brownout/mất nguồn vẫn phải đo vật lý. |
+| P2-10 | Dashboard refresh | **FIXED** — refresh single-flight; access token đã hết hạn không còn được gửi vào protected polling khi provider tạm lỗi. | Hai regression đỏ-trước/sau-đó-xanh xác nhận refresh token được giữ, control fail-closed và chỉ có một refresh request mỗi session generation. |
+
+### 6.4. P3 — polish/hardening/tài liệu
+
+| ID | Thành phần | Trạng thái khắc phục |
+|---|---|---|
+| P3-01 | Auth form | **FIXED** — một submit theo mode, full-name chỉ ở registration, `new-password`/`current-password` đúng ngữ cảnh. |
+| P3-02 | Wokwi | **FIXED** — help dùng 170°/80°, safe boot không tự quay servo; README vẫn nêu rõ delta điện/mô phỏng. |
+| P3-03 | Remote MQTT default | **FIXED** — example mặc định TLS/8883; non-TLS chỉ được phép là local isolated override. |
+| P3-04 | Status semantics | **FIXED ở UI/tài liệu** — dùng “đóng/mở cửa” và “vị trí tay servo”; MQTT v1 enums giữ nguyên để tương thích. Feedback cơ khí vẫn là P1-02. |
+
+## 7. Rà soát theo thành phần
+
+### 7.1. Firmware
+
+Điểm mạnh:
+
+- safe cold boot: lock/door UNKNOWN, alarm inactive, LED off;
+- servo không attach/write lúc boot;
+- buzzer được đặt inactive trước output operation;
+- cooperative loop, controller theo deadline, không block callback;
+- schema/topic/locker/action/requester/timestamp validation;
+- duplicate cache có giới hạn và replay ACK không actuate lại;
+- retained full state/availability, LWT, reconnect backoff;
+- MC-38 stable debounce, boot UNKNOWN, transition-only telemetry;
+- DHT/OLED local path đúng phạm vi;
+- local config ignored và Arduino mirror có workflow kiểm tra.
+
+Giới hạn còn lại: open-loop actuation, QoS0 publish ambiguity, đồng hồ chưa sync
+không thể kiểm time bound, exact hardware polarity/current và full-load chưa đóng.
+
+### 7.2. Node-RED và đồng bộ
+
+Điểm mạnh:
+
+- Bearer-only identity, owner gate trước command;
+- server tạo UUID/time/requester;
+- pending theo domain, timeout 5 s, không retry actuator;
+- một `GET_STATE` reconciliation, restart/disconnect cancellation;
+- correlation ID/locker/action/state chặt;
+- bounded operational buffers và deterministic simulator/broker tests;
+- normalized event interface tách MQTT v1;
+- Telegram không chặn alarm path.
+
+Finding chính: ACK anomaly observability; công cụ/lifecycle live cuối chưa chạy
+lại; MQTT QoS0 vẫn tạo outcome mơ hồ theo thiết kế.
+
+### 7.3. Supabase/data
+
+Điểm mạnh:
+
+- migrations có RLS, least privilege và fixed search paths;
+- atomic claim/owner immutability;
+- event idempotency, deterministic availability ID;
+- history pagination/order/dedupe/ceiling;
+- chart timezone/zero bucket;
+- daily delivery reservation, bounded retry và `delivery_unknown` an toàn.
+
+Không phát hiện source issue P0 từ review tĩnh/test. Tuy nhiên clean live rebuild,
+pgTAP và cross-owner gate không được rerun trong audit này; phải coi là
+`NOT RUN` hiện tại, không ghi PASS mới dựa trên snapshot cũ.
+
+### 7.4. Telegram/Gemini/email
+
+Điểm mạnh:
+
+- Telegram one-time hashed token, TTL 10 phút, private-chat-only, secret webhook,
+  no global Chat ID, sanitized browser response;
+- Gemini intent/canonical facts/owner scope, backend tính số liệu;
+- SMTP dedupe và phân biệt definitive failure/ambiguous outcome.
+
+Rủi ro còn lại: lifecycle live cuối trên deployment thật; provider credential/
+scope phải ở môi trường test và không xuất hiện trong evidence.
+
+### 7.5. UI/UX/accessibility
+
+Visual/responsive/accessibility baseline và các sửa state truthfulness đã PASS
+ở regression/Chrome local. Ma trận đã kiểm:
+
+- config 503→recovery;
+- no-data/fresh/stale/offline→fresh;
+- mọi command/delivery enum;
+- pending spinner;
+- mobile/keyboard/reduced motion sau sửa.
+
+Tiêu chí tham chiếu:
+[WCAG 2.2](https://www.w3.org/TR/WCAG22/),
+[Reflow](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html),
+[Status Messages](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html),
+[Keyboard](https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html),
+[Focus Visible](https://www.w3.org/WAI/WCAG22/Understanding/focus-visible) và
+[Target Size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
+
+### 7.6. Phần cứng as-built
+
+Mapping đã ghi:
+
+| Thiết bị | Wiring hiện tại | Trạng thái evidence |
+|---|---|---|
+| OLED | 3.3 V/GND, SDA21, SCL22 | user-reported hiển thị đúng |
+| DHT22 | 3.3 V/GND, OUT4 | user-reported giá trị đúng trên OLED |
+| MC-38 | GPIO27 ↔ contact ↔ GND | user-reported tạo Telegram |
+| WS2812B | 5 V/GND, DI25 qua 470 Ω, tụ 470 µF, local 10 pixel | user-reported sáng đúng count |
+| SG90 | signal GPIO18, 5 V load, `170°/80°` | user-reported chạy; không còn chốt |
+| Buzzer | VCC 3.3 V, GND, I/O26 qua 4.7 kΩ, active-low | wiring có; active/ACK/full-load chưa đủ |
+| Jack/power | 5.5 × 2.5 mm | polarity/distribution/switch/full-load chưa acceptance |
+
+Adapter không cần nút I/O tích hợp. Khuyến nghị công tắc DC rời đúng định mức ở
+dây dương; jack không phải bộ chia. Phải dùng phân phối nguồn, common GND, đo
+cực/tải và tránh đưa adapter 5 V vào `3V3` hoặc topology USB có back-feed.
+
+## 8. Thứ tự xử lý đề xuất
+
+### Đợt 1 — an toàn và sự thật sản phẩm
+
+1. hoàn tất BOM exact part/power budget;
+2. đo jack/polarity/rail, lắp switch/distribution/protection;
+3. chốt thuật ngữ direct-arm hoặc bổ sung chốt/feedback;
+4. test còi GPIO26 và từng linh kiện bằng firmware release;
+5. full-load 20 cycle/soak.
+
+### Đợt 2 — source P2 đã hoàn tất trong workspace
+
+1. heartbeat/state refresh và generation-safe liveness;
+2. Dashboard state/failure labels/spinner/config retry/auth-mode;
+3. future-skew validation;
+4. ACK anomaly diagnostics;
+5. publish-failure logging, không retry actuator.
+
+### Đợt 3 — final E2E và báo cáo
+
+1. chạy hai luồng đề bài + auth/owner + providers;
+2. chạy reconnect/restart/stale/failure;
+3. lưu evidence có timestamp/correlation/version;
+4. cập nhật test plan và report claims;
+5. render PDF, kiểm caption, secret, tên file và luyện vấn đáp.
+
+## 9. Quyết định release
+
+| Mốc | Quyết định hiện tại | Lý do |
+|---|---|---|
+| Static/source review | PASS | Không có P0 đã chứng minh; P2/P3 phần mềm đã sửa và rerun. |
+| Automated software handoff | PASS | Firmware/Node/build/audit đạt trong phạm vi. |
+| Individual hardware smoke | PARTIAL / USER-REPORTED | Nhiều linh kiện đã chạy, thiếu biên bản/tải/trace đầy đủ. |
+| External power/full-load | NOT RUN/UNAVAILABLE | Chưa có measurement/acceptance. |
+| Live services current audit | NOT RUN | Chỉ có evidence lịch sử, không rerun external state. |
+| Full physical E2E | NOT RUN | Chưa hoàn tất guide mới. |
+| Final report/demo ready | NO-GO | P1-01, P1-02, P1-03 còn mở. |
+
+## 10. Tài liệu hành động
+
+- Lắp mạch chuẩn: [HUONG_DAN_LAP_MACH_THEO_THU_TU.md](HUONG_DAN_LAP_MACH_THEO_THU_TU.md)
+- Chạy hệ thống: [HUONG_DAN_CHAY_HE_THONG.md](HUONG_DAN_CHAY_HE_THONG.md)
+- Test từ đầu đến cuối: [HUONG_DAN_TEST_END_TO_END.md](HUONG_DAN_TEST_END_TO_END.md)
+- Ôn vấn đáp: [ON_TAP_VAN_DAP_CHI_TIET.md](ON_TAP_VAN_DAP_CHI_TIET.md)
+- Test registry: [tests/test-plan.md](tests/test-plan.md)
+- Requirement trace: [docs/requirements.md](docs/requirements.md)
+- Nội dung báo cáo: [NOI_DUNG_BAO_CAO_CUOI_KY.md](NOI_DUNG_BAO_CAO_CUOI_KY.md)
+- Pin/power: [hardware/pin-map.md](hardware/pin-map.md),
+  [hardware/power-budget.md](hardware/power-budget.md)
+
+Sau khi các sửa source và gate E2E hoàn tất, tạo một record audit mới hoặc một
+phần addendum có ngày/commit. Không sửa ngược kết quả 2026-08-17 thành PASS.

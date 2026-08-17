@@ -11,6 +11,10 @@ This contract is additive to MQTT v1 and does not change any MQTT topic, enum,
 retain, ACK, timeout or QoS behavior. Fixtures live in
 `tests/fixtures/phase-2/`.
 
+Audit note 2026-08-17: the automated event/adapter suite passes. Current live
+provider/database evidence remains tied to its historical test records and was
+not rerun during this audit. Physical producers and final E2E remain open.
+
 ## Normalized event
 
 Every event contains:
@@ -60,6 +64,11 @@ Phase 3 implements the CB3 alarm controller and integrates `ALARM_ON/OFF` with
 full state and correlated ACK handling. Native tests and a clean firmware build
 exercise the software path. Real buzzer polarity/current, GPIO behavior and a
 physical `alarm=ACTIVE` ACK remain P3-M01/P3-M02 hardware final gates.
+
+Likewise, a successful SG90 command event records completion of the firmware's
+timed control cycle, not measured door position. The current as-built has no
+latch or servo feedback; MC-38 and synchronized physical evidence are needed
+before interpreting `LOCKED` as an actual closed-door outcome.
 
 Timeout is 5000 ms by default, does not retry the actuator, and may send one
 `GET_STATE`. A timeout never becomes success merely because a late ACK arrives.

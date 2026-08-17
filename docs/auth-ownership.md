@@ -9,6 +9,12 @@ gates pass. Phase 3 reuses this boundary for owner-protected data routes; its
 development-project P3-M04 owner-isolation/history gate passes. P3-M05's
 7/30-day, empty-bucket and local-midnight owner paths also pass.
 
+Those deployed/live PASS statements refer to their sanitized historical test
+records. The 2026-08-17 audit reran the automated suite but did not mutate or
+rebuild the external Supabase project; a release-candidate project must rerun
+the User A/User B/RLS gates in
+[../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md).
+
 ## Trust boundary
 
 The browser signs up/signs in with Supabase Auth using only `SUPABASE_URL` and
@@ -16,6 +22,11 @@ the anon/publishable key returned by `/api/v1/public-config`. A protected reques
 to Node-RED carries the current Supabase access token in the HTTP Authorization
 header. There is no custom session, cookie fallback, query-string token, client
 `user_id`, or MQTT route.
+
+The current Dashboard requests public config only once at startup. A transient
+503 can leave the page in “chưa cấu hình” until a manual reload; this is a
+confirmed UI availability finding, not an authorization fallback. Do not
+hard-code keys or bypass the Bearer/owner gate to work around it.
 
 Node-RED calls `GET {SUPABASE_URL}/auth/v1/user` with the anon key and received
 Bearer token. The returned `user.id` is the only trusted identity. It then
@@ -68,9 +79,12 @@ session in browser `sessionStorage`, restores it on reload, refreshes about 60
 seconds before expiry through `grant_type=refresh_token`, and clears local state
 on a rejected refresh or a protected `401` that still belongs to the current
 session. Late authentication/claim completions cannot unlock a newer session's
-pending form, and a late `401` from an older token cannot clear a newer login. A network/provider refresh failure
-keeps the local session, leaves protected APIs fail-closed, and schedules one
-later retry. Logout calls `/auth/v1/logout`, clears
+pending form, and a late `401` from an older token cannot clear a newer login.
+Refresh is single-flight per session generation. A network/provider refresh
+failure keeps the local refresh session and schedules one later retry; once the
+access token is known to be expired, polling stops and live controls are cleared
+instead of sending that token to a protected route. Logout calls
+`/auth/v1/logout`, clears
 the session immediately, disables controls, and removes sensitive UI state even
 if the remote logout request stalls or fails. Browser HTTP requests have a
 bounded operation-specific timeout and periodic state polls are serialized. A physical

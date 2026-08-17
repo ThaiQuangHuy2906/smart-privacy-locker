@@ -1,5 +1,12 @@
 # Smart Privacy Locker deployment guide
 
+> Release note 2026-08-17: automated build/test gates pass, but this audit did
+> not redeploy or rerun external Supabase/FlowFuse/Telegram/Gemini/SMTP state.
+> Deploy only to an explicitly identified test project, preserve a rollback,
+> keep secrets outside Git, then execute
+> [../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md). A deploy
+> success alone is not final E2E evidence.
+
 ## 1. Database
 
 Apply every file in `supabase/migrations/` in lexical order to the selected
@@ -64,6 +71,14 @@ Set deployment variables from `.env.example`. In particular, Supabase service
 role and SMTP password belong only to the backend secret store. MQTT username
 and password belong to the broker configuration credential fields. Never paste
 real values into `flows.json`, Dashboard code, screenshots or Git.
+
+For a remote broker, use TLS/8883 with a verified CA and distinct broker
+principals/ACLs for Node-RED and each device. The tracked public firmware
+example is secure-by-default (`MQTT_USE_TLS=true`, port `8883`) and suppresses
+connection until a non-placeholder CA/credential is supplied. A non-TLS 1883
+override is permitted only on an explicitly isolated local lab broker. Put the
+real CA and credential only in ignored local firmware configuration and verify
+the broker certificate instead of disabling validation.
 
 ### Telegram automatic linking
 
@@ -168,3 +183,10 @@ Flash only after the board, low-voltage power, GPIO labels and candidate wiring
 have been checked. Validate the buzzer module polarity/current and safe boot
 with appropriate lab supervision before running P3-M01/P3-M11. Simulator and
 compile results are software evidence, not hardware evidence.
+
+The current as-built SG90 uses close `170°` and open `80°`, directly moving the
+door without a latch. Before enabling the external 5 V branch, meter-check the
+5.5 × 2.5 mm jack polarity, switch/distribution/protection and common ground;
+complete [../hardware/power-budget.md](../hardware/power-budget.md). The adapter
+does not need a built-in I/O switch, but a correctly rated DC switch in the
+positive lead is the recommended controllable disconnect.

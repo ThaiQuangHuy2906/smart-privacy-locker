@@ -13,7 +13,7 @@ constexpr char kCommandId[] = "550e8400-e29b-41d4-a716-446655440000";
 constexpr char kRequesterId[] = "550e8400-e29b-41d4-a716-446655440001";
 
 const CommandValidationContext kUnsyncedContext = {
-    "LOCKER-001", "LOCKER-001", false, 0, 120,
+    "LOCKER-001", "LOCKER-001", false, 0, 120, 30,
 };
 
 const char kValidUnlock[] = R"json({
@@ -26,7 +26,7 @@ const char kValidUnlock[] = R"json({
 })json";
 
 CommandValidationContext syncedContext(int64_t nowEpochSeconds) {
-  return {"LOCKER-001", "LOCKER-001", true, nowEpochSeconds, 120};
+  return {"LOCKER-001", "LOCKER-001", true, nowEpochSeconds, 120, 30};
 }
 
 AckRecord sampleAck() {
@@ -120,6 +120,22 @@ void test_stale_command_is_rejected_only_when_clock_is_synced() {
   TEST_ASSERT_TRUE(unsynced.ok());
 }
 
+void test_future_command_respects_configured_clock_skew_when_synced() {
+  // issued_at is epoch 1786089600. A device clock 30 seconds behind remains
+  // within the accepted skew, while 31 seconds behind must fail closed.
+  const CommandParseResult boundary = parseAndValidateCommand(
+      kValidUnlock, strlen(kValidUnlock), syncedContext(1786089570));
+  const CommandParseResult tooFarAhead = parseAndValidateCommand(
+      kValidUnlock, strlen(kValidUnlock), syncedContext(1786089569));
+  const CommandParseResult unsynced =
+      parseAndValidateCommand(kValidUnlock, strlen(kValidUnlock), kUnsyncedContext);
+
+  TEST_ASSERT_TRUE(boundary.ok());
+  TEST_ASSERT_EQUAL(CommandError::INVALID_ISSUED_AT, tooFarAhead.error);
+  TEST_ASSERT_TRUE(tooFarAhead.hasCorrelatableId);
+  TEST_ASSERT_TRUE(unsynced.ok());
+}
+
 void test_cached_ack_replays_original_state_with_duplicate_true() {
   RecentCommandCache cache(2);
   const AckRecord original = sampleAck();
@@ -166,6 +182,7 @@ int main(int, char**) {
   RUN_TEST(test_missing_action_with_valid_id_can_be_correlated_as_error);
   RUN_TEST(test_invalid_action_and_locker_are_rejected_without_actuation);
   RUN_TEST(test_stale_command_is_rejected_only_when_clock_is_synced);
+  RUN_TEST(test_future_command_respects_configured_clock_skew_when_synced);
   RUN_TEST(test_cached_ack_replays_original_state_with_duplicate_true);
   RUN_TEST(test_cold_boot_state_does_not_claim_lock_position);
   return UNITY_END();

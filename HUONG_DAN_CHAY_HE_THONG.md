@@ -1,10 +1,13 @@
 # Hướng dẫn kiểm thử và chạy Smart Privacy Locker sau khi lắp mạch
 
-Đây là **nguồn hướng dẫn kiểm thử sau lắp mạch duy nhất** của dự án. Tài liệu
-dùng để kiểm tra chấp nhận, khởi động, vận hành, recovery và tắt hệ thống sau
+Đây là **hướng dẫn chạy/vận hành sau lắp mạch** của dự án. Tài liệu dùng để
+kiểm tra khởi động, vận hành, recovery và tắt hệ thống sau
 khi đã làm xong
 [HUONG_DAN_LAP_MACH_THEO_THU_TU.md](HUONG_DAN_LAP_MACH_THEO_THU_TU.md). Đây
-không phải hướng dẫn cắm dây lần đầu.
+không phải hướng dẫn cắm dây lần đầu. Ma trận kiểm thử release đầy đủ, failure
+injection, cách thu evidence và gói cần cung cấp cho Codex nằm ở
+[HUONG_DAN_TEST_END_TO_END.md](HUONG_DAN_TEST_END_TO_END.md); khi hai tài liệu
+khác mức chi tiết, tiêu chí final E2E của tài liệu đó được ưu tiên.
 
 Không có phép kiểm tra phần mềm nào bảo đảm sản phẩm thật “đúng 100%” nếu chưa
 đo và chạy trên đúng ESP32, module, nguồn, cơ khí và dịch vụ triển khai. Trong
@@ -43,13 +46,28 @@ Trong vận hành hằng ngày:
   FlowFuse Cloud; FlowFuse là runtime đang chạy.
 - Trình duyệt không kết nối trực tiếp với ESP32 và không chứa MQTT credential.
 
+### Ý nghĩa `LOCK`/`UNLOCK` với cơ cấu thực tế
+
+Từ ngày 17/08/2026, sản phẩm không còn chốt khóa riêng. Cánh tay SG90 trực tiếp
+đóng/mở cửa với mapping đã xác nhận:
+
+```text
+LOCK   → 170° → đóng cửa
+UNLOCK →  80° → mở cửa
+```
+
+Tên command, ACK và state `LOCKED`/`UNLOCKED` vẫn được giữ để tương thích
+Dashboard, MQTT và lịch sử hiện có. State này chỉ xác nhận vị trí servo đã được
+ra lệnh; `door=CLOSED/OPEN` từ MC-38 mới là tín hiệu xác nhận vị trí cửa thực.
+
 ## 2. Điều kiện trước khi vận hành
 
 Chỉ tiếp tục khi tất cả mục sau đều đúng:
 
 - [ ] Firmware release cuối đã được nạp vào đúng ESP32 Dev Module.
 - [ ] Board, dây, connector, switch, bảo vệ nhánh và nguồn đã được nghiệm thu.
-- [ ] Servo không kẹt, không ép end-stop và cơ cấu chốt tự vận hành an toàn.
+- [ ] Servo không kẹt, không ép end-stop; cánh tay và cửa vận hành an toàn ở
+  `80°`/`170°` mà không cần servo giữ lực liên tục.
 - [ ] Servo và WS2812 không lấy dòng từ GPIO hoặc rail 3,3 V của ESP32; buzzer
   LOW-trigger/TMB12A05 là ngoại lệ đã chọn cho prototype: `VCC→3V3`,
   `GND→GND`, `IN/S/I/O→GPIO26` qua 4,7 kΩ, tuyệt đối không lấy VCC từ GPIO.
@@ -89,7 +107,7 @@ hoàn toàn; ghi `FAIL` rồi dừng nếu sai. Không dùng “có vẻ chạy�
 | `SYS-01` | Kiểm tra mất điện | Không chập 3V3/GND hoặc 5V/GND; đúng cực adapter/tụ; common GND; không có 5 V vào GPIO/3V3 | ảnh dây có nhãn + số đo continuity/điện áp |
 | `SYS-02` | Safe boot/reset | 10 lần cold boot và 10 lần `EN`: buzzer luôn im trước lệnh, LED OFF, servo không tự chạy, không brownout/reboot loop | video liên tục + serial reset reason |
 | `SYS-03` | Sensor/display | OLED đúng địa chỉ; DHT22 có giá trị hợp lý qua ít nhất 5 chu kỳ; MC-38 đổi đúng OPEN/CLOSED và debounce ổn định | ảnh OLED + serial/state + video nam châm |
-| `SYS-04` | Từng output riêng | LED ON/OFF, servo LOCK/UNLOCK và buzzer ON/OFF đều có physical result khớp correlated ACK + retained state; buzzer HIGH im/LOW kêu ở GPIO26 | video + MQTT ACK/state theo `command_id` |
+| `SYS-04` | Từng output riêng | LED ON/OFF, servo `LOCK→170°`/`UNLOCK→80°` và buzzer ON/OFF đều có physical result khớp correlated ACK + retained state; MC-38 xác nhận cửa; buzzer HIGH im/LOW kêu ở GPIO26 | video + MQTT ACK/state theo `command_id` |
 | `SYS-05` | Cửa và cảnh báo | Cửa mở trong cửa sổ authorized không báo giả; mở ngoài cửa sổ tạo đúng một unauthorized episode, alarm và Telegram theo cấu hình | event/history + notification + video |
 | `SYS-06` | Wi-Fi portal | `Locker-Setup` hoạt động, lưu Wi-Fi, reboot tự nối lại; credential không đi vào log/source | video portal đã che SSID nhạy cảm + serial redacted |
 | `SYS-07` | MQTT recovery | Mất broker/mạng làm controls khóa; reconnect có LWT/availability đúng, fresh full state mới và không replay actuator command | broker log + Dashboard trước/sau reconnect |
@@ -107,7 +125,8 @@ ghi rõ blocker; không nâng trạng thái toàn hệ thống thành PASS.
 
 ### Bước 1 — kiểm tra khi chưa cấp nguồn
 
-1. Đảm bảo cửa, chốt và servo không bị vật cản.
+1. Đảm bảo cửa và cánh tay servo không bị vật cản; cửa không ép servo ở
+   `80°` hoặc `170°`.
 2. Kiểm tra nhanh dây nguồn, common ground, connector và các điểm có thể chạm
    vỏ hoặc cơ cấu chuyển động.
 3. Xác nhận còi, LED và servo không ở trạng thái có thể gây nguy hiểm khi cấp
@@ -135,8 +154,9 @@ hoạt động; chưa chứng minh ESP32 hoặc MQTT đang ONLINE.
 
 ### Bước 3 — cấp nguồn
 
-1. Dùng switch và bộ nguồn low-voltage đã được duyệt trong wiring revision
-   cuối.
+1. Bật nhánh tải bằng công tắc DC/đường ngắt dễ tiếp cận và bộ nguồn
+   low-voltage đã được duyệt trong wiring revision cuối. Nút I/O có thể là
+   công tắc rời; không cần nằm sẵn trên adapter.
 2. Quan sát ESP32, OLED, LED, servo và buzzer ngay khi bật nguồn.
 3. Buzzer phải im lặng, LED ở trạng thái `OFF` và servo không được tự quay chỉ
    vì boot.
@@ -186,6 +206,13 @@ này.
 Controls bị khóa khi offline, state stale hoặc chưa đủ freshness là hành vi
 fail-closed đúng thiết kế; không tìm cách bỏ qua gate này.
 
+Sau lượt sửa 2026-08-17, Dashboard dịch command/delivery status, hiển thị
+spinner pending, tự retry public-config mỗi 5 giây và chuyển lock/alarm/LED về
+unknown khi no-data/stale. Nếu bản deploy vẫn có hành vi cũ, đó là dấu hiệu
+source/artifact/browser cache không cùng version: sinh lại
+`flows.flowfuse.json`, import/deploy đúng artifact rồi hard reload; không sửa
+backend state để làm giao diện “trông đúng”.
+
 ## 4. Smoke test đầu phiên
 
 Chạy smoke test ngắn sau mỗi lần lắp đặt, di chuyển, thay nguồn, thay mạng,
@@ -210,15 +237,17 @@ hoặc card Dashboard trong thiết kế hiện tại.
 4. Gửi `LED_OFF`, chờ ACK và state `OFF`.
 5. Xác nhận ESP32 không reset và LED hoạt động ổn định.
 
-### 4.3. Kiểm tra khóa
+### 4.3. Kiểm tra cơ cấu đóng/mở cửa
 
 Chỉ thực hiện khi vùng chuyển động an toàn và có thể ngắt nguồn ngay:
 
-1. Gửi một lệnh phù hợp với vị trí cần kiểm tra: `LOCK` hoặc `UNLOCK`.
+1. Gửi `UNLOCK` để servo về `80°` và mở cửa, hoặc `LOCK` để servo về `170°` và
+   đóng cửa.
 2. Không bấm lại khi UI đang pending.
 3. Quan sát phần cứng thực sự di chuyển hết hành trình mà không kẹt hoặc stall.
-4. Chỉ chấp nhận thành công khi có đủ chuyển động vật lý, correlated ACK và
-   state cuối đúng.
+4. Chỉ chấp nhận thành công khi có đủ chuyển động vật lý, correlated ACK,
+   state servo cuối đúng và MC-38 báo đúng vị trí cửa. ACK riêng của servo
+   không chứng minh cửa đã đóng/mở.
 5. Nếu HTTP timeout hoặc kết quả chưa xác định, không gửi lại ngay. Chờ
    `GET_STATE` reconciliation hoặc kiểm tra trạng thái thực tế trước.
 
@@ -250,11 +279,13 @@ tục demo như thể hệ thống đã sẵn sàng.
 
 ## 5. Vận hành bình thường
 
-### Khóa và mở khóa
+### Đóng và mở cửa qua command `LOCK`/`UNLOCK`
 
 - Chỉ gửi một lệnh tại một thời điểm trong cùng actuator domain.
 - Chờ ACK và state cuối trước khi gửi lệnh tiếp theo.
 - Luôn quan sát cơ khí khi chạy thử trực tiếp.
+- Đối chiếu MC-38 sau chuyển động: `LOCKED`/`UNLOCKED` mô tả servo, còn
+  `CLOSED`/`OPEN` mô tả cửa.
 - Không dùng thao tác lặp nhanh để ép servo hoặc kiểm tra tải.
 - Nếu kết quả timeout/không xác định, đối chiếu state và vị trí thật trước khi
   quyết định thao tác tiếp.
@@ -523,20 +554,21 @@ Khi Wi-Fi, broker, FlowFuse hoặc ESP32 mất kết nối:
    keepalive.
 4. Khôi phục đúng dịch vụ hoặc mạng bị lỗi.
 5. ESP32 phải reconnect có giới hạn, không reboot loop.
-6. Sau reconnect, ESP32 phát `ONLINE` và fresh full state.
+6. Sau reconnect, ESP32 phát `ONLINE` rồi fresh full state; khi yên lặng vẫn gửi
+   heartbeat không retained + state refresh mỗi 10 giây.
 7. Node-RED phát một `GET_STATE` bootstrap cho connection generation mới.
 8. Chỉ điều khiển lại khi Dashboard đã nhận current-generation availability và
    full state.
 
 Sau một cold boot, `lock` vẫn có thể là `UNKNOWN` cho đến khi một `LOCK` hoặc
 `UNLOCK` mới hoàn tất. Không sửa retained state thủ công để biến `UNKNOWN`
-thành một vị trí chưa được xác nhận.
+thành một vị trí servo chưa được xác nhận; dùng MC-38 để đọc vị trí cửa thực.
 
 ## 9. Tắt hệ thống
 
 1. Hoàn tất command đang pending; không cắt nguồn giữa lúc servo đang chạy.
 2. Đưa alarm về `INACTIVE` và LED về `OFF` nếu quy trình vận hành yêu cầu.
-3. Đưa cửa/chốt về trạng thái cơ khí an toàn đã thống nhất.
+3. Đưa cửa và cánh tay servo về trạng thái cơ khí an toàn đã thống nhất.
 4. Xác nhận không còn actuator chuyển động.
 5. Tắt bằng main switch/nguồn low-voltage đã duyệt.
 6. Không rút dây tín hiệu hoặc connector tải khi mạch còn điện.
@@ -549,13 +581,14 @@ thay đổi trạng thái cơ khí.
 
 | Hiện tượng | Kiểm tra đầu tiên | Hành động an toàn |
 |---|---|---|
+| Nhấn `EN`, thiết bị lên rồi Dashboard mất tín hiệu sau khoảng 30 giây | Firmware đã chứa `MQTT_HEARTBEAT_INTERVAL_MS=10000` chưa; topic `locker/<ID>/heartbeat`; serial có reboot/brownout; rail 5 V/3.3 V khi servo/LED hoạt động | Upload firmware hiện tại và deploy FlowFuse artifact cùng version. Nếu heartbeat dừng kèm reset/brownout, ngắt tải và quay lại gate nguồn; nếu firmware vẫn chạy nhưng backend stale, kiểm ACL/subscription/flow. Không bấm `EN` lặp để che lỗi. |
 | Không thấy cổng ESP32 | Cáp data, USB-UART driver, Device Manager | Không chọn cổng Bluetooth; thử cáp/cổng/driver đúng chip |
 | Không thấy `Locker-Setup` | Wi-Fi cũ còn dùng được hoặc portal đã hết 180 giây | Restart gần thiết bị; chỉ reset Wi-Fi qua USB khi bảo trì |
 | Wi-Fi connected nhưng MQTT offline | Host/port/TLS/CA, credential, ACL, broker | Sửa đúng một lớp cấu hình; không đưa secret vào log |
 | Dashboard tải được nhưng controls bị khóa | Auth, ownership, MQTT, `ONLINE`, fresh full state | Chờ đồng bộ hoặc sửa lớp đang offline; không bỏ freshness gate |
 | Command pending rồi timeout | ACK, device state, broker và Node-RED diagnostic | Không tự gửi lại; dùng `GET_STATE`/đối chiếu vị trí thật |
 | ACK success nhưng actuator không chạy | Nguồn tải, driver, wiring, polarity, cơ khí | Ngắt nguồn và kiểm tra phần cứng; không sửa UI để che lỗi |
-| Servo rung/kẹt hoặc ESP32 reset | Linkage, end-stop, rail 5 V, current, common ground | Ngắt nguồn ngay; quay lại power/full-load gate |
+| Servo rung/kẹt hoặc ESP32 reset | Cánh tay/cửa, end-stop, rail 5 V, current, common ground | Ngắt nguồn ngay; tách cánh tay khỏi cửa rồi quay lại power/full-load gate |
 | WS2812 direct sai màu/flicker/lúc chạy lúc không | Margin 3,3 V → `DIN`, data wire, common GND, rail tại pixel | Ngắt nguồn; kiểm tra Stage 6, rút ngắn data; nếu tái diễn dùng `SN74AHCT125N` hoặc bỏ LED vật lý |
 | Buzzer kêu lại sau `Hard resetting via RTS pin...` hoặc sau `EN` | Kiểm tra VCC module có bị nối 5 V, local `SPL_BUZZER_ACTIVE_HIGH=0`, tín hiệu đúng GPIO26 qua 4,7 kΩ; nhớ rằng 4,7 kΩ chỉ hạn dòng, không đổi HIGH 3,3 V thành 5 V | Ngắt nguồn; với specimen hiện tại chuyển VCC về ESP32 `3V3`, không dùng `INPUT` để tắt và không đưa 5 V vào GPIO |
 | Door state ngược | MC-38 continuity, placement, `MC38_CLOSED_LEVEL_HIGH` | Power off, xác minh bằng đồng hồ rồi rebuild nếu cần |
@@ -606,6 +639,10 @@ ID trong ma trận 2.1 hoặc đúng bước trong
 - [hardware/pin-map.md](hardware/pin-map.md): GPIO và calibration values.
 - [hardware/power-budget.md](hardware/power-budget.md): nguồn và full-load gate.
 - [docs/troubleshooting.md](docs/troubleshooting.md): xử lý sự cố chi tiết.
+- [HUONG_DAN_TEST_END_TO_END.md](HUONG_DAN_TEST_END_TO_END.md): quy trình test
+  từ zero đến final, failure/recovery và gói evidence.
+- [ON_TAP_VAN_DAP_CHI_TIET.md](ON_TAP_VAN_DAP_CHI_TIET.md): kiến thức vật lý,
+  kiến trúc, ngân hàng câu hỏi và kịch bản vấn đáp.
 - [HUONG_DAN_LAP_MACH_THEO_THU_TU.md](HUONG_DAN_LAP_MACH_THEO_THU_TU.md):
   nguồn hướng dẫn cắm dây duy nhất.
 - [Arduino Sketch Specification](https://docs.arduino.cc/arduino-cli/sketch-specification/): quy tắc sketch nhiều file và file `.ino` chính.

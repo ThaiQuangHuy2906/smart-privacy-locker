@@ -16,14 +16,18 @@
 // necessary. app_config.h is intentionally ignored by Git.
 namespace AppConfig {
 constexpr char LOCKER_ID[] = "LOCKER-001";
-constexpr uint16_t MQTT_PORT = 1883;
-constexpr bool MQTT_USE_TLS = false;
+constexpr uint16_t MQTT_PORT = 8883;
+constexpr bool MQTT_USE_TLS = true;
 constexpr uint32_t MQTT_RECONNECT_INITIAL_MS = 1000;
 constexpr uint32_t MQTT_RECONNECT_MAX_MS = 30000;
+constexpr uint32_t MQTT_HEARTBEAT_INTERVAL_MS = 10000;
 constexpr uint32_t COMMAND_MAX_AGE_SECONDS = 120;
+constexpr uint32_t COMMAND_MAX_FUTURE_SKEW_SECONDS = 30;
 constexpr size_t RECENT_COMMAND_CACHE_SIZE = 16;
-constexpr uint8_t LOCK_ANGLE = 15;
-constexpr uint8_t UNLOCK_ANGLE = 95;
+// The current mechanism has no separate latch. The logical LOCK command closes
+// the door with the servo arm; UNLOCK opens it.
+constexpr uint8_t LOCK_ANGLE = 170;
+constexpr uint8_t UNLOCK_ANGLE = 80;
 constexpr uint32_t SERVO_SETTLE_MS = 550;
 constexpr uint32_t DHT_READ_INTERVAL_MS = 2500;
 constexpr uint32_t DISPLAY_REFRESH_INTERVAL_MS = 1000;

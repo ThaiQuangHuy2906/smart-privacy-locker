@@ -1,5 +1,10 @@
 # ESP32 firmware — Phase 3 CB3 integration
 
+> Audit snapshot 2026-08-17: native tests pass 20/20 and a clean ESP32 build
+> passes at 16.2% RAM/84.3% flash. OLED/DHT22, MC-38, ten WS2812 pixels and SG90
+> have individual user-observed results, but GPIO26 active sound, measured
+> combined load and final E2E remain open.
+
 This directory is the source of truth and PlatformIO test/build project for the
 accepted Phase 1 foundation (CB2, YC1, YC3, YC12), Phase 2 CB1 monitoring, and
 Phase 3 CB3 active-buzzer software. The synchronized Arduino IDE sketch is in
@@ -7,6 +12,19 @@ Phase 3 CB3 active-buzzer software. The synchronized Arduino IDE sketch is in
 LOW-trigger/TMB12A05 module's inactive path was bench-verified with module VCC
 at ESP32 3V3 and a 4.7 kΩ series input resistor; active output, repeated boot
 on GPIO26 and combined load remain hardware-final gates.
+
+The as-built SG90 arm directly closes the door at `170°` and opens it at `80°`;
+there is no separate latch or servo feedback. `LOCKED`/`UNLOCKED` remain
+protocol compatibility enums and describe timed controller completion, not a
+measured tamper-resistant lock. MC-38/physical evidence must confirm the door.
+
+Commands are rejected as stale after 120 seconds and, once NTP is plausibly
+synchronized, as invalid when more than 30 seconds in the future. The ESP32
+publishes a non-retained heartbeat followed by retained full-state refresh every
+10 seconds so a healthy quiet device does not become stale at the backend's
+30-second boundary. QoS0 can still leave an ambiguous outcome after physical
+action: publish failures are logged, but actuators must not be retried
+automatically; use timeout/`GET_STATE` reconciliation and preserve diagnostics.
 
 ## Pinned toolchain
 
@@ -60,6 +78,18 @@ both use:
 #define SPL_BUZZER_ACTIVE_HIGH 0
 ```
 
+The liveness/future-skew correction also adds two normal `AppConfig` constants.
+An existing ignored full-copy config must include them (or be recreated from
+the example and recalibrated) before compiling:
+
+```cpp
+constexpr uint32_t MQTT_HEARTBEAT_INTERVAL_MS = 10000;
+constexpr uint32_t COMMAND_MAX_FUTURE_SKEW_SECONDS = 30;
+```
+
+Do not overwrite an ignored calibrated file blindly; merge these constants and
+retain the verified OLED address, servo angles, LED count and buzzer polarity.
+
 The 2026-08-15 isolated test observed that VCC 5 V remained audible with an
 ESP32 HIGH, while moving module VCC to 3V3 made the same inactive HIGH silent.
 The selected prototype wiring is therefore module `VCC→3V3`, `GND→GND`, and
@@ -92,16 +122,15 @@ profile. With Arduino IDE 2.3.10 installed, this clean build has been verified:
 .\arduino\verify-sketch.ps1
 ```
 
-Recorded result (rechecked 2026-08-15): 1,107,893 of 1,310,720 program bytes
-(84%) and 52,968 of
-327,680 global-variable bytes (16%). This compile result does not replace the
-physical gates.
+Recorded result (rechecked 2026-08-17): 1,108,993 of 1,310,720 program bytes
+(Arduino CLI reports 84%) and 52,976 of 327,680 global-variable bytes (16%).
+This compile result does not replace the physical gates.
 
 The Arduino IDE global environment is prepared with core 2.0.17 and the same
 pinned libraries. Its separate GUI-equivalent build can be reproduced with
-`.\arduino\verify-arduino-ide.ps1`; the rechecked 2026-08-15 result is
-1,107,681 program
-bytes (84%) and 52,960 global-variable bytes (16%). A small binary-size
+`.\arduino\verify-arduino-ide.ps1`; the rechecked 2026-08-17 result is
+1,108,781 program
+bytes (84%) and 52,968 global-variable bytes (16%). A small binary-size
 difference between isolated and global packaging is recorded, not hidden;
 both compile the same 30 mirrored production source files.
 
@@ -138,8 +167,8 @@ finally {
 }
 ```
 
-The recorded native suite covers 17 contract/state tests: command parsing,
-stale/duplicate behavior, door debounce and the CB3 controller's
+The recorded native suite covers 20 contract/state tests: command parsing,
+stale/future/duplicate behavior, wrap-safe heartbeat timing, door debounce and the CB3 controller's
 active-high/active-low, safe-boot and idempotent behavior. A clean ESP32 build
 also guards the ESP32Servo 3.0.7 integration: channel `0` returned by
 `attach()` is valid, so initialization verifies `attached()` rather than
@@ -166,7 +195,8 @@ To clear only Wi-Fi configuration, open the USB serial monitor and send a single
 ## Runtime behavior
 
 - `loop()` contains no intentional long `delay`; WiFiManager processing, MQTT, DHT polling, OLED refresh, and servo completion run cooperatively.
-- MQTT reconnect is bounded from 1 second up to 30 seconds. With PubSubClient 2.8, a broker connection becomes operational only after the `command` SUBSCRIBE packet is sent successfully by the local transport. That return value is not broker confirmation: the library does not wait for or expose a SUBACK grant/rejection. The firmware then publishes retained `ONLINE` and retained full state before the next MQTT callback can process a command. If the local/send-level `subscribe()` call returns false, it sets MQTT state false, publishes retained `OFFLINE` when possible, disconnects, and waits for the bounded retry; it does not publish a false `ONLINE` state.
+- MQTT reconnect is bounded from 1 second up to 30 seconds. With PubSubClient 2.8, a broker connection becomes operational only after the `command` SUBSCRIBE packet is sent successfully by the local transport. That return value is not broker confirmation: the library does not wait for or expose a SUBACK grant/rejection. The firmware then publishes retained `ONLINE` immediately followed by retained full state before the next MQTT callback can process a command. Backend controls require that new-generation state after `ONLINE`. If subscribe or either bootstrap publish fails, firmware repairs retained `OFFLINE` when possible, disconnects, and waits for bounded retry; it does not leave an incomplete bootstrap as ready.
+- While connected, every 10 seconds the firmware publishes a non-retained `heartbeat` and then a retained full-state refresh. If either local publish fails it marks MQTT disconnected, attempts retained `OFFLINE`, disconnects and enters the normal bounded retry. Heartbeat does not create periodic `DEVICE_ONLINE` history.
 - The application packet limit is `RuntimeConfig::MQTT_PACKET_SIZE = 1024`.
   Startup checks PubSubClient's runtime buffer resize; if allocation fails,
   MQTT connection attempts stay suppressed instead of silently using a

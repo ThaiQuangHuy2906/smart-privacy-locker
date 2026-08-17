@@ -1,5 +1,10 @@
 # Smart Privacy Locker database design
 
+> Audit status 2026-08-17: migration/RLS/idempotency source and automated
+> contracts were reviewed with no confirmed P0 finding. Clean migration, pgTAP
+> and cross-owner live gates were not rerun against an external project in this
+> audit; historical PASS evidence applies only to its recorded project/date.
+
 The application uses the owner-scoped Phase 3 tables created by
 `supabase/migrations/202608100001_phase3_events_notifications.sql` plus the
 backend-only Telegram link table added by
@@ -19,6 +24,12 @@ the constraint-safe preference upsert fix in
 also filter `(locker_id, event_type, occurred_at)`. The event adapter sends only
 the frozen normalized contract fields; raw MQTT payloads, JWTs and provider
 credentials are never stored.
+
+Before final release, run both SQL tests and the disposable User A/User B
+sequence from
+[../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md). Never apply
+or reset migrations on an unidentified production project merely to recreate
+evidence.
 
 The backend service role is required because browser users cannot insert device
 events or delivery outcomes. It stays in the Node-RED environment. Every

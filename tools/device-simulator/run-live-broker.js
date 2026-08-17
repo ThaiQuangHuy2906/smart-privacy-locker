@@ -97,7 +97,8 @@ async function main() {
   });
   await subscribe(nodeRed, [
     `locker/${lockerId}/availability`, `locker/${lockerId}/state`,
-    `locker/${lockerId}/ack`, `locker/${lockerId}/telemetry/door`,
+    `locker/${lockerId}/heartbeat`, `locker/${lockerId}/ack`,
+    `locker/${lockerId}/telemetry/door`,
   ]);
   const flowValues = new Map([['splRuntime', runtime], ['splOutbox', []]]);
   exportedFunction('mqtt_status_fn')(
@@ -112,6 +113,10 @@ async function main() {
     && messages.some((item) => item.payload?.status === 'ONLINE'));
   await waitFor(() => runtime.cache.snapshot(lockerId).fresh);
   await waitFor(() => runtime.dispatcher.pending.size === 0);
+
+  assert.equal(simulator.heartbeat(), true);
+  await waitFor(() => messages.some((item) => item.topic.endsWith('/heartbeat')));
+  assert.equal(messages.find((item) => item.topic.endsWith('/heartbeat')).retain, false);
 
   simulator.door('OPEN');
   await waitFor(() => messages.some((item) => item.topic.endsWith('/telemetry/door')));
@@ -145,10 +150,11 @@ async function main() {
   await waitFor(() => runtime.cache.snapshot(lockerId).fresh);
   assert.equal(runtimeErrors.length, 0);
 
-  const summary = { result: 'PASS', assertions: 15, transport: url.replace(/:\d+$/, ':ephemeral'),
+  const summary = { result: 'PASS', assertions: 17, transport: url.replace(/:\d+$/, ':ephemeral'),
     authentication: 'test username/password accepted; anonymous connection rejected',
     scenarios: ['exported Node-RED 4.1.13 MQTT status handling and bootstrap',
       'retained availability/state', 'Node-RED runtime cache ingestion',
+      'non-retained heartbeat plus full-state refresh',
       'non-retained door and unauthorized detector', 'fresh subscriber',
       'runtime-dispatched GET_STATE ACK/state', 'LWT OFFLINE', 'reconnect ONLINE/state'],
     note: 'Local TCP broker/simulator/Phase2Runtime evidence only; not imported FlowFuse or ESP32/MC-38 hardware evidence.' };

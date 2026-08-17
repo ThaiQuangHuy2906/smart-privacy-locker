@@ -7,6 +7,16 @@ pixel đầu tiên của WS2812B ở độ sáng thấp. Đây không phải c�
 tin cậy để vận hành lâu dài và không thay thế hướng dẫn chuẩn
 [HUONG_DAN_LAP_MACH_THEO_THU_TU.md](HUONG_DAN_LAP_MACH_THEO_THU_TU.md).
 
+Sản phẩm ghi nhận ngày 17/08/2026 đã dùng 10 pixel và cánh tay SG90 để trực
+tiếp đóng/mở cửa, nên đã vượt phạm vi của bản USB này. Bản demo chỉ còn dùng
+để chẩn đoán từng tải khi tách khỏi cơ khí; mọi lần chạy sản phẩm hiện tại phải
+theo hướng dẫn chuẩn với nhánh tải 5 V ngoài.
+
+Bản demo không được dùng để đóng gate final. Sau chẩn đoán, quay về
+[HUONG_DAN_LAP_MACH_THEO_THU_TU.md](HUONG_DAN_LAP_MACH_THEO_THU_TU.md), rồi
+chạy [HUONG_DAN_TEST_END_TO_END.md](HUONG_DAN_TEST_END_TO_END.md) trên đúng
+nguồn ngoài, 10 pixel và cơ cấu cửa release.
+
 Làm từ Bước 0 đến Bước 12, không nhảy bước và không cắm/rút dây khi đang có
 điện. Mỗi bước chỉ được coi là PASS khi đạt tiêu chí ghi tại bước đó. Nếu
 ESP32 reset/brownout, servo rung hoặc kẹt, LED chớp sai, dây nóng hay có mùi
@@ -28,8 +38,9 @@ khét, rút USB ngay và quay lại cấu hình nguồn tải ngoài của hư�
 - ESP32 DevKit 30 chân (`15 × 2`) đặt **cạnh** breadboard; nối bằng jumper
   đực-cái ngắn. Chỉ dùng một nửa rail liên tục, không giả định rail đi xuyên qua
   chỗ ngắt giữa breadboard.
-- Chỉ dùng **một** SG90. Thử servo không gắn chốt trước; nếu lắp cơ khí thì chốt
-  phải trượt rất nhẹ và không được làm servo giữ lực tại end-stop.
+- Chỉ dùng **một** SG90 và để cánh tay không tác động lên cửa trong bản USB.
+  Cơ cấu cửa thực tế `170° = đóng`, `80° = mở` chỉ được thử theo hướng dẫn
+  nguồn tải ngoài.
 - Firmware chỉ điều khiển **pixel đầu tiên** của WS2812B
   (`WS2812_PIXEL_COUNT = 1`) ở độ sáng thấp; không bật trắng toàn dải 1 m.
 - Không lắp `SN74HC125N` và MOSFET `4184`. Nếu đường WS2812 direct không
@@ -71,8 +82,9 @@ không dùng bản demo này.
 ## Bước 0 — Chuẩn bị và để toàn bộ mạch mất điện
 
 1. Rút USB-C khỏi ESP32 và để adapter 5 V/3 A ngoài hoàn toàn không sử dụng.
-2. Để servo chưa gắn vào chốt; tháo horn nếu nó có thể vướng vật khác.
-3. Đặt breadboard trên mặt phẳng cách điện, tránh bản lề, chốt và vít kim loại.
+2. Tách cánh tay servo khỏi cửa; tháo horn nếu nó có thể vướng vật khác.
+3. Đặt breadboard trên mặt phẳng cách điện, tránh bản lề, cánh tay servo và vít
+   kim loại.
 4. Chuẩn bị:
    - cáp USB-C có data để nạp firmware;
    - củ sạc hoặc power bank USB 5 V có khả năng cấp ít nhất 2 A để thử tải;
@@ -81,8 +93,9 @@ không dùng bản demo này.
    - tụ 470 µF;
    - một điện trở 4,7 kΩ riêng cho buzzer;
    - thêm một điện trở 4,7 kΩ nếu DHT22 cần pull-up rời.
-5. Quy ước một rail là `3V3`, một rail là GND logic và một rail riêng là
-   `+5V DEMO`. Dán nhãn rõ; không dùng màu dây thay cho nhãn chân.
+5. Quy ước hai rail trên là `+5V DEMO` và GND chung; hai rail dưới là `3V3` và
+   GND chung. Nối hai rail GND với nhau, dán nhãn rõ và không dùng màu dây thay
+   cho nhãn chân.
 6. Kiểm tra bằng mắt để không có sợi đồng, chân linh kiện hoặc jumper nào nối
    chéo giữa `+5V DEMO`, `3V3` và GND.
 7. Cấu hình jumper/breadboard này chỉ dùng cho demo ngắn. Không để servo chịu
@@ -126,20 +139,18 @@ rãnh giữa.** Làm như sau:
 
 1. Đặt ESP32 **bên cạnh** breadboard trên một mặt phẳng cách điện, mặt có chữ
    hướng lên và cổng USB-C không bị che.
-2. Không để mặt dưới ESP32 chạm bản lề, chốt, vít hoặc vật kim loại.
+2. Không để mặt dưới ESP32 chạm bản lề, cánh tay servo, vít hoặc vật kim loại.
 3. Dùng dây jumper **đực-cái**:
    - đầu **cái** cắm vào chân đực trên ESP32;
    - đầu **đực** cắm vào lỗ breadboard.
-4. Chọn một rail breadboard làm `3V3`. Nối ESP32 `3V3` → rail `3V3` bằng một
-   dây đực-cái.
-5. Chọn một rail khác làm GND logic. Nối ESP32 `GND` → rail GND bằng một dây
-   đực-cái.
-6. Dán nhãn hoặc dùng màu dây cố định: đỏ cho `3V3`, đen/xanh cho GND. Không
-   dùng rail `3V3` này cho servo hoặc WS2812B.
+4. Dán nhãn hai rail trên là `+5V DEMO` và GND; hai rail dưới là `3V3` và GND.
+5. Nối ESP32 `3V3` → rail dưới `3V3`; nối ESP32 `GND` → rail dưới GND.
+6. Nối rail dưới GND → rail trên GND. Không dùng rail `3V3` cho servo hoặc
+   WS2812B và chưa cấp điện cho rail `+5V DEMO`.
 7. Nếu rail breadboard bị ngắt ở giữa, chỉ dùng một nửa rail liên tục; không
    nối hai nửa và không giả định chúng đã thông nhau.
-8. Soát từng lỗ bằng mắt để chắc chắn rail `3V3` không bị jumper hoặc chân
-   linh kiện nối sang rail GND.
+8. Soát từng lỗ bằng mắt: `3V3`, `+5V DEMO` và GND không được nối chéo; hai
+   rail GND phải thông nhau.
 9. Chừa nhìn thấy các nhãn `4`, `18`, `21`, `22`, `25`, `26`, `27` trên chính
    ESP32 để tránh đếm nhầm vị trí chân.
 10. Chưa cắm USB và chưa cắm adapter.
@@ -261,7 +272,7 @@ hình nguồn USB qua ESP32.
 
 ## Bước 9 — Thử một servo SG90 không tải
 
-1. Để USB-C đang rút và servo rời khỏi chốt; horn không vướng vật cản.
+1. Để USB-C đang rút và cánh tay servo tách khỏi cửa; horn không vướng vật cản.
 2. Tạm tháo dây `+5V` của WS2812B khỏi rail để thử servo riêng trước.
 3. Nối:
    - dây tín hiệu cam/vàng/trắng → ESP32 `GPIO18`;
@@ -269,8 +280,9 @@ hình nguồn USB qua ESP32.
    - dây nâu/đen → rail GND tải demo.
 4. Xác nhận không có adapter 5 V ngoài và servo không lấy nguồn từ `3V3`.
 5. Cắm USB-C vào củ sạc/power bank 5 V ít nhất 2 A.
-6. Gửi một lệnh mở khóa, chờ servo dừng, rồi gửi một lệnh khóa. Góc `15°` và
-   `95°` chỉ là giá trị ban đầu.
+6. Gửi `UNLOCK`, chờ servo về `80°`, rồi gửi `LOCK` để servo về `170°`. Đây là
+   mapping đã xác nhận cho cơ cấu cửa hiện tại; trong bản USB, cánh tay vẫn
+   phải tách khỏi cửa.
 7. Chạy tối đa 5 chu kỳ không tải. Dừng ngay nếu:
    - ESP32 reset/brownout hoặc OLED khởi động lại;
    - servo rung, kêu liên tục, đứng im hoặc nóng;
@@ -279,9 +291,9 @@ hình nguồn USB qua ESP32.
 8. Rút USB-C. Chỉ khi servo riêng PASS mới nối lại pixel đầu tiên và thử đúng
    một chu kỳ tích hợp ở độ sáng LED thấp.
 
-Không chạy kiểm thử 20 chu kỳ và không coi PASS này là full-load. Việc gắn chốt
-chỉ được thực hiện ở Bước 11 với cơ cấu trượt rất nhẹ; nếu servo phải giữ lực,
-quay lại nguồn tải ngoài của hướng dẫn chuẩn.
+Không chạy kiểm thử 20 chu kỳ và không coi PASS này là full-load. Không dùng
+nguồn USB qua ESP32 để cho servo trực tiếp đóng/mở cửa; quay lại nguồn tải
+ngoài của hướng dẫn chuẩn trước khi gắn cánh tay vào cơ khí.
 
 ## Bước 10 — Nối active buzzer LOW-trigger ở 3,3 V
 
@@ -377,16 +389,16 @@ OUTPUT HIGH để yêu cầu tắt.
 1. Bắt hai bản lề để cửa chuyển động trơn, không cạ khung.
 2. Gắn phần reed của MC-38 lên khung cố định và nam châm lên cửa.
 3. Gắn servo chắc chắn; dây không bị cửa, bản lề hoặc horn kẹp vào.
-4. Đặt servo ở trạng thái mở khóa trước khi nối linkage với chốt.
-5. Chỉ dùng linkage/chốt trượt rất nhẹ và thử bằng tay khi mất điện.
-6. Cấp nguồn, chạy **một** lần khóa rồi mở. Nếu servo chậm, rung, làm ESP32
-   reset hoặc phải giữ lực ở end-stop, rút USB và tháo linkage; không tăng góc
-   hoặc ép cơ cấu.
+4. Trong bản USB, giữ cánh tay tách khỏi cửa và chỉ quan sát hành trình tự do
+   `80° ↔ 170°`.
+5. Muốn cánh tay trực tiếp đóng/mở cửa, dừng bản demo và hoàn tất Bước 7 của
+   hướng dẫn chuẩn trước.
+6. Không dùng một lần chạy thành công bằng USB để chấp nhận tải cơ khí hoặc
+   thay cho phép đo full-load.
 7. Cố định ESP32, breadboard, OLED và dây nhưng vẫn chừa đường rút USB nhanh.
-8. Không để jumper, chân tụ hoặc phần kim loại hở chạm khung/chốt.
+8. Không để jumper, chân tụ hoặc phần kim loại hở chạm khung/cánh tay servo.
 
-Bản demo USB không phù hợp với chốt nặng, chốt ma sát lớn hoặc cơ cấu cần servo
-giữ lực liên tục.
+Bản demo USB không phù hợp để truyền động cửa hoặc cho servo giữ lực liên tục.
 
 ## Bước 12 — Trình tự bật và kiểm tra bản demo tích hợp
 
@@ -396,7 +408,7 @@ Trước khi bật:
 2. Kiểm tra tụ 470 µF đúng cực.
 3. Kiểm tra `+5V DEMO`, `3V3` và GND không bị dây/chân linh kiện nối chéo.
 4. Kiểm tra WS2812B data vào `DIN`, không vào `DOUT`.
-5. Kiểm tra servo rời chốt hoặc chốt trượt rất nhẹ, không kẹt ở end-stop.
+5. Kiểm tra cánh tay servo đang tách khỏi cửa và không kẹt ở end-stop.
 6. Kiểm tra buzzer `VCC` ở ESP32 `3V3`; tín hiệu qua 4,7 kΩ tới `GPIO26`.
 7. Không nối ESP32 với laptop/máy tính trong lúc thử tải.
 
@@ -405,7 +417,8 @@ Bật hệ thống:
 1. Cắm USB-C từ củ sạc hoặc power bank 5 V có khả năng cấp ít nhất 2 A.
 2. Chờ board boot, Wi-Fi/MQTT kết nối.
 3. Đóng/mở cửa để thử MC-38.
-4. Gửi một lệnh mở khóa rồi một lệnh khóa; kiểm tra servo, OLED và pixel đầu.
+4. Gửi `UNLOCK` (`80°`) rồi `LOCK` (`170°`); kiểm tra servo tự do, OLED và
+   pixel đầu.
 5. Chạy tối đa 5 chu kỳ, từng chu kỳ cách nhau đủ để servo dừng hẳn.
 6. Dừng ngay và rút USB nếu có reset/brownout, servo kẹt hoặc rung, LED chớp
    sai, dây nóng, mùi khét hay nguồn USB tự ngắt.
@@ -419,7 +432,7 @@ Tắt hệ thống:
 Phần MQTT, dashboard và kiểm thử phần mềm end-to-end nằm trong
 [HUONG_DAN_CHAY_HE_THONG.md](HUONG_DAN_CHAY_HE_THONG.md). Kết quả từ bản demo
 USB chỉ chứng minh luồng chức năng ngắn; không thay cho kiểm thử nguồn ngoài,
-20 chu kỳ khóa/mở hoặc full-load của hướng dẫn chuẩn.
+20 chu kỳ đóng/mở hoặc full-load của hướng dẫn chuẩn.
 
 ## Nguồn chính thức đã dùng để xác thực
 

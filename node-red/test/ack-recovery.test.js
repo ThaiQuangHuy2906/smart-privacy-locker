@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { makeRuntime, prime, headers, LOCKER_A, state } = require('./helpers');
+const { makeRuntime, prime, headers, LOCKER_A, state, heartbeat } = require('./helpers');
 
 function ack(command, overrides = {}) {
   const target = command.action === 'UNLOCK' ? { lock: 'UNLOCKED' }
@@ -28,13 +28,47 @@ test('P2-A07 wrong ID/locker/action/state cannot cancel pending; duplicate and l
   const { runtime, clock } = makeRuntime(); await prime(runtime);
   const dispatched = await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'LOCK' } });
   const wrongId = ack(dispatched.command, { command_id: '10000000-0000-4000-8000-000000009999' });
-  assert.equal((await runtime.ingest(`locker/${LOCKER_A}/ack`, wrongId, clock.value)).result.code, 'UNKNOWN_ACK');
+  const unknown = await runtime.ingest(`locker/${LOCKER_A}/ack`, wrongId, clock.value);
+  assert.equal(unknown.result.code, 'UNKNOWN_ACK');
+  assert.equal(unknown.accepted, false);
   assert.equal(runtime.dispatcher.pending.size, 1);
   assert.equal((await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command, { locker_id: 'LOCKER-002' }), clock.value)).accepted, false);
-  assert.equal((await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command, { action: 'UNLOCK' }), clock.value)).result.code, 'ACK_CORRELATION_MISMATCH');
-  assert.equal((await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command, { device_state: { door: 'CLOSED', lock: 'UNLOCKED', alarm: 'INACTIVE', led: 'OFF' } }), clock.value)).result.code, 'ACK_CORRELATION_MISMATCH');
+  const wrongAction = await runtime.ingest(`locker/${LOCKER_A}/ack`,
+    ack(dispatched.command, { action: 'UNLOCK' }), clock.value);
+  assert.equal(wrongAction.result.code, 'ACK_CORRELATION_MISMATCH');
+  assert.equal(wrongAction.accepted, false);
+  const wrongState = await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command,
+    { device_state: { door: 'CLOSED', lock: 'UNLOCKED', alarm: 'INACTIVE', led: 'OFF' } }),
+  clock.value);
+  assert.equal(wrongState.result.code, 'ACK_CORRELATION_MISMATCH');
+  assert.equal(wrongState.accepted, false);
   assert.equal((await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command), clock.value)).result.ok, true);
-  assert.equal((await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command, { duplicate: true }), clock.value)).result.code, 'DUPLICATE_OR_LATE_ACK');
+  const duplicate = await runtime.ingest(`locker/${LOCKER_A}/ack`,
+    ack(dispatched.command, { duplicate: true }), clock.value);
+  assert.equal(duplicate.result.code, 'DUPLICATE_OR_LATE_ACK');
+  assert.equal(duplicate.accepted, false);
+  assert.deepEqual(runtime.diagnostics.map((item) => item.code), [
+    'UNKNOWN_ACK', 'LOCKER_MISMATCH', 'ACK_CORRELATION_MISMATCH', 'ACK_CORRELATION_MISMATCH',
+    'DUPLICATE_OR_LATE_ACK',
+  ]);
+});
+
+test('a correlated device-error ACK is accepted, closes pending, and refreshes reported state', async () => {
+  const { runtime, clock } = makeRuntime(); await prime(runtime);
+  const dispatched = await runtime.protectedCommand({ headers: headers(),
+    body: { locker_id: LOCKER_A, action: 'UNLOCK' } });
+  clock.value += 1000;
+  const failed = await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command, {
+    result: 'error',
+    device_state: { door: 'CLOSED', lock: 'LOCKED', alarm: 'INACTIVE', led: 'ON' },
+    error: { code: 'ACTUATION_FAILED', message: 'Servo did not complete' },
+  }), clock.value);
+
+  assert.equal(failed.accepted, true);
+  assert.equal(failed.result.code, 'COMMAND_FAILED');
+  assert.equal(runtime.dispatcher.pending.size, 0);
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).state.led, 'ON');
+  assert.equal(runtime.diagnostics.length, 0);
 });
 
 test('P2-A08 timeout never retries actuator and emits at most one GET_STATE reconciliation', async () => {
@@ -81,6 +115,39 @@ test('door telemetry cannot refresh an old full state or re-enable controls', as
     timestamp: new Date(clock.value).toISOString(), time_synced: true }, clock.value);
   assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, false);
   assert.equal(runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A }).controls.lock.enabled, false);
+});
+
+test('periodic heartbeat followed by full state keeps the device fresh beyond 30 seconds', async () => {
+  const { runtime, clock } = makeRuntime(); await prime(runtime);
+
+  for (let elapsed = 10_000; elapsed <= 40_000; elapsed += 10_000) {
+    clock.value = Date.parse('2026-08-08T08:00:00.000Z') + elapsed;
+    const beat = await runtime.ingest(`locker/${LOCKER_A}/heartbeat`, heartbeat(LOCKER_A,
+      { sent_at: new Date(clock.value).toISOString() }), clock.value);
+    assert.equal(beat.accepted, true);
+    await runtime.ingest(`locker/${LOCKER_A}/state`, state(LOCKER_A,
+      { timestamp: new Date(clock.value).toISOString() }), clock.value);
+  }
+
+  clock.value += 30_000;
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, true);
+  clock.value += 1;
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, false);
+});
+
+test('heartbeat cannot make a retained or explicitly OFFLINE generation trustworthy', async () => {
+  const { runtime, clock } = makeRuntime(); await prime(runtime);
+  await runtime.ingest(`locker/${LOCKER_A}/availability`, {
+    schema_version: 1, locker_id: LOCKER_A, status: 'OFFLINE',
+    sent_at: new Date(clock.value).toISOString(),
+  }, clock.value);
+  clock.value += 10_000;
+
+  const beat = await runtime.ingest(`locker/${LOCKER_A}/heartbeat`, heartbeat(LOCKER_A,
+    { sent_at: new Date(clock.value).toISOString() }), clock.value);
+  assert.equal(beat.accepted, false);
+  assert.equal(beat.code, 'HEARTBEAT_WITHOUT_CURRENT_ONLINE');
+  assert.equal(runtime.cache.snapshot(LOCKER_A, clock.value).fresh, false);
 });
 
 test('MQTT reconnect requires availability and full state from the new connection generation', async () => {

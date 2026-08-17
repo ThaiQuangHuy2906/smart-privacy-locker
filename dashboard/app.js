@@ -2,6 +2,7 @@
 
 const storageKey = 'smart-locker-phase2-session';
 const refreshRetryMs = 30_000;
+const configRetryMs = 5_000;
 const requestTimeoutMs = 15_000;
 const dataRequestTimeoutMs = 30_000;
 const chatbotRequestTimeoutMs = 40_000;
@@ -11,6 +12,7 @@ let sessionEpoch = 0;
 let renderedLockerId = null;
 let renderedSessionEpoch = -1;
 let refreshTimer = null;
+let refreshRequest = null;
 let pollInFlight = null;
 let pollRequested = 0;
 let chatRequestGeneration = 0;
@@ -33,13 +35,13 @@ const statusLabels = {
   device: { ONLINE: 'Đang hoạt động', OFFLINE: 'Ngoại tuyến' },
   wifi: { CONNECTED: 'Đã kết nối', DISCONNECTED: 'Chưa kết nối', UNKNOWN: 'Chưa xác định' },
   door: { OPEN: 'Đang mở', CLOSED: 'Đang đóng', UNKNOWN: 'Chưa xác định' },
-  lock: { LOCKED: 'Đã khóa', UNLOCKED: 'Đã mở khóa', UNKNOWN: 'Chưa xác nhận' },
+  lock: { LOCKED: 'Servo ở vị trí đóng', UNLOCKED: 'Servo ở vị trí mở', UNKNOWN: 'Chưa xác nhận vị trí' },
   alarm: { ACTIVE: 'Đang bật', INACTIVE: 'Đang tắt', UNKNOWN: 'Chưa xác định' },
   led: { ON: 'Đang bật', OFF: 'Đang tắt', UNKNOWN: 'Chưa xác định' },
 };
 const actionLabels = {
-  LOCK: 'Khóa tủ',
-  UNLOCK: 'Mở khóa',
+  LOCK: 'Đóng cửa',
+  UNLOCK: 'Mở cửa',
   ALARM_ON: 'Bật còi',
   ALARM_OFF: 'Tắt còi',
   LED_ON: 'Bật đèn',
@@ -50,9 +52,9 @@ const eventTypeLabels = {
   DOOR_OPENED: 'Cửa được mở',
   DOOR_CLOSED: 'Cửa đã đóng',
   DOOR_UNKNOWN: 'Trạng thái cửa chưa xác định',
-  LOCK_COMMAND: 'Yêu cầu khóa tủ',
-  UNLOCK_COMMAND: 'Yêu cầu mở khóa',
-  LOCK_STATE_CHANGED: 'Trạng thái khóa thay đổi',
+  LOCK_COMMAND: 'Yêu cầu đóng cửa',
+  UNLOCK_COMMAND: 'Yêu cầu mở cửa',
+  LOCK_STATE_CHANGED: 'Vị trí tay servo thay đổi',
   ALARM_STARTED: 'Còi cảnh báo đã bật',
   ALARM_STOPPED: 'Còi cảnh báo đã tắt',
   LED_TURNED_ON: 'Đèn trong tủ đã bật',
@@ -77,6 +79,15 @@ const commandStatusLabels = {
   ACKED: 'Thiết bị đã xác nhận',
   COMMAND_TIMEOUT: 'Thiết bị không phản hồi',
   MQTT_DISCONNECTED: 'Mất kết nối MQTT',
+  COMMAND_SUCCEEDED: 'Thiết bị đã thực hiện thành công',
+  COMMAND_FAILED: 'Thiết bị báo thực hiện thất bại',
+};
+const notificationStatusLabels = {
+  delivered: 'đã gửi',
+  failed: 'gửi thất bại',
+  not_configured: 'chưa liên kết',
+  duplicate_suppressed: 'đã bỏ qua bản trùng',
+  rate_limited: 'tạm hoãn do giới hạn tần suất',
 };
 function message(id, text) { $(id).textContent = text; }
 function renderStatus(id, rawValue = 'UNKNOWN') {
@@ -85,7 +96,26 @@ function renderStatus(id, rawValue = 'UNKNOWN') {
   element.textContent = statusLabels[id]?.[normalized] || 'Chưa xác định';
   element.dataset.state = normalized.toLowerCase();
 }
-function actionLabel(action) { return actionLabels[action] || action; }
+function actionLabel(action) { return actionLabels[action] || 'Lệnh chưa xác định'; }
+function notificationStatusLabel(status) {
+  return notificationStatusLabels[status] || (status ? 'chưa xác định' : 'đang xử lý');
+}
+
+function setAuthMode(mode) {
+  const registering = mode === 'register';
+  $('auth-form').dataset.mode = registering ? 'register' : 'login';
+  $('full-name-field').hidden = !registering;
+  $('full-name').required = registering;
+  $('password').autocomplete = registering ? 'new-password' : 'current-password';
+  $('auth-submit').textContent = registering ? 'Đăng ký' : 'Đăng nhập';
+  $('auth-mode-toggle').textContent = registering ? 'Quay lại đăng nhập' : 'Tạo tài khoản mới';
+  $('auth-mode-toggle').setAttribute('aria-pressed', registering ? 'true' : 'false');
+}
+
+function setAuthConfigReady(ready) {
+  $('auth-submit').disabled = !ready;
+  $('auth-mode-toggle').disabled = !ready;
+}
 function formatDateTime(value, timezone = 'Asia/Ho_Chi_Minh') {
   const parsed = new Date(value);
   if (!value || Number.isNaN(parsed.getTime())) return 'Không rõ thời gian';
@@ -162,8 +192,8 @@ function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nh�
   renderStatus('wifi', 'UNKNOWN');
   renderStatus('door', 'UNKNOWN');
   renderStatus('lock', 'UNKNOWN');
-  renderStatus('alarm', 'INACTIVE');
-  renderStatus('led', 'OFF');
+  renderStatus('alarm', 'UNKNOWN');
+  renderStatus('led', 'UNKNOWN');
   $('updated').textContent = '—';
   $('alert').textContent = '—';
   message('state-message', reason);
@@ -281,7 +311,10 @@ function saveSession(value, { clearPrivate = false } = {}) {
   if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey);
   $('logout').hidden = !value;
   $('session-label').textContent = value ? 'Đã đăng nhập — token được vận chuyển bằng Bearer' : 'Chưa đăng nhập';
-  if (!value) clearSensitiveState(undefined, shouldClearPrivate);
+  if (!value) {
+    setAuthMode('login');
+    clearSensitiveState(undefined, shouldClearPrivate);
+  }
   scheduleRefresh();
   renderControls(null);
 }
@@ -293,24 +326,48 @@ function scheduleRefresh() {
   refreshTimer = setTimeout(refresh, wait);
 }
 
-async function refresh() {
+function accessTokenExpired(value = session) {
+  const expiresAt = Number(value?.expires_at);
+  return Boolean(value?.access_token) && Number.isFinite(expiresAt)
+    && expiresAt * 1000 <= Date.now();
+}
+
+function refresh() {
   const refreshSession = session;
   const refreshEpoch = sessionEpoch;
-  if (!refreshSession?.refresh_token) return saveSession(null);
-  try {
-    const next = await supabase('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: refreshSession.refresh_token }) });
-    if (sessionEpoch !== refreshEpoch) return;
-    saveSession(next); await pollState(); await loadSettings({ quiet: true });
-  } catch (error) {
-    if (sessionEpoch !== refreshEpoch) return;
-    if ([400, 401, 403].includes(error.status)) {
-      saveSession(null); message('auth-message', 'Phiên đã hết hạn. Vui lòng đăng nhập lại.');
-      return;
+  if (refreshRequest?.epoch === refreshEpoch) return refreshRequest.promise;
+
+  const currentRequest = { epoch: refreshEpoch, promise: null };
+  refreshRequest = currentRequest;
+  currentRequest.promise = (async () => {
+    try {
+      if (!refreshSession?.refresh_token) {
+        saveSession(null);
+        return;
+      }
+      const next = await supabase('/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST', body: JSON.stringify({ refresh_token: refreshSession.refresh_token }),
+      });
+      if (sessionEpoch !== refreshEpoch) return;
+      saveSession(next); await pollState(); await loadSettings({ quiet: true });
+    } catch (error) {
+      if (sessionEpoch !== refreshEpoch) return;
+      if ([400, 401, 403].includes(error.status)) {
+        saveSession(null); message('auth-message', 'Phiên đã hết hạn. Vui lòng đăng nhập lại.');
+        return;
+      }
+      if (accessTokenExpired(refreshSession)) {
+        clearSensitiveState('Phiên truy cập đã hết hạn; đang chờ làm mới an toàn.');
+        renderControls(null);
+      }
+      message('auth-message', 'Dịch vụ xác thực tạm thời không khả dụng; phiên cục bộ được giữ và sẽ thử lại.');
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(refresh, refreshRetryMs);
+    } finally {
+      if (refreshRequest === currentRequest) refreshRequest = null;
     }
-    message('auth-message', 'Dịch vụ xác thực tạm thời không khả dụng; phiên cục bộ được giữ và sẽ thử lại.');
-    clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(refresh, refreshRetryMs);
-  }
+  })();
+  return currentRequest.promise;
 }
 
 async function protectedFetch(path, options = {}) {
@@ -332,7 +389,8 @@ function renderControls(ui) {
   document.querySelectorAll('[data-action]').forEach((button) => {
     const domain = button.dataset.domain;
     const pending = Boolean(ui?.controls?.[domain]?.pending) || commandRequests.has(domain);
-    button.disabled = !hasRenderedContext() || !ui?.controls?.[domain]?.enabled || pending;
+    button.disabled = !hasRenderedContext() || Boolean(ui?.stale)
+      || !ui?.controls?.[domain]?.enabled || pending;
     button.dataset.pending = pending ? 'true' : 'false';
     button.setAttribute('aria-busy', pending ? 'true' : 'false');
   });
@@ -347,13 +405,13 @@ function renderState(ui, targetLocker) {
   renderStatus('device', ui.device);
   renderStatus('wifi', ui.wifi);
   renderStatus('door', ui.door);
-  renderStatus('lock', ui.lock_unconfirmed ? 'UNKNOWN' : ui.lock);
-  renderStatus('alarm', ui.alarm);
-  renderStatus('led', ui.led);
+  renderStatus('lock', ui.stale || ui.lock_unconfirmed ? 'UNKNOWN' : ui.lock);
+  renderStatus('alarm', ui.stale ? 'UNKNOWN' : ui.alarm);
+  renderStatus('led', ui.stale ? 'UNKNOWN' : ui.led);
   $('updated').textContent = ui.last_updated ? formatDateTime(ui.last_updated) : '—';
   $('alert').textContent = ui.latest_alert
     ? `${eventTypeLabels[ui.latest_alert.event_type] || 'Cảnh báo'} · ${formatDateTime(ui.latest_alert.occurred_at)}`
-      + ` · Telegram: ${ui.latest_alert.notification_status === 'delivered' ? 'đã gửi' : 'đang xử lý'}`
+      + ` · Telegram: ${notificationStatusLabel(ui.latest_alert.notification_status)}`
     : '—';
   const persistence = ui.persistence?.status === 'error'
     ? ` Supabase: ${ui.persistence.last_error}.` : '';
@@ -362,7 +420,7 @@ function renderState(ui, targetLocker) {
     : 'Dữ liệu mới nhất đã được xác nhận.') + persistence);
   if (ui.command_status) {
     const value = ui.command_status;
-    message('command-message', `${actionLabel(value.action)}: ${commandStatusLabels[value.status] || value.status}`
+    message('command-message', `${actionLabel(value.action)}: ${commandStatusLabels[value.status] || 'Trạng thái lệnh chưa xác định'}`
       + ` (${value.command_id.slice(0, 8)})`);
   }
   renderControls(ui);
@@ -586,6 +644,11 @@ function pollState() {
     do {
       currentRequest = pollRequested;
       if (!session) break;
+      if (accessTokenExpired()) {
+        clearSensitiveState('Phiên truy cập đã hết hạn; đang chờ làm mới an toàn.');
+        renderControls(null);
+        break;
+      }
       const requestEpoch = sessionEpoch;
       const targetLocker = lockerId();
       try {
@@ -606,7 +669,7 @@ $('auth-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   if (form.dataset.pending === 'true') return;
-  const mode = event.submitter?.dataset.mode || 'login';
+  const mode = form.dataset.mode || 'login';
   if (!['login', 'register'].includes(mode)) return;
   if (!config) {
     $('password').value = '';
@@ -644,6 +707,13 @@ $('auth-form').addEventListener('submit', async (event) => {
       form.setAttribute('aria-busy', 'false');
     }
   }
+});
+
+$('auth-mode-toggle').addEventListener('click', () => {
+  setAuthMode($('auth-form').dataset.mode === 'register' ? 'login' : 'register');
+  message('auth-message', $('auth-form').dataset.mode === 'register'
+    ? 'Nhập họ tên, email và mật khẩu để tạo tài khoản.'
+    : 'Nhập email và mật khẩu để đăng nhập.');
 });
 
 $('logout').addEventListener('click', async () => {
@@ -923,6 +993,8 @@ $('locker-id').addEventListener('change', async () => {
 });
 
 syncNotificationFields();
+setAuthMode('login');
+setAuthConfigReady(false);
 
 (async function start() {
   const callback = consumeAuthFragment();
@@ -933,16 +1005,34 @@ syncNotificationFields();
     saveSession(null, { clearPrivate: true });
     message('auth-message', `Xác thực thất bại: ${callback.error}`);
   }
-  try {
-    config = await jsonFetch('/api/v1/public-config');
-    if (!callback) {
-      const restored = restoreStoredSession();
-      if (restored?.expires_at * 1000 > Date.now()) saveSession(restored);
-      else if (restored?.refresh_token) { saveSession(restored); await refresh(); }
-      else saveSession(null);
+  let restoredHandled = Boolean(callback);
+  let pollingStarted = false;
+  const loadConfigAndStart = async () => {
+    try {
+      config = await jsonFetch('/api/v1/public-config');
+      setAuthConfigReady(true);
+      if (!restoredHandled) {
+        restoredHandled = true;
+        const restored = restoreStoredSession();
+        if (restored?.expires_at * 1000 > Date.now()) saveSession(restored);
+        else if (restored?.refresh_token) { saveSession(restored); await refresh(); }
+        else saveSession(null);
+      }
+      await pollState();
+      if (session) await loadSettings({ quiet: true });
+      if (!pollingStarted) {
+        pollingStarted = true;
+        setInterval(pollState, 2000);
+      }
+      if ($('auth-message').textContent.startsWith('Dashboard chưa được cấu hình')) {
+        message('auth-message', 'Dashboard đã kết nối lại và sẵn sàng xác thực.');
+      }
+    } catch (error) {
+      config = null;
+      setAuthConfigReady(false);
+      message('auth-message', `Dashboard chưa được cấu hình: ${error.message}. Hệ thống sẽ tự thử lại sau 5 giây.`);
+      setTimeout(loadConfigAndStart, configRetryMs);
     }
-    await pollState();
-    if (session) await loadSettings({ quiet: true });
-    setInterval(pollState, 2000);
-  } catch (error) { message('auth-message', `Dashboard chưa được cấu hình: ${error.message}`); }
+  };
+  await loadConfigAndStart();
 }());

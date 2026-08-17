@@ -1,7 +1,23 @@
 # Smart Privacy Locker troubleshooting
 
+> Updated from the 2026-08-17 code/browser/hardware audit. For a reproducible
+> diagnosis, record the release commit, wiring revision, timestamp/correlation
+> ID and exact PASS/FAIL condition from
+> [../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md).
+
 | Symptom | Check | Safe action |
 |---|---|---|
+| Dashboard stays “chưa được cấu hình” after backend startup | `/api/v1/public-config` should retry every five seconds while both auth actions remain disabled | Fix the backend/config response and wait for automatic recovery. If there is still only one request, rebuild/redeploy `flows.flowfuse.json` and hard reload the old cached page; never hard-code keys. |
+| Command succeeds but UI shows raw `COMMAND_SUCCEEDED` | Current source maps it to “Thiết bị đã thực hiện thành công” | Treat this as a source/generated-artifact/browser-cache version mismatch; rebuild, redeploy and reload before taking final evidence. ACK remains the technical source. |
+| Pending button has no visible spinner | Current pseudo-element should be 17 px with an independent green border and `aria-busy=true` | Do not repeatedly click. Verify current CSS/artifact and cache; preserve the no-actuator-retry rule while waiting/reconciling. |
+| Telegram provider/delivery says `failed` but UI says “đang xử lý” | Current UI maps `failed` to “gửi thất bại” and has controlled labels for every known delivery status | Record the provider result accurately, then fix the deployed artifact/cache mismatch; do not rewrite backend status. |
+| No live data but alarm/LED show “Đang tắt” | Current no-data path sets lock/alarm/LED to `UNKNOWN` | Do not infer safety from the cards. Align the deployment with current source and confirm no-data regression before release. |
+| Device is stale/offline but lock/alarm/LED still look current | Current stale path sets these cards to unknown and disables all actuator controls | Treat retained values as last-known only. Check deployed source version plus availability/state generation; never bypass freshness. |
+| Device appears after `EN` then disappears from Dashboard after about 30 seconds | Confirm current firmware emits non-retained `locker/<ID>/heartbeat` plus retained state every 10 seconds; inspect serial reset reason, broker ACL/subscription, Node-RED artifact, and 5 V/3.3 V rails | Upload/deploy the same current version. If heartbeat stops while serial stays healthy, fix MQTT/ACL/flow. If serial reboots or reports brownout, disconnect loads and repeat the power gate. Do not keep pressing `EN`. A `Locker-Setup` AP ending at 180 seconds is only the provisioning timeout. |
+| SG90 ACK success but door did not reach position | Horn/linkage, 5 V rail, jam/end stop and MC-38 outcome | Power off if binding; ACK is timed open-loop completion, not feedback. Correct mechanics/power and rerun with MC-38/video. |
+| Adapter has no I/O switch or jack does not split power | Jack polarity/terminals and power-distribution topology | A built-in switch is not required. Use a rated DC switch in the positive lead and a proper terminal/distribution block; meter-check before energizing. |
+| A future-dated command is accepted | Verify NTP is synced, current firmware is installed, and skew exceeds the 30-second default | A synced device must reject it as `INVALID_ISSUED_AT`. An unsynchronized device cannot enforce wall-clock age; restore time sync and rerun rather than claiming the boundary passed. |
+| Unknown/late/mismatched ACK appears schema-valid | Ingestion should return `accepted:false` with `UNKNOWN_ACK`, `DUPLICATE_OR_LATE_ACK`, or `ACK_CORRELATION_MISMATCH` in bounded diagnostics | Never complete another pending request. If generic ingestion says accepted, align the deployed FlowFuse artifact with current runtime source and rerun the correlation test. |
 | Alarm command stays pending | MQTT/ESP32 state, matching ACK, timeout diagnostic | Do not auto-repeat; request/reconcile full state |
 | Alarm ACK says success but no sound | Module supply, polarity, driver and GPIO26 wiring | Power off; return to P3-M01 hardware verification |
 | `DATA_NOT_CONFIGURED` | Backend `SUPABASE_SERVICE_ROLE_KEY` and URL | Restore the secret in the deployment store; never expose it to the browser |

@@ -75,7 +75,7 @@ const char* errorMessage(CommandError error) {
     case CommandError::INVALID_REQUESTED_BY:
       return "requested_by must be a user UUID or approved service principal";
     case CommandError::INVALID_ISSUED_AT:
-      return "issued_at must be an ISO 8601 UTC timestamp";
+      return "issued_at must be valid UTC and within the accepted future clock skew";
     case CommandError::LOCKER_MISMATCH:
       return "locker_id does not match the command topic/device";
     case CommandError::STALE_COMMAND:
@@ -90,9 +90,13 @@ const char* errorMessage(CommandError error) {
 void publishAckAndState(const AckRecord& record, bool duplicate) {
   char timestamp[25] = {};
   const char* timestampValue = formatUtcTimestamp(timestamp, sizeof(timestamp)) ? timestamp : nullptr;
-  mqttClient.publishAck(record, duplicate, timestampValue);
+  if (!mqttClient.publishAck(record, duplicate, timestampValue)) {
+    Serial.println("MQTT ACK publish failed; command will require timeout reconciliation");
+  }
   if (!duplicate) {
-    mqttClient.publishState(stateManager.current(), true);
+    if (!mqttClient.publishState(stateManager.current(), true)) {
+      Serial.println("MQTT state publish failed after command handling");
+    }
   }
 }
 
@@ -146,6 +150,7 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
       isTimeSynced(),
       static_cast<int64_t>(time(nullptr)),
       AppConfig::COMMAND_MAX_AGE_SECONDS,
+      AppConfig::COMMAND_MAX_FUTURE_SKEW_SECONDS,
   };
   const CommandParseResult parsed = parseAndValidateCommand(json, payloadLength, context);
 
@@ -250,9 +255,13 @@ void loop() {
     if (!doorTransition.initialStableSample) {
       char timestamp[25] = {};
       const bool timeSynced = formatUtcTimestamp(timestamp, sizeof(timestamp));
-      mqttClient.publishDoorTransition(doorTransition.previous, doorTransition.current,
-                                       timeSynced ? timestamp : nullptr, timeSynced);
+      if (!mqttClient.publishDoorTransition(doorTransition.previous, doorTransition.current,
+                                            timeSynced ? timestamp : nullptr, timeSynced)) {
+        Serial.println("MQTT door telemetry publish failed");
+      }
     }
-    mqttClient.publishState(stateManager.current(), true);
+    if (!mqttClient.publishState(stateManager.current(), true)) {
+      Serial.println("MQTT state publish failed after door sample");
+    }
   }
 }

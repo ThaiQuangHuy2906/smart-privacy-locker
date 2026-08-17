@@ -94,7 +94,8 @@ function liveState(overrides = {}) {
 
 function createHarness({ hash = '', storedSession = null, fetchImpl, popupBlocked = false } = {}) {
   const ids = [
-    'auth-form', 'full-name', 'email', 'password', 'logout', 'session-label', 'auth-message',
+    'auth-form', 'full-name-field', 'full-name', 'email', 'password', 'auth-submit',
+    'auth-mode-toggle', 'logout', 'session-label', 'auth-message',
     'claim-form', 'locker-code', 'claim-message', 'locker-id', 'mqtt', 'device', 'wifi', 'door', 'lock', 'alarm', 'led', 'updated',
     'alert', 'state-message', 'command-message', 'chat-form', 'question', 'answer',
     'range-days', 'refresh-phase3', 'history-list', 'history-message', 'chart-summary', 'chart-bars', 'chart-empty',
@@ -245,7 +246,7 @@ test('implicit-flow errors clear an old session, strip the fragment, and remain 
   assert.match(harness.elements['auth-message'].textContent, /Email link is invalid/i);
 });
 
-test('auth uses form submit, event.submitter, and Enter defaults to login', async () => {
+test('auth uses one unambiguous form submit and Enter follows the selected mode', async () => {
   const harness = createHarness({
     fetchImpl: async (url) => {
       if (url === '/api/v1/public-config') return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
@@ -260,17 +261,143 @@ test('auth uses form submit, event.submitter, and Enter defaults to login', asyn
   assert.equal(harness.elements['auth-form'].listeners.has('click'), false);
   assert.equal(harness.elements['auth-form'].listeners.has('submit'), true);
 
+  await harness.elements['auth-mode-toggle'].dispatch('click');
   harness.elements['full-name'].value = 'Nguyễn Văn A';
-  const registerEvent = await harness.elements['auth-form'].dispatch('submit', { submitter: { dataset: { mode: 'register' } } });
+  const registerEvent = await harness.elements['auth-form'].dispatch('submit');
   assert.equal(registerEvent.defaultPrevented, true);
   const signup = harness.fetchCalls.find((call) => call.url.endsWith('/auth/v1/signup'));
   assert.deepEqual(JSON.parse(signup.options.body), {
     email: 'user@example.test', password: 'password-123', data: { full_name: 'Nguyễn Văn A' },
   });
 
-  const loginEvent = await harness.elements['auth-form'].dispatch('submit', { submitter: null });
+  await harness.elements['auth-mode-toggle'].dispatch('click');
+  harness.elements.password.value = 'password-123';
+  const loginEvent = await harness.elements['auth-form'].dispatch('submit');
   assert.equal(loginEvent.defaultPrevented, true);
   assert.ok(harness.fetchCalls.some((call) => call.url.includes('grant_type=password')));
+});
+
+test('auth mode exposes registration-only identity fields and correct password autocomplete', async () => {
+  const harness = createHarness({
+    fetchImpl: async (url) => url === '/api/v1/public-config'
+      ? jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' })
+      : jsonResponse(200, liveState()),
+  });
+  await settle();
+
+  assert.equal(harness.elements['full-name-field'].hidden, true);
+  assert.equal(harness.elements['full-name'].required, false);
+  assert.equal(harness.elements.password.autocomplete, 'current-password');
+
+  await harness.elements['auth-mode-toggle'].dispatch('click');
+  assert.equal(harness.elements['full-name-field'].hidden, false);
+  assert.equal(harness.elements['full-name'].required, true);
+  assert.equal(harness.elements.password.autocomplete, 'new-password');
+
+  await harness.elements['auth-mode-toggle'].dispatch('click');
+  assert.equal(harness.elements['full-name-field'].hidden, true);
+  assert.equal(harness.elements['full-name'].required, false);
+  assert.equal(harness.elements.password.autocomplete, 'current-password');
+});
+
+test('startup retries public configuration and enables authentication after recovery', async () => {
+  let configRequests = 0;
+  const harness = createHarness({
+    fetchImpl: async (url) => {
+      if (url === '/api/v1/public-config') {
+        configRequests += 1;
+        return configRequests === 1
+          ? jsonResponse(503, { code: 'CONFIG_TEMPORARILY_UNAVAILABLE' })
+          : jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
+      }
+      return jsonResponse(200, liveState());
+    },
+  });
+  await settle();
+
+  assert.match(harness.elements['auth-message'].textContent, /tự thử lại/i);
+  assert.equal(harness.elements['auth-submit'].disabled, true);
+  assert.equal(harness.elements['auth-mode-toggle'].disabled, true);
+  const retry = [...harness.timeouts.values()].find((value) => value.delay === 5000);
+  assert.ok(retry);
+
+  await retry.callback();
+  await settle();
+  assert.equal(configRequests, 2);
+  assert.equal(harness.elements['auth-submit'].disabled, false);
+  assert.equal(harness.elements['auth-mode-toggle'].disabled, false);
+  assert.ok([...harness.intervals.values()].some((value) => value.delay === 2000));
+});
+
+test('startup preserves an expired restorable session during a transient refresh outage', async () => {
+  const expired = { access_token: 'expired-access', refresh_token: 'kept-refresh',
+    expires_at: Math.floor(Date.now() / 1000) - 1 };
+  let refreshRequests = 0;
+  let stateRequests = 0;
+  const harness = createHarness({
+    storedSession: expired,
+    fetchImpl: async (url) => {
+      if (url === '/api/v1/public-config') {
+        return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
+      }
+      if (url.includes('grant_type=refresh_token')) {
+        refreshRequests += 1;
+        return jsonResponse(503, { code: 'AUTH_PROVIDER_UNAVAILABLE' });
+      }
+      if (url.startsWith('/api/v1/lockers/') && url.endsWith('/state')) {
+        stateRequests += 1;
+        return jsonResponse(401, { code: 'INVALID_SESSION' });
+      }
+      return jsonResponse(200, {});
+    },
+  });
+  await settle();
+
+  assert.equal(refreshRequests, 1);
+  assert.equal(stateRequests, 0, 'an expired access token must not be sent to protected polling');
+  assert.equal(JSON.parse(harness.stored.get('smart-locker-phase2-session')).refresh_token,
+    'kept-refresh');
+  assert.match(harness.elements['auth-message'].textContent, /tạm thời không khả dụng/i);
+  assert.ok([...harness.timeouts.values()].some((value) => value.delay === 30_000),
+    'one provider-outage retry must remain scheduled');
+  assert.ok(harness.actionButtons.every((button) => button.disabled));
+});
+
+test('startup session refresh is single-flight when its expiry timer fires in parallel', async () => {
+  const expired = { access_token: 'expired-access', refresh_token: 'rotating-refresh',
+    expires_at: Math.floor(Date.now() / 1000) - 1 };
+  const refreshResponse = deferred();
+  let refreshRequests = 0;
+  const harness = createHarness({
+    storedSession: expired,
+    fetchImpl: async (url) => {
+      if (url === '/api/v1/public-config') {
+        return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
+      }
+      if (url.includes('grant_type=refresh_token')) {
+        refreshRequests += 1;
+        return refreshResponse.promise;
+      }
+      return jsonResponse(200, liveState());
+    },
+  });
+  await settle();
+
+  assert.equal(refreshRequests, 1);
+  const expiryTimer = [...harness.timeouts.values()].find((value) => value.delay === 1000);
+  assert.ok(expiryTimer);
+  const parallelRefresh = expiryTimer.callback();
+  await settle();
+  assert.equal(refreshRequests, 1, 'one session generation must have at most one refresh request');
+
+  refreshResponse.resolve(jsonResponse(200, {
+    access_token: 'new-access', refresh_token: 'new-refresh',
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+  }));
+  await parallelRefresh;
+  await settle();
+  assert.equal(JSON.parse(harness.stored.get('smart-locker-phase2-session')).access_token,
+    'new-access');
 });
 
 test('auth submit before public config is ready fails closed without issuing credentials', async () => {
@@ -495,9 +622,90 @@ test('editing the locker ID immediately invalidates old state and blocks command
   assert.ok(harness.actionButtons.every((button) => button.disabled));
   assert.equal(harness.elements.door.textContent, 'Chưa xác định');
   assert.equal(harness.elements.door.dataset.state, 'unknown');
+  assert.equal(harness.elements.alarm.textContent, 'Chưa xác định');
+  assert.equal(harness.elements.alarm.dataset.state, 'unknown');
+  assert.equal(harness.elements.led.textContent, 'Chưa xác định');
+  assert.equal(harness.elements.led.dataset.state, 'unknown');
 
   await harness.actionButtons[0].dispatch('click');
   assert.equal(harness.fetchCalls.some((call) => call.url === '/api/v1/commands'), false);
+});
+
+test('command completion and Telegram failure statuses are localized without false processing text', async () => {
+  const restored = { access_token: 'session-token', refresh_token: 'refresh-token',
+    expires_at: Math.floor(Date.now() / 1000) + 3600 };
+  const harness = createHarness({
+    storedSession: restored,
+    fetchImpl: async (url) => {
+      if (url === '/api/v1/public-config') {
+        return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
+      }
+      return jsonResponse(200, liveState({
+        command_status: {
+          command_id: '50000000-0000-4000-8000-000000000001',
+          action: 'LOCK', status: 'COMMAND_SUCCEEDED',
+        },
+        latest_alert: {
+          event_type: 'UNAUTHORIZED_OPEN', occurred_at: '2026-08-09T00:00:00.000Z',
+          notification_status: 'failed',
+        },
+      }));
+    },
+  });
+  await settle();
+
+  assert.match(harness.elements['command-message'].textContent, /thành công/i);
+  assert.doesNotMatch(harness.elements['command-message'].textContent, /COMMAND_SUCCEEDED/);
+  assert.match(harness.elements.alert.textContent, /gửi thất bại/i);
+  assert.doesNotMatch(harness.elements.alert.textContent, /đang xử lý/i);
+});
+
+test('unknown command action and status use safe labels instead of raw enums', async () => {
+  const restored = { access_token: 'session-token', refresh_token: 'refresh-token',
+    expires_at: Math.floor(Date.now() / 1000) + 3600 };
+  const harness = createHarness({
+    storedSession: restored,
+    fetchImpl: async (url) => {
+      if (url === '/api/v1/public-config') {
+        return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
+      }
+      return jsonResponse(200, liveState({
+        command_status: {
+          command_id: '50000000-0000-4000-8000-000000000002',
+          action: 'FUTURE_ACTION', status: 'FUTURE_STATUS',
+        },
+      }));
+    },
+  });
+  await settle();
+
+  assert.match(harness.elements['command-message'].textContent,
+    /Lệnh chưa xác định: Trạng thái lệnh chưa xác định/);
+  assert.doesNotMatch(harness.elements['command-message'].textContent,
+    /FUTURE_ACTION|FUTURE_STATUS/);
+});
+
+test('stale API values are rendered as unknown instead of current actuator truth', async () => {
+  const restored = { access_token: 'session-token', refresh_token: 'refresh-token',
+    expires_at: Math.floor(Date.now() / 1000) + 3600 };
+  const harness = createHarness({
+    storedSession: restored,
+    fetchImpl: async (url) => {
+      if (url === '/api/v1/public-config') {
+        return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
+      }
+      return jsonResponse(200, liveState({
+        stale: true, lock: 'LOCKED', lock_unconfirmed: false, alarm: 'ACTIVE', led: 'ON',
+      }));
+    },
+  });
+  await settle();
+
+  for (const id of ['lock', 'alarm', 'led']) {
+    assert.match(harness.elements[id].textContent, /Chưa/);
+    assert.equal(harness.elements[id].dataset.state, 'unknown');
+  }
+  assert.ok(harness.actionButtons.every((button) => button.disabled));
 });
 
 test('one pending actuator request locks both controls in the same domain', async () => {

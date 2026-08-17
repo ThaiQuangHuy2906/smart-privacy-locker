@@ -12,8 +12,8 @@ node tools/device-simulator/run-live-broker.js
 ```
 
 `MemoryBroker` models topic subscription and retained replay so tests can prove
-that full state/availability are retained while door transitions and commands
-are not. `DeviceSimulator` supports success/error/duplicate/delayed/no ACK,
+that full state/availability are retained while heartbeat, door transitions and
+commands are not. `DeviceSimulator` supports success/error/duplicate/delayed/no ACK,
 wrong ID/locker/action/state, malformed payload, reconnect, `GET_STATE`, and
 restart-recovery inputs. `scenario-fixtures.json` is deterministic and contains
 no account, credential, or production data.
@@ -25,6 +25,12 @@ does not ship a broker password or pretend a memory harness is a network capture
 
 `run-live-broker.js` starts an authenticated Aedes broker on an ephemeral
 loopback TCP port and uses real MQTT 3.1.1 clients to verify retained replay,
-non-retained door telemetry, command/ACK, LWT and reconnect. Its credentials are
+non-retained heartbeat/door telemetry, command/ACK, LWT and reconnect. Its credentials are
 fixed test-only strings and the port is not exposed beyond localhost. This is
 network-broker software evidence, still not physical ESP32/MC-38 evidence.
+
+Audit rerun 2026-08-17: `npm run test:simulator` passed 10 assertions across 15
+scenarios and `npm run test:broker` passed 17 assertions. These results do not
+close power, GPIO, motion, sound or full E2E gates. Follow
+[../../HUONG_DAN_TEST_END_TO_END.md](../../HUONG_DAN_TEST_END_TO_END.md) for the
+hardware/deployment sequence.

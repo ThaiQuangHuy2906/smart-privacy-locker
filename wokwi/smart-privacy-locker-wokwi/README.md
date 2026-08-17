@@ -1,5 +1,10 @@
 # Smart Privacy Locker — Wokwi hardware demo
 
+> Audit 2026-08-17: a clean Wokwi build passes at 6.8% RAM/24.5% flash. This
+> package is intentionally a standalone behavioral demo, not a byte-for-byte
+> production firmware or electrical model. Its help and runtime use close
+> `170°`, open `80°`; safe boot leaves the servo untouched until `L` or `U`.
+
 Gói này mô phỏng độc lập toàn bộ phần cứng được firmware điều khiển trực tiếp:
 
 - ESP32 DevKitC;
@@ -57,8 +62,8 @@ Mở Serial Monitor ở 115200 baud rồi gửi một ký tự:
 
 | Phím | Tác dụng |
 |---|---|
-| `L` | Khóa, servo về 15° |
-| `U` | Mở khóa, servo tới 95° |
+| `L` | Đóng cửa (logical `LOCK`), servo về 170° |
+| `U` | Mở cửa (logical `UNLOCK`), servo tới 80° |
 | `1` | Bật WS2812B |
 | `0` | Tắt WS2812B |
 | `A` | Bật báo động: GPIO26 xuống LOW |
@@ -92,7 +97,16 @@ Wokwi kiểm tra logic GPIO và trình tự hoạt động, không chứng minh 
   phỏng điện học; mạch thật vẫn phải lắp đúng cực;
 - custom chip mô phỏng cực tính LOW-trigger và âm danh định, không thay thế phép
   đo dòng/điện áp/nhiệt độ/âm lượng của module thật;
-- Wokwi không kiểm tra lực cơ, hành trình chốt, dây tải, connector, cầu chì,
-  chống kéo dây hoặc khả năng chịu dòng của nguồn ngoài;
+- Wokwi không kiểm tra lực cơ, hành trình cánh tay/cửa, dây tải, connector, cầu
+  chì, chống kéo dây hoặc khả năng chịu dòng của nguồn ngoài;
+- Wokwi dùng một pixel và điện trở 330 Ω, trong khi as-built hiện dùng 10 pixel
+  và điện trở 470 Ω; dòng/tín hiệu của bản thật phải test riêng;
+- mô hình boot giữ vị trí servo chưa xác định và không tự quay, tương tự invariant
+  safe cold boot; nó vẫn không có MQTT/NVS/reconnect nên không chứng minh no-replay
+  của firmware production;
+- cơ cấu thật không còn chốt: tay servo trực tiếp đóng/mở cửa, còn Wokwi chỉ
+  biểu diễn góc và không thể chứng minh outcome cơ khí;
 - chỉ kết luận hệ thống thật đạt sau khi hoàn thành
-  `HUONG_DAN_LAP_MACH_THEO_THU_TU.md` và `HUONG_DAN_CHAY_HE_THONG.md`.
+  [hướng dẫn lắp mạch](../../HUONG_DAN_LAP_MACH_THEO_THU_TU.md),
+  [hướng dẫn chạy](../../HUONG_DAN_CHAY_HE_THONG.md) và
+  [hướng dẫn E2E](../../HUONG_DAN_TEST_END_TO_END.md).

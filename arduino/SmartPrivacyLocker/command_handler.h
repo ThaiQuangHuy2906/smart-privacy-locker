@@ -42,6 +42,7 @@ struct CommandValidationContext {
   bool timeSynced;
   int64_t nowEpochSeconds;
   uint32_t maxAgeSeconds;
+  uint32_t maxFutureSkewSeconds;
 };
 
 struct CommandParseResult {

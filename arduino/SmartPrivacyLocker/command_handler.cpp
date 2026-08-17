@@ -202,6 +202,11 @@ CommandParseResult parseAndValidateCommand(const char* payload, size_t payloadLe
     result.error = CommandError::INVALID_ISSUED_AT;
     return result;
   }
+  if (context.timeSynced && issuedEpochSeconds > context.nowEpochSeconds &&
+      issuedEpochSeconds - context.nowEpochSeconds > context.maxFutureSkewSeconds) {
+    result.error = CommandError::INVALID_ISSUED_AT;
+    return result;
+  }
   if (context.timeSynced && context.nowEpochSeconds > issuedEpochSeconds &&
       context.nowEpochSeconds - issuedEpochSeconds > context.maxAgeSeconds) {
     result.error = CommandError::STALE_COMMAND;

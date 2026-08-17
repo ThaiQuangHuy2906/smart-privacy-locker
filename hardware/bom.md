@@ -2,18 +2,24 @@
 
 **Status: candidate procurement list — no item is accepted until its exact
 marking and primary datasheet are recorded.** Quantities assume one locker and
-one WS2812 pixel. Update the quantity and power worksheet if the physical model
-uses a strip or additional indicators.
+the 10 WS2812 pixels configured in the local deployment. Update the quantity
+and power worksheet if the physical model changes the strip count.
+
+Record the accepted exact parts and measurements against the gate IDs in
+[../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md). A purchased
+part or a user-observed smoke test is not automatically an accepted release
+part.
 
 | Item | Qty. | Minimum acceptance evidence before purchase/use | Reject when |
 |---|---:|---|---|
 | ESP32 DevKit | 1 | ESP32 board supported as Arduino IDE `ESP32 Dev Module` with core 2.0.17 and equivalent PlatformIO `esp32dev`; accessible GPIO4/18/21/22/25/26/27, 3.3 V and GND; exact board schematic or vendor pinout | board identity/pin labels are unknown, or the seller substitutes another MCU |
 | Regulated SELV 5 V supply | 1 | rated at least 3 A; enclosed/certified low-voltage output; connector polarity documented; enough current after completing `power-budget.md` | bare mains wiring, unknown polarity, no current rating, or unstable output |
+| DC jack 5.5 × 2.5 mm matching the adapter | 1 | plug fits firmly; center/sleeve terminals and polarity verified by continuity/voltage measurement; solder joints insulated and strain-relieved, or a correctly rated screw-terminal adapter is used | confused with 5.5 × 2.1 mm, pins guessed from appearance, loose plug, exposed conductors or undocumented polarity |
 | Power switch, terminal/distribution and branch protection | 1 set | voltage/current rating exceeds the calculated load; connector and wire rating documented; fuse/polyfuse chosen for the real wire/load with supervisor approval | loose breadboard jumpers carry servo/LED supply current in the final build |
-| SG90-class servo | 1 | exact operating-voltage and stall-current data; mechanical dimensions fit the latch; separate 5 V load branch | stall current is unknown or the linkage forces the horn against an end stop |
+| SG90-class servo | 1 | exact operating-voltage and stall-current data; mechanical dimensions fit the door-arm mechanism; separate 5 V load branch; `80°`/`170°` do not force an end stop | stall current is unknown or the door forces the horn against an end stop |
 | DHT22/AM2302 | 1 | exact part supports 3.3 V operation; bare sensor or module pull-up is known and can terminate at 3.3 V | module data is hard-pulled to 5 V with no level translation |
 | SSD1306 I2C OLED | 1 | exact breakout accepts 3.3 V supply/I2C, or a separately specified level shifter is included; address can be scanned | SDA/SCL are pulled to 5 V while connected directly to ESP32 |
-| WS2812-family RGB pixel | 1 or exact strip count | exact manufacturer/part, supply/data thresholds and pixel count recorded; if using Direct-D without a buffer, the exact specimen passes the dedicated direct/reconnect/full-load gate | listing says only “WS2812 compatible”, count/current is unknown, or direct operation is unstable |
+| WS2812-family RGB pixel | 10 | exact manufacturer/part, supply/data thresholds and pixel count recorded; if using Direct-D without a buffer, the exact specimen passes the dedicated direct/reconnect/full-load gate | listing says only “WS2812 compatible”, count/current is unknown, or direct operation is unstable |
 | 74AHCT125 or 74HCT14 logic device | 0–1 | recommended robust path: genuine part rated for 5 V supply and a 3.3 V-high input; 74AHCT125 uses one non-inverting channel, while 74HCT14 must use two inverter gates in series; unused inputs/enables tied to defined levels | `SN74HC125N` is substituted as if it had TTL/AHCT input thresholds, or one 74HCT14 inverter is used alone and reverses the data polarity; omit the device instead when testing conditional Direct-D |
 | WS2812 data resistor | 1 | 330–470 Ω, suitable through-hole/SMD rating, fitted near first DIN | omitted or placed only at ESP32 end of a long data wire |
 | WS2812 bulk capacitor | 1 | 470–1000 µF, polarity marked, voltage rating above the measured 5 V rail | reversed, damaged, or insufficient voltage rating |

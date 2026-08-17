@@ -7,7 +7,12 @@ ngắt nguồn và sửa đúng bước đang lỗi. Sau khi lắp xong, chuyể
 [HUONG_DAN_CHAY_HE_THONG.md](HUONG_DAN_CHAY_HE_THONG.md) để chạy toàn bộ test
 chấp nhận hệ thống.
 
-## Cấu hình demo được dùng trong hướng dẫn này
+Sau smoke test, dùng
+[HUONG_DAN_TEST_END_TO_END.md](HUONG_DAN_TEST_END_TO_END.md) cho ma trận release,
+đo tải đồng thời, fault recovery và bộ bằng chứng. Lắp đúng dây không tự động
+đồng nghĩa E2E PASS.
+
+## Cấu hình sản phẩm được dùng trong hướng dẫn này
 
 - ESP32 được cấp nguồn bằng cáp USB-C có truyền dữ liệu.
 - ESP32 DevKit 30 chân (`15 × 2`) được đặt **cạnh** breadboard, không cắm lên
@@ -15,9 +20,10 @@ chấp nhận hệ thống.
 - Adapter 5 V/3 A chỉ cấp nguồn cho servo SG90 và WS2812B.
 - GND của adapter và GND của ESP32 phải nối chung.
 - Chỉ dùng **một** SG90. Servo còn lại là dự phòng.
-- Firmware hiện chỉ điều khiển **pixel đầu tiên** của WS2812B
-  (`WS2812_PIXEL_COUNT = 1`), không phải toàn bộ dải 1 m.
-- Không lắp `SN74HC125N` và MOSFET `4184` vào revision demo đã chọn. Nếu đường
+- Cấu hình local đang điều khiển **10 pixel WS2812B**
+  (`WS2812_PIXEL_COUNT = 10`) ở độ sáng giới hạn; không mặc định bật toàn bộ
+  dải 1 m.
+- Không lắp `SN74HC125N` và MOSFET `4184` vào revision sản phẩm đã chọn. Nếu đường
   WS2812 direct không qua toàn bộ gate ở Bước 8, dừng và đổi sang đúng
   `SN74AHCT125N`; không thay bằng `SN74HC125N`.
 - Active buzzer module LOW-level trigger dùng buzzer `TMB12A05` được cấp từ
@@ -26,30 +32,55 @@ chấp nhận hệ thống.
   độc lập và vẫn dành cho servo trong mạch hoàn chỉnh.
 - Chỉ lắp buzzer sau khi đã đọc Bước 10 và rút toàn bộ nguồn.
 - Không nối cực `+5V` của adapter vào chân `5V`/`VIN` của ESP32 trong cấu hình
-  demo này.
+  sản phẩm này.
+
+### Ghi nhận lắp thực tế ngày 17/08/2026
+
+Các kết quả dưới đây là quan sát chức năng do người lắp xác nhận, chưa thay cho
+phép đo nguồn và full-load cuối:
+
+- Breadboard 830 lỗ được quy ước hai rail trên là `+5V tải` và `GND chung`; hai
+  rail dưới là `3V3` và `GND chung`.
+- OLED (`VDD→3V3`, `GND→GND`, `SDA→GPIO21`, `SCK/SCL→GPIO22`), DHT22 ba chân
+  (`+→3V3`, `-→GND`, `OUT→GPIO4`) và MC-38 (`GPIO27↔tiếp điểm↔GND`) đã hoạt
+  động đúng trong thử nghiệm thực tế.
+- WS2812B (`DI→GPIO25` qua 470 Ω, tụ 470 µF đúng cực ở đầu nguồn) đã sáng đúng
+  10 pixel theo cấu hình local.
+- SG90 ở `GPIO18` đã chạy với `170° = đóng cửa` và `80° = mở cửa`. Cơ cấu không
+  còn chốt khóa; cánh tay servo trực tiếp đóng/mở cửa. Firmware vẫn giữ tên
+  logic `LOCK`/`UNLOCK` để tương thích Dashboard và MQTT.
+- Buzzer LOW-trigger đã được đấu `VCC/+→3V3`, `GND/-→GND`,
+  `IN/S/I/O→GPIO26` qua 4,7 kΩ; kiểm thử tích hợp và safe-boot vẫn phải PASS.
+- Nhánh nguồn ngoài vẫn là `PENDING` cho đến khi jack, công tắc/đường ngắt,
+  điểm chia, dây tải và common GND được đấu rồi đo theo Bước 7 và kiểm thử
+  full-load.
 
 ## Sơ đồ nối cuối cùng
 
 | Thiết bị | Chân thiết bị | Nối tới |
 |---|---|---|
-| OLED SSD1306 I2C | `VCC` | ESP32 `3V3` |
-| OLED SSD1306 I2C | `GND` | ESP32 `GND` |
+| Rail dưới `3V3` | Đầu vào | ESP32 `3V3` |
+| Rail dưới GND | Đầu vào | ESP32 `GND` |
+| Rail trên GND | Đầu vào | Rail dưới GND và GND nguồn tải ngoài |
+| Rail trên `+5V tải` | Đầu vào | Nhánh sau công tắc/điểm chia; không nối ESP32 `5V`/`VIN` |
+| OLED SSD1306 I2C | `VCC` | Rail dưới `3V3` |
+| OLED SSD1306 I2C | `GND` | Rail dưới GND |
 | OLED SSD1306 I2C | `SDA` | ESP32 `GPIO21` |
 | OLED SSD1306 I2C | `SCL` | ESP32 `GPIO22` |
-| DHT22 | `VCC`/`+` | ESP32 `3V3` |
+| DHT22 | `VCC`/`+` | Rail dưới `3V3` |
 | DHT22 | `DATA`/`S`/`OUT` | ESP32 `GPIO4` |
-| DHT22 | `GND`/`-` | ESP32 `GND` |
+| DHT22 | `GND`/`-` | Rail dưới GND |
 | MC-38 | Dây thứ nhất | ESP32 `GPIO27` |
-| MC-38 | Dây thứ hai | ESP32 `GND` |
-| WS2812B | `+5V`/`5V` | Cực `+5V` của nguồn tải ngoài |
-| WS2812B | `GND`/`-` | GND của nguồn tải ngoài |
+| MC-38 | Dây thứ hai | Rail dưới GND |
+| WS2812B | `+5V`/`5V` | Rail trên `+5V tải`, được cấp từ điểm chia ngoài |
+| WS2812B | `GND`/`-` | Rail trên GND chung |
 | WS2812B | `DIN`/`DI` | ESP32 `GPIO25` qua **một** điện trở 330 Ω hoặc 470 Ω |
-| SG90 dùng cho khóa | Dây tín hiệu cam/vàng/trắng | ESP32 `GPIO18` |
-| SG90 dùng cho khóa | Dây đỏ | Cực `+5V` của nguồn tải ngoài |
-| SG90 dùng cho khóa | Dây nâu/đen | GND của nguồn tải ngoài |
+| SG90 đóng/mở cửa | Dây tín hiệu cam/vàng/trắng | ESP32 `GPIO18` |
+| SG90 đóng/mở cửa | Dây đỏ | Nhánh trực tiếp từ điểm chia `+5V tải` |
+| SG90 đóng/mở cửa | Dây nâu/đen | Nhánh trực tiếp từ điểm chia GND tải |
 | Nguồn tải ngoài | GND | Một chân `GND` của ESP32 |
-| Active buzzer module LOW-trigger (`TMB12A05`) | `VCC`/`+` | ESP32 `3V3` — **không nối 5 V** |
-| Active buzzer module LOW-trigger (`TMB12A05`) | `GND`/`-` | ESP32 `GND` |
+| Active buzzer module LOW-trigger (`TMB12A05`) | `VCC`/`+` | Rail dưới `3V3` — **không nối 5 V** |
+| Active buzzer module LOW-trigger (`TMB12A05`) | `GND`/`-` | Rail dưới GND |
 | Active buzzer module LOW-trigger (`TMB12A05`) | `IN`/`S`/`I/O` | ESP32 `GPIO26` qua điện trở nối tiếp 4,7 kΩ |
 
 Không dựa vào vị trí trái/phải trong ảnh trên mạng. Chỉ nối theo **chữ in trên
@@ -60,16 +91,20 @@ module trước khi nối.
 
 1. Rút USB-C khỏi ESP32.
 2. Rút adapter 5 V/3 A khỏi ổ điện và khỏi jack DC.
-3. Để servo chưa gắn vào chốt; tháo servo horn nếu nó có thể vướng vật khác.
-4. Đặt breadboard trên mặt phẳng cách điện, tránh bản lề và chốt kim loại.
+3. Tách cánh tay servo khỏi cửa hoặc đặt cửa ở vị trí không thể bị ép; tháo
+   horn nếu nó có thể vướng vật khác.
+4. Đặt breadboard trên mặt phẳng cách điện, tránh bản lề, cánh tay servo và
+   phần kim loại.
 5. Chuẩn bị cáp USB-C **có data**, đồng hồ vạn năng, dây nguồn chịu được dòng
    tải, đầu chia nguồn/terminal phù hợp, điện trở 330 Ω hoặc 470 Ω, **một điện
    trở 4,7 kΩ riêng cho tín hiệu buzzer** và tụ 470 µF. Nếu DHT22 cũng cần
    pull-up rời thì cần thêm một điện trở 4,7 kΩ khác; không dùng chung một điện
    trở cho hai tín hiệu.
-6. Chỉ dùng jumper Dupont cho tín hiệu và module dòng nhỏ. Không đưa dòng của
-   servo hoặc dải LED 1 m đi qua rail breadboard hay nhiều jumper Dupont nối
-   song song.
+6. Chỉ dùng jumper Dupont cho tín hiệu và module dòng nhỏ. Nhánh servo phải đi
+   trực tiếp từ điểm chia bằng dây/connector chịu dòng; không đưa dòng stall
+   của servo qua rail breadboard hoặc nhiều jumper Dupont song song. Rail
+   `+5V tải` trên breadboard chỉ cấp cho nhánh WS2812B đã giới hạn 10 pixel/độ
+   sáng và chỉ được chấp nhận sau phép đo full-load.
 
 Nếu chưa có đồng hồ vạn năng hoặc chưa có cách chia nguồn tải chắc chắn, có
 thể làm đến hết Bước 6 nhưng **không được làm Bước 7 trở đi**.
@@ -112,22 +147,23 @@ rãnh giữa.** Làm như sau:
 
 1. Đặt ESP32 **bên cạnh** breadboard trên một mặt phẳng cách điện, mặt có chữ
    hướng lên và cổng USB-C không bị che.
-2. Không để mặt dưới ESP32 chạm bản lề, chốt, vít hoặc vật kim loại.
+2. Không để mặt dưới ESP32 chạm bản lề, cánh tay servo, vít hoặc vật kim loại.
 3. Dùng dây jumper **đực-cái**:
    - đầu **cái** cắm vào chân đực trên ESP32;
    - đầu **đực** cắm vào lỗ breadboard.
-4. Chọn một rail breadboard làm `3V3`. Nối ESP32 `3V3` → rail `3V3` bằng một
-   dây đực-cái.
-5. Chọn một rail khác làm GND logic. Nối ESP32 `GND` → rail GND bằng một dây
-   đực-cái.
-6. Dán nhãn hoặc dùng màu dây cố định: đỏ cho `3V3`, đen/xanh cho GND. Không
-   dùng rail `3V3` này cho servo hoặc WS2812B.
-7. Nếu rail breadboard bị ngắt ở giữa, chỉ nối hai nửa sau khi đã kiểm tra bằng
-   continuity mode.
-8. Dùng đồng hồ xác nhận rail `3V3` không thông với rail GND.
-9. Chừa nhìn thấy các nhãn `4`, `18`, `21`, `22`, `25`, `26`, `27` trên chính
+4. Dán nhãn hai rail trên: một rail `+5V tải`, một rail `GND chung`.
+5. Dán nhãn hai rail dưới: một rail `3V3`, một rail `GND chung`.
+6. Nối ESP32 `3V3` → rail dưới `3V3` bằng một dây đực-cái. Không dùng rail này
+   cho servo hoặc WS2812B.
+7. Nối ESP32 `GND` → rail dưới GND; nối rail dưới GND → rail trên GND. Hai rail
+   GND phải thông nhau, còn rail `+5V tải` và `3V3` phải tách biệt.
+8. Để rail trên `+5V tải` chưa được cấp điện cho đến Bước 7. Nếu rail bị ngắt ở
+   giữa, chỉ nối hai nửa sau khi đã kiểm tra bằng continuity mode.
+9. Dùng đồng hồ xác nhận `3V3` không thông với GND hoặc `+5V tải`, và `+5V tải`
+   không thông với GND.
+10. Chừa nhìn thấy các nhãn `4`, `18`, `21`, `22`, `25`, `26`, `27` trên chính
    ESP32 để tránh đếm nhầm vị trí chân.
-10. Chưa cắm USB và chưa cắm adapter.
+11. Chưa cắm USB và chưa cắm adapter.
 
 Khi một module có hàng chân đực và cắm được lên breadboard, đặt module lên
 breadboard rồi nối tín hiệu từ ESP32 tới đúng hàng của module bằng dây
@@ -196,57 +232,75 @@ không brownout/reset. Sau đó rút USB-C.
 
 ## Bước 7 — Làm đường nguồn tải 5 V riêng
 
-Không làm bước này nếu chưa xác định được chân jack và chân công tắc bằng đồng
-hồ vạn năng. Hình dạng jack/công tắc không đủ để đoán chân.
+Jack DC chỉ là đầu nối, không phải mạch chia điện. Adapter không cần có sẵn nút
+I/O: có thể dùng công tắc DC riêng ở dây dương. Về điện, rút/cắm adapter cũng
+có thể ngắt nguồn; nhưng với cánh tay servo đã gắn vào cửa, cấu hình cuối của
+dự án phải có công tắc hoặc đường ngắt 5 V dễ tiếp cận để dừng khẩn cấp.
+
+Không làm bước này nếu chưa xác định được chân jack, chân công tắc và cực tính
+bằng đồng hồ vạn năng. Hình dạng jack/công tắc không đủ để đoán chân; đầu
+5,5 × 2,5 mm cũng không được thay bằng 5,5 × 2,1 mm chỉ vì nhìn giống nhau.
 
 1. Khi adapter đang rút điện, dùng continuity mode xác định terminal của jack
    nối với tiếp điểm giữa và terminal nối với vỏ ngoài. Bỏ trống terminal
    switched nếu jack có ba chân mà bạn chưa dùng chức năng này.
 2. Đọc ký hiệu polarity trên adapter và đo lại điện áp DC. Chỉ tiếp tục khi xác
    nhận đầu giữa là `+5V`, vỏ ngoài là GND và điện áp thực phù hợp.
-3. Nối đường dương theo thứ tự:
+3. Chuẩn bị một điểm chia chịu dòng như terminal block, Wago đúng loại hoặc
+   jack cái ra cọc vít. Không xoắn dây để hở và không dùng rail breadboard làm
+   điểm chia duy nhất cho servo.
+4. Dùng một công tắc có định mức DC tối thiểu 5 V/3 A và không thấp hơn dòng
+   cực đại đã tính của nhánh tải; đặt công tắc nối tiếp trên dây `+5V`. Công tắc
+   rời hoặc loại tích hợp với jack đều được, không cần mua adapter mới chỉ để
+   có nút I/O.
+5. Nối theo topology sau:
 
    ```text
-   Jack center +5V → công tắc chính → điểm chia +5V tải
+   Adapter 5 V/3 A
+      center + → jack → công tắc → bảo vệ nhánh → điểm chia +5V
+                                      ├─→ SG90 dây đỏ (nhánh trực tiếp)
+                                      └─→ rail trên +5V → WS2812B
+
+      outer  - → jack ─────────────→ điểm chia GND
+                                      ├─→ SG90 dây nâu/đen (nhánh trực tiếp)
+                                      └─→ rail trên GND → rail dưới GND
+                                                            └─→ ESP32 GND
    ```
 
-4. Nối đường âm:
-
-   ```text
-   Jack outer GND → điểm chia GND tải
-   ```
-
-5. Dùng dây/terminal chịu được dòng tải và bọc kín mối hàn bằng ống co nhiệt.
-6. Khi adapter vẫn rút điện, kiểm tra:
+6. Dùng dây/terminal chịu được dòng tải, chống kéo dây và bọc kín mối hàn bằng
+   ống co nhiệt. Gắn tụ 470 µF ở đầu WS2812B, không đặt thay cho tụ nhánh servo.
+7. Khi adapter vẫn rút điện, kiểm tra:
    - công tắc OFF: đầu ra `+5V` không thông với center `+`;
    - công tắc ON: đầu ra `+5V` thông với center `+`;
-   - `+5V` không chập GND.
-7. Chưa nối servo, LED hay ESP32. Cắm adapter, bật công tắc và đo điện áp tại
-   điểm chia nguồn.
-8. Tắt công tắc, rút adapter và đo lại để chắc chắn đã mất điện.
+   - `+5V` không chập GND hoặc `3V3`;
+   - hai rail GND thông nhau và thông với GND nguồn tải/ESP32.
+8. Chưa nối servo, LED hay ESP32. Cắm adapter, bật công tắc và đo điện áp tại
+   điểm chia, rail trên `+5V` và GND.
+9. Tắt công tắc, rút adapter và đo lại để chắc chắn đã mất điện.
 
-Công tắc thứ hai chưa cần dùng. Không nối hai nguồn `+5V` của USB và adapter
-với nhau.
+Công tắc thứ hai chưa cần dùng. Không nối `+5V` USB/ESP32 với `+5V` adapter;
+hai nguồn chỉ dùng chung GND theo topology trên.
 
 ## Bước 8 — Nối WS2812B không dùng IC 74HC125
 
-Chỉ thử pixel đầu tiên ở độ sáng thấp. Đây là phương án demo có điều kiện vì
-GPIO ESP32 là 3,3 V còn strip dùng nguồn 5 V.
+Thử đúng 10 pixel đã cấu hình ở `WS2812_BRIGHTNESS = 32`; không bật trắng toàn
+dải. Đây vẫn là phương án direct có điều kiện vì GPIO ESP32 là 3,3 V còn strip
+dùng nguồn 5 V.
 
 1. Tìm chữ `DIN`/`DI` hoặc mũi tên trên strip. Tín hiệu phải đi từ `DIN` về
    phía `DOUT`; không nối vào đầu ra `DOUT`.
-2. WS2812B `+5V` → điểm chia `+5V` tải.
-3. WS2812B `GND` → điểm chia GND tải.
+2. WS2812B `+5V` → rail trên `+5V tải`.
+3. WS2812B `GND` → rail trên GND chung.
 4. Nối một tụ 470 µF sát đầu vào strip:
    - chân tụ có dấu `+` → `+5V`;
    - chân tụ có vạch `-` → GND.
-5. ESP32 `GND` → điểm chia GND tải. Đây là dây **bắt buộc** để tín hiệu LED và
-   servo có cùng mốc điện áp với ESP32.
+5. Xác nhận rail dưới GND (ESP32) thông với rail trên/điểm chia GND tải. Đây là
+   kết nối **bắt buộc** để tín hiệu LED và servo có cùng mốc điện áp với ESP32.
 6. ESP32 `GPIO25` → một điện trở 330 Ω **hoặc** 470 Ω → WS2812B `DIN`.
 7. Đặt điện trở gần `DIN`; giữ đoạn dây data ban đầu khoảng 10 cm hoặc ngắn hơn.
 8. Không lắp `SN74HC125N` vào đường data.
 9. Bật nguồn tải 5 V trước, sau đó mới cắm USB-C để boot ESP32.
-10. Kiểm tra pixel đầu tiên đổi đúng màu, không nhấp nháy và ESP32 không reset.
+10. Kiểm tra cả 10 pixel đổi đúng màu, không nhấp nháy và ESP32 không reset.
 11. Khi tắt: rút USB-C trước, sau đó tắt/rút nguồn tải.
 
 Nếu pixel sai màu, chớp, bỏ lệnh hoặc ESP32 reset, dừng dùng LED direct; không
@@ -256,10 +310,10 @@ tiếp tục bằng cách đổi điện trở ngẫu nhiên. Phương án ổn 
 Khi chỉ cấp USB cho ESP32 mà nguồn tải đang tắt, hãy tháo dây `GPIO25` khỏi
 điện trở để tránh cấp điện ngược vào strip qua chân data.
 
-## Bước 9 — Nối và thử một servo SG90 khi chưa gắn chốt
+## Bước 9 — Nối và thử SG90 cho cánh tay đóng/mở cửa
 
 1. Tắt/rút cả USB-C và adapter.
-2. Để servo rời khỏi chốt, horn không vướng vật cản.
+2. Tách cánh tay servo khỏi cửa ở lần thử không tải; horn không vướng vật cản.
 3. Dây tín hiệu cam/vàng/trắng → ESP32 `GPIO18`.
 4. Dây đỏ → điểm chia `+5V` tải.
 5. Dây nâu/đen → điểm chia GND tải.
@@ -267,15 +321,16 @@ Khi chỉ cấp USB cho ESP32 mà nguồn tải đang tắt, hãy tháo dây `GP
    breadboard hoặc một dây jumper Dupont đơn.
 7. Nếu đang giữ LED đã nối, bảo đảm common GND ở Bước 8 vẫn còn nguyên.
 8. Bật nguồn tải trước, sau đó cắm USB-C.
-9. Gửi lệnh khóa/mở khóa từ phần mềm và quan sát servo chạy. Góc mặc định
-   `15°` và `95°` chỉ là giá trị ban đầu để hiệu chỉnh, chưa phải góc cơ khí đã
-   được bảo đảm cho chốt của bạn.
-10. Chạy tối thiểu 20 chu kỳ khóa/mở không tải. Dừng ngay nếu servo kẹt, rung
-    liên tục, nóng bất thường hoặc làm ESP32 reset.
+9. Gửi `UNLOCK` để servo về `80°` (mở cửa), sau đó gửi `LOCK` để servo về
+   `170°` (đóng cửa). Hai tên lệnh logic được giữ để tương thích phần mềm dù
+   sản phẩm không còn chốt khóa.
+10. Chạy tối thiểu 20 chu kỳ đóng/mở không tải. Dừng ngay nếu servo kẹt, rung
+     liên tục, nóng bất thường hoặc làm ESP32 reset.
 11. Rút USB-C trước, rồi tắt/rút adapter.
 
-Chỉ sau khi no-load PASS mới gắn horn/linkage vào chốt. Chỉnh góc sao cho
-servo không ép cứng vào điểm cuối ở cả trạng thái khóa và mở.
+Chỉ sau khi no-load PASS mới cho cánh tay tác động lên cửa. Xác nhận cửa chuyển
+động tự do, cánh tay không trở thành chặn cứng và servo không phải giữ lực liên
+tục ở `80°` hoặc `170°`.
 
 ## Bước 10 — Nối active buzzer LOW-trigger ở 3,3 V
 
@@ -370,10 +425,11 @@ OUTPUT HIGH để yêu cầu tắt.
 1. Bắt hai bản lề để cửa chuyển động trơn, không cạ khung.
 2. Gắn phần reed của MC-38 lên khung cố định và nam châm lên cửa.
 3. Gắn servo chắc chắn; dây không bị cửa, bản lề hoặc horn kẹp vào.
-4. Đặt servo ở trạng thái mở khóa trước khi nối linkage với chốt.
-5. Gắn linkage/chốt rồi thử bằng tay khi mất điện.
-6. Chạy khóa/mở từng lần và hiệu chỉnh góc; không để servo đẩy quá hành trình
-   của chốt hoặc giữ lực liên tục ở end-stop.
+4. Đưa servo về `80°` trước khi đặt cánh tay vào vị trí mở cửa.
+5. Không lắp chốt khóa hoặc linkage chốt. Khi mất điện, thử cửa bằng tay và xác
+   nhận cánh tay không làm kẹt bản lề hoặc chặn lối thoát của cửa.
+6. Chạy từng lệnh `UNLOCK`/`LOCK`; xác nhận `80°` mở và `170°` đóng mà không ép
+   cửa quá hành trình hoặc giữ lực liên tục ở end-stop.
 7. Cố định ESP32, breadboard, OLED và dây nhưng vẫn chừa đường tháo USB/jack.
 8. Bọc mối hàn nguồn, chống kéo dây và không để phần kim loại chạm chân mạch.
 
@@ -385,7 +441,8 @@ Trước khi bật:
 2. Kiểm tra tụ 470 µF đúng cực.
 3. Kiểm tra tất cả GND đã nối chung.
 4. Kiểm tra không có external `+5V` nối vào ESP32.
-5. Kiểm tra servo lấy 5 V từ nguồn tải, không qua breadboard.
+5. Kiểm tra servo lấy 5 V bằng nhánh trực tiếp từ điểm chia, không qua rail
+   breadboard; rail trên `+5V` chỉ cấp nhánh WS2812B đã giới hạn.
 6. Kiểm tra WS2812 data vào `DIN`, không vào `DOUT`.
 7. Kiểm tra buzzer `VCC` đang ở ESP32 `3V3`, không phải 5 V; `IN/S/I/O` đi qua
    4,7 kΩ tới `GPIO26`. Nếu chưa PASS đường bật/tắt ở Bước 10, tháo buzzer khỏi
@@ -397,8 +454,9 @@ Bật hệ thống:
 2. Cắm USB-C cho ESP32.
 3. Chờ board boot, Wi-Fi/MQTT kết nối.
 4. Đóng/mở cửa để thử MC-38.
-5. Gửi lệnh mở khóa rồi khóa lại; kiểm tra servo, trạng thái OLED và LED.
-6. Chạy ít nhất 20 chu kỳ khóa/mở, 10 lần khởi động nguội và một lần mất/kết
+5. Gửi `UNLOCK` để mở rồi `LOCK` để đóng; kiểm tra servo, cửa, MC-38, trạng thái
+   OLED và LED. ACK servo không thay cho quan sát vị trí cửa thực tế.
+6. Chạy ít nhất 20 chu kỳ đóng/mở, 10 lần khởi động nguội và một lần mất/kết
    nối lại Wi-Fi/MQTT.
 7. Không được có reset, brownout, servo kẹt, LED nhấp nháy sai, dây nóng, mùi
    khét hoặc nguồn tụt bất thường.

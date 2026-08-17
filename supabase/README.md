@@ -1,5 +1,13 @@
 # Supabase Phase 2 + Phase 3 setup
 
+> Audit snapshot 2026-08-17: SQL/migration/RLS source and automated contracts
+> were reviewed; no confirmed P0 finding was found. This audit did not run
+> `db reset`, pgTAP or disposable cross-owner live gates against an external
+> project. Historical evidence remains historical—rerun the release candidate
+> sequence in
+> [../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md) on an
+> explicitly identified test project.
+
 Apply migrations in lexical order to a clean development project. The schema
 creates Phase 2 `profiles`/`lockers`/claim support, then Phase 3
 `device_events`, `notification_settings` and `notification_deliveries`, then

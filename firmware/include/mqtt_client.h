@@ -28,6 +28,28 @@ class MqttRetryTimer {
   bool scheduled_ = false;
 };
 
+class MqttHeartbeatTimer {
+ public:
+  void reset(uint32_t now) {
+    lastPublishedAt_ = now;
+    active_ = true;
+  }
+
+  void clear() {
+    lastPublishedAt_ = 0;
+    active_ = false;
+  }
+
+  bool due(uint32_t now, uint32_t intervalMs) const {
+    return active_ && intervalMs > 0
+        && static_cast<uint32_t>(now - lastPublishedAt_) >= intervalMs;
+  }
+
+ private:
+  uint32_t lastPublishedAt_ = 0;
+  bool active_ = false;
+};
+
 #ifdef ARDUINO
 
 #include <PubSubClient.h>
@@ -56,6 +78,7 @@ class MqttClient {
   static void dispatchMessage(char* topic, uint8_t* payload, unsigned int payloadLength);
   void handleMessage(const char* topic, const uint8_t* payload, unsigned int payloadLength);
   bool connect(unsigned long now, StateManager& state);
+  bool publishHeartbeat();
   bool publishAvailability(const char* status, bool retained);
   void disconnectWithOfflineFallback();
   bool configured() const;
@@ -67,6 +90,7 @@ class MqttClient {
   PubSubClient mqtt_;
   MqttMessageCallback messageCallback_ = nullptr;
   MqttRetryTimer retryTimer_;
+  MqttHeartbeatTimer heartbeatTimer_;
   unsigned long reconnectDelayMs_ = 0;
   bool bufferReady_ = false;
   bool configurationWarningPrinted_ = false;

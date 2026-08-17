@@ -24,6 +24,11 @@ function availability(lockerId = LOCKER_A, status = 'ONLINE') {
   return { schema_version: 1, locker_id: lockerId, status, sent_at: '2026-08-08T08:00:00.000Z' };
 }
 
+function heartbeat(lockerId = LOCKER_A, overrides = {}) {
+  return { schema_version: 1, locker_id: lockerId,
+    sent_at: '2026-08-08T08:00:10.000Z', ...overrides };
+}
+
 function makeRuntime({ history, provider, telegramTransport, runtimeOptions = {}, telegramOptions = {} } = {}) {
   const clock = { value: Date.parse('2026-08-08T08:00:00.000Z') };
   const publications = [];
@@ -76,4 +81,4 @@ async function prime(runtime, lockerId = LOCKER_A) {
 function headers(token = 'token-a') { return { authorization: `Bearer ${token}` }; }
 
 module.exports = { USER_A, USER_B, LOCKER_A, LOCKER_B, uuidSequence, state,
-  availability, makeRuntime, prime, headers };
+  availability, heartbeat, makeRuntime, prime, headers };

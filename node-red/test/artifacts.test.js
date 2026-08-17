@@ -376,8 +376,12 @@ test('Dashboard has no MQTT/service-role path and uses canonical Bearer header',
   const app = fs.readFileSync(path.join(root, 'dashboard', 'app.js'), 'utf8');
   const auth = fs.readFileSync(path.join(root, 'node-red', 'lib', 'auth.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'dashboard', 'index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'dashboard', 'styles.css'), 'utf8');
   assert.match(app, /Authorization: `Bearer \$\{requestSession\.access_token\}`/);
   assert.match(html, /id="full-name"/);
+  assert.match(html, /id="full-name-field"[^>]*hidden/);
+  assert.match(html, /id="auth-submit"[^>]*disabled/);
+  assert.match(html, /id="auth-mode-toggle"[^>]*aria-pressed="false"[^>]*disabled/);
   assert.match(html, /id="claim-message"[^>]*role="status"/);
   assert.match(app, /data:\s*\{\s*full_name:\s*fullName\s*\}/);
   assert.match(app, /notification_status/);
@@ -386,7 +390,8 @@ test('Dashboard has no MQTT/service-role path and uses canonical Bearer header',
   assert.doesNotMatch(html, /id="telegram-chat-id"/);
   assert.doesNotMatch(app, /telegram_chat_id\s*:/);
   assert.match(app, /function clearSensitiveState/);
-  assert.match(app, /if \(!value\) clearSensitiveState\(undefined, shouldClearPrivate\)/);
+  assert.match(app,
+    /if \(!value\)\s*\{[\s\S]*?setAuthMode\('login'\);[\s\S]*?clearSensitiveState\(undefined, shouldClearPrivate\)/);
   const browserTimeout = Number(app.match(/requestTimeoutMs\s*=\s*([\d_]+)/)?.[1].replaceAll('_', ''));
   const dataBrowserTimeout = Number(app.match(/dataRequestTimeoutMs\s*=\s*([\d_]+)/)?.[1].replaceAll('_', ''));
   const chatbotBrowserTimeout = Number(app.match(/chatbotRequestTimeoutMs\s*=\s*([\d_]+)/)?.[1].replaceAll('_', ''));
@@ -401,6 +406,9 @@ test('Dashboard has no MQTT/service-role path and uses canonical Bearer header',
   assert.ok(chatbotBrowserTimeout > dataBrowserTimeout,
     'chatbot deadline must also cover its grounded history and provider request');
   assert.doesNotMatch(app, /mqtt_(?:username|password)|mqtt\.publish|service.?role|new WebSocket/i);
+  assert.match(css,
+    /\.control-button\[data-pending="true"\]::after\s*\{[^}]*color:\s*var\(--primary\)/s,
+    'pending control spinner must retain a visible color after its label becomes transparent');
 });
 
 test('owner live gate observes stable state attributes instead of localized labels', () => {
@@ -439,9 +447,11 @@ test('Phase 3 deployment docs and firmware compatibility use the executable runt
   assert.match(firmwareMain, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
   assert.doesNotMatch(firmwareMain, /AppConfig::BUZZER_ACTIVE_HIGH/);
   assert.match(mqttClient,
-    /const bool statePublished = publishState\([\s\S]*?statePublished && publishAvailability\("ONLINE"/);
+    /const bool onlinePublished = publishAvailability\("ONLINE"[\s\S]*?onlinePublished && publishState\(/);
   assert.match(mqttClient,
     /if \(!statePublished \|\| !onlinePublished\)[\s\S]*?disconnectWithOfflineFallback\(\)[\s\S]*?scheduleRetry\(now\)/);
+  assert.match(mqttClient,
+    /publishHeartbeat\(\)[\s\S]*?heartbeatPublished && publishState\(state\.current\(\), true\)/);
   assert.match(pinMap, /SPL_BUZZER_ACTIVE_HIGH/);
   assert.match(pinMap, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
   assert.match(assemblyGuide, /SPL_BUZZER_ACTIVE_HIGH\s+0/);

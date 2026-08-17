@@ -1,9 +1,18 @@
 # Power budget and combined-load acceptance
 
 **Status: unmeasured worksheet — not permission to energize the full build.**
-The candidate architecture uses a regulated 5 V / 3 A SELV supply, but that
-rating is accepted only after the exact-part values and real measurements below
-show adequate margin.
+Individual functions were reported working on 2026-08-17, but the jack,
+distribution, switch and combined-load rails have not yet produced the required
+measurements. The candidate architecture uses a regulated 5 V / 3 A SELV
+supply for SG90 and WS2812B, while ESP32 remains on its separate USB supply.
+The 5 V / 3 A rating is accepted only after the exact-part values and real
+measurements below show adequate margin.
+
+Use Gate H1 and Gate L in
+[../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md) to collect the
+measurements. The adapter does not require an integrated I/O button; a separate
+rated DC switch in the positive lead is recommended, and the 5.5 × 2.5 mm jack
+still needs polarity/terminal verification and proper distribution.
 
 ## Exact-part calculation
 
@@ -12,9 +21,9 @@ use a marketplace title or a “typical” value from another clone.
 
 | Load/branch | Qty. | Rail | Datasheet normal/max current | Datasheet transient/stall current | Simultaneous peak subtotal | Source/revision |
 |---|---:|---:|---:|---:|---:|---|
-| ESP32 DevKit including radio | 1 | 5 V input | TBD | TBD | TBD | TBD |
+| ESP32 DevKit including radio and 3.3 V peripherals | 1 | separate USB 5 V input | TBD | TBD | TBD | TBD |
 | SG90-class servo | 1 | 5 V load | TBD | TBD stall | TBD | TBD |
-| WS2812-family pixel(s) at configured brightness | TBD | 5 V load | TBD | TBD | TBD | TBD |
+| WS2812-family pixel(s) at configured brightness 32/255 | 10 | 5 V load | TBD | TBD | TBD | exact strip revision pending |
 | TMB12A05 LOW-trigger buzzer module | 1 | ESP32 3.3 V rail (selected prototype wiring) | TBD | TBD | TBD | bench inactive HIGH silent; active current/sound pending |
 | SSD1306 OLED | 1 | 3.3 V | TBD | TBD | TBD | TBD |
 | DHT22/AM2302 | 1 | 3.3 V | TBD | TBD | TBD | TBD |
@@ -47,7 +56,7 @@ the servo; an accidental/mechanical-limit test must be immediately stopped.
 | ESP32 idle, peripherals connected | TBD | TBD | TBD | TBD | TBD | TBD | P1-M03 |
 | Wi-Fi + MQTT reconnect | TBD | TBD | TBD | TBD | TBD | TBD | P1-M03/P1-M09 |
 | Servo no-load travel | TBD | TBD | TBD | TBD | TBD | TBD | P1-M01/P1-M03 |
-| Servo installed lock/unlock | TBD | TBD | TBD | TBD | TBD | TBD | P1-M02/P1-M03 |
+| Servo installed door close/open (`170°`/`80°`) | TBD | TBD | TBD | TBD | TBD | TBD | P1-M02/P1-M03 |
 | WS2812 configured maximum | TBD | TBD | TBD | TBD | TBD | TBD | P1-M07 |
 | Buzzer active | TBD | TBD | TBD | TBD | TBD | TBD | P3-M01–M03 |
 | Servo + LED + buzzer + radio combined | TBD | TBD | TBD | TBD | TBD | TBD | full-load final gate |

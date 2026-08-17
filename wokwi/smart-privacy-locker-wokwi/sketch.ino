@@ -16,8 +16,8 @@ constexpr uint8_t PIXEL_PIN = 25;
 constexpr uint8_t BUZZER_PIN = 26;
 constexpr uint8_t DOOR_PIN = 27;
 
-constexpr uint8_t LOCK_ANGLE = 15;
-constexpr uint8_t UNLOCK_ANGLE = 95;
+constexpr uint8_t LOCK_ANGLE = 170;
+constexpr uint8_t UNLOCK_ANGLE = 80;
 constexpr uint8_t PIXEL_COUNT = 1;
 constexpr uint8_t PIXEL_BRIGHTNESS = 32;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
@@ -28,6 +28,7 @@ constexpr uint32_t DISPLAY_REFRESH_MS = 200;
 constexpr uint32_t DOOR_DEBOUNCE_MS = 50;
 
 enum class LockState : uint8_t {
+  UNKNOWN,
   LOCKED,
   UNLOCKED,
 };
@@ -37,7 +38,7 @@ DHT dht(DHT_PIN, DHT22);
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
 Adafruit_NeoPixel pixel(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
-LockState lockState = LockState::LOCKED;
+LockState lockState = LockState::UNKNOWN;
 bool displayReady = false;
 bool pixelOn = false;
 bool alarmOn = false;
@@ -52,7 +53,9 @@ uint32_t nextDhtReadAt = 0;
 uint32_t nextDisplayRefreshAt = 0;
 
 const char* lockStateText() {
-  return lockState == LockState::LOCKED ? "LOCKED" : "UNLOCKED";
+  if (lockState == LockState::LOCKED) return "LOCKED";
+  if (lockState == LockState::UNLOCKED) return "UNLOCKED";
+  return "UNKNOWN";
 }
 
 const char* doorStateText() {
@@ -107,8 +110,8 @@ void renderDisplay() {
 void printHelp() {
   Serial.println();
   Serial.println(F("=== SMART PRIVACY LOCKER - WOKWI ==="));
-  Serial.println(F("L : khoa tu (servo 15 do)"));
-  Serial.println(F("U : mo khoa (servo 95 do)"));
+  Serial.println(F("L : dong cua (servo 170 do)"));
+  Serial.println(F("U : mo cua (servo 80 do)"));
   Serial.println(F("1 : bat WS2812"));
   Serial.println(F("0 : tat WS2812"));
   Serial.println(F("A : bat bao dong"));
@@ -290,7 +293,8 @@ void setup() {
   pixel.setBrightness(PIXEL_BRIGHTNESS);
   setPixel(false);
 
-  moveLock(LockState::LOCKED);
+  // Match production safe boot: do not move the servo or claim a physical
+  // position until an explicit L/U command is executed.
   nextDhtReadAt = millis() + 2000;
   nextDisplayRefreshAt = millis();
 

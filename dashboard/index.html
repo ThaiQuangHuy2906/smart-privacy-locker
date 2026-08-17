@@ -43,7 +43,7 @@
         </div>
 
         <form id="auth-form" class="form-stack" data-pending="false" aria-busy="false">
-          <label class="field" for="full-name">
+          <label id="full-name-field" class="field" for="full-name" hidden>
             <span class="field-label">Họ và tên</span>
             <span class="field-hint">Chỉ bắt buộc khi đăng ký tài khoản mới.</span>
             <input id="full-name" type="text" autocomplete="name" maxlength="120" placeholder="Nguyễn Văn A">
@@ -60,8 +60,8 @@
           </label>
 
           <div class="auth-actions">
-            <button type="submit" data-mode="login" class="button button--primary">Đăng nhập</button>
-            <button type="submit" data-mode="register" class="button button--secondary">Đăng ký</button>
+            <button id="auth-submit" type="submit" class="button button--primary" disabled>Đăng nhập</button>
+            <button id="auth-mode-toggle" type="button" class="button button--secondary" aria-pressed="false" disabled>Tạo tài khoản mới</button>
           </div>
         </form>
 
@@ -132,18 +132,18 @@
         </article>
         <article class="status-cell status-cell--lock">
           <span class="status-icon" aria-hidden="true"></span>
-          <span class="status-label">Khóa</span>
+          <span class="status-label">Vị trí tay servo</span>
           <strong id="lock" data-state="unknown">Chưa xác nhận</strong>
         </article>
         <article class="status-cell status-cell--alarm">
           <span class="status-icon" aria-hidden="true"></span>
           <span class="status-label">Cảnh báo</span>
-          <strong id="alarm" data-state="inactive">Đang tắt</strong>
+          <strong id="alarm" data-state="unknown">Chưa xác định</strong>
         </article>
         <article class="status-cell status-cell--led">
           <span class="status-icon" aria-hidden="true"></span>
           <span class="status-label">Đèn trong tủ</span>
-          <strong id="led" data-state="off">Đang tắt</strong>
+          <strong id="led" data-state="unknown">Chưa xác định</strong>
         </article>
       </div>
 
@@ -167,20 +167,20 @@
           <span class="section-index" aria-hidden="true">04</span>
           <div>
             <p class="section-kicker">Điều khiển an toàn</p>
-            <h2 id="control-title">Điều khiển tủ</h2>
+            <h2 id="control-title">Điều khiển cửa</h2>
             <p class="section-copy">Hệ thống sẽ chờ thiết bị xác nhận trước khi báo lệnh thành công.</p>
           </div>
         </div>
 
         <div class="controls" aria-describedby="command-message">
           <div class="control-group">
-            <span class="control-group-label">Cơ cấu khóa</span>
+            <span class="control-group-label">Cánh tay servo đóng/mở cửa</span>
             <div class="control-buttons">
               <button type="button" data-action="LOCK" data-domain="lock" class="control-button" disabled>
-                <span>Khóa tủ</span>
+                <span>Đóng cửa</span>
               </button>
               <button type="button" data-action="UNLOCK" data-domain="lock" class="control-button control-button--open" disabled>
-                <span>Mở khóa</span>
+                <span>Mở cửa</span>
               </button>
             </div>
           </div>

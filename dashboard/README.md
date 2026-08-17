@@ -1,5 +1,11 @@
 # Smart Privacy Locker Dashboard behavior
 
+> Audit 2026-08-17: responsive/keyboard/focus/target/live-region/reduced-motion
+> checks passed in Chrome at 1280×720 and 320×800. Regression coverage also
+> confirms startup retry, localized status labels, stale/no-data truthfulness,
+> visible pending feedback and the login/register mode contract. This is
+> software evidence only; it does not replace the final physical E2E run.
+
 The app is served by Node-RED at `/locker` and embedded in the FlowFuse Dashboard
 page `/dashboard/locker` by a scoped `ui-template` when
 `node-red/settings.example.js` is applied. It uses Supabase Auth REST with the
@@ -10,16 +16,18 @@ alias for existing direct links. Protected Node-RED routes use exactly
 
 The app supports full-name register metadata, keyboard-submit login, reload/session restore,
 immediate Supabase implicit-flow fragment consumption/removal,
-provider-outage-safe refresh, local-first logout, operation-specific bounded browser requests,
+single-flight provider-outage-safe refresh, no protected polling with a known-expired
+access token, local-first logout, operation-specific bounded browser requests,
 serialized/coalesced state polling,
-one-time locker claim, distinct MQTT/ESP32 state, door/lock/alarm/LED freshness, pending
-controls, visible Telegram delivery status, CB3 **Kiểm tra còi/Tắt còi**
+one-time locker claim, distinct MQTT/ESP32 state, live-state freshness, pending
+controls, Telegram delivery status, CB3 **Kiểm tra còi/Tắt còi**
 (`ALARM_ON/OFF`), YC4 recent
 history, YC5 7/30-day chart, YC7 notification settings, and the YC8 chat interface. It never contains MQTT credentials
 and never publishes MQTT. A command remains `PENDING` after HTTP acceptance;
-only a later matching ACK updates the shared runtime state. Offline/stale state
-renders user-facing `Chưa xác định`/`Chưa xác nhận` labels while preserving the
-frozen protocol enums internally.
+only a later matching ACK updates the shared runtime state. Door/Wi-Fi offline
+or stale state renders user-facing `Chưa xác định` labels while preserving the
+frozen protocol enums internally. Stale state also disables every actuator
+control defensively, even if an inconsistent API response marks one enabled.
 Changing or claiming a locker invalidates the old rendered context and keeps
 controls disabled until fresh state for that exact locker is confirmed. A
 physical-command request timeout is shown as an ambiguous result and is never
@@ -61,3 +69,30 @@ non-required until their channel is selected. The layout reflows without
 horizontal overflow down to 320 px. After any change under
 `dashboard/`, regenerate `node-red/flows.flowfuse.json`; FlowFuse does not read
 these source files directly after import.
+
+## Audit corrections and remaining physical limitation
+
+The 2026-08-17 correction pass closed the confirmed Dashboard findings:
+
+1. every known command and Telegram-delivery status has a Vietnamese label,
+   with a safe unknown fallback instead of a raw enum;
+2. pending controls retain a visible, independently colored spinner;
+3. `/api/v1/public-config` retries every five seconds while authentication
+   remains disabled, then recovers without a manual reload;
+4. missing or stale lock/alarm/LED values render as unknown and controls stay
+   disabled;
+5. the auth form has one unambiguous submit action; registration alone exposes
+   the full-name field and uses `autocomplete="new-password"`;
+6. user-facing actuator language says the SG90 arm closes/opens the door while
+   the frozen MQTT v1 enums remain `LOCK`/`UNLOCK` and `LOCKED`/`UNLOCKED` for
+   compatibility.
+
+The as-built SG90 arm is still open-loop and has no latch/position feedback.
+A success ACK confirms that firmware completed the requested servo sequence; it
+does not prove that a jammed or disconnected mechanism physically reached its
+position. Keep that limitation explicit in the final report and physical test.
+
+See [../BAO_CAO_RA_SOAT_CODEBASE.md](../BAO_CAO_RA_SOAT_CODEBASE.md) for
+severity/evidence and
+[../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md) for the
+required browser and physical rerun matrix.

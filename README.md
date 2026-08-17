@@ -1,6 +1,6 @@
 # Smart Privacy Locker
 
-ESP32/Node-RED implementation for an IoT privacy locker, delivered in three gated phases. **The Phase 1–3 software paths are implemented on `develop`; hardware-dependent final gates are still pending.** Phase 3 adds CB3, YC4, YC5 and YC7 without changing ownership of the Phase 2 YC6/YC8 logic.
+ESP32/Node-RED implementation for an IoT privacy locker, delivered in three gated phases. **The Phase 1–3 software paths are implemented on `develop`; OLED, DHT22, MC-38, WS2812B and SG90 have individual user-observed results, while external-power, buzzer integration, combined-load and final E2E gates remain open.** Phase 3 adds CB3, YC4, YC5 and YC7 without changing ownership of the Phase 2 YC6/YC8 logic.
 
 The source PDFs are read-only project records. Do not edit, move, or replace them.
 
@@ -29,7 +29,13 @@ The branch contains the accepted Phase 1/2 baseline plus Phase 3 implementation:
 - YC7 validated notification settings, previous-local-day email report, delivery log and database-backed duplicate suppression.
 - Final Dashboard alarm controls/status, YC12 device setup guidance, friendly recent-history labels, explicit chart empty states and conditional report settings in a warm, low-noise interface; browser code still receives only the anon key and owner-scoped APIs.
 
-Automated software evidence is not physical evidence. The Phase 3 forward migration, owner-isolation/history gate, full 7/30-day and local-midnight chart paths, Mailtrap Sandbox SMTP success/definite-failure paths, and the Phase 2 Telegram/Gemini/auth paths have been exercised on the development project. On 2026-08-11 the current Telegram build also passed the deployed Dashboard/secret/webhook/private-Start/link/test-message smoke and returned only sanitized connection fields to the browser. Preference re-enable, consumed-token replay and disconnect/relink remain explicit non-hardware lifecycle checks before final release. All physical sensor/actuator, WiFiManager, power, wiring and full end-to-end checks remain required before release/demo.
+Automated software evidence is not physical evidence. The Phase 3 forward migration, owner-isolation/history gate, full 7/30-day and local-midnight chart paths, Mailtrap Sandbox SMTP success/definite-failure paths, and the Phase 2 Telegram/Gemini/auth paths have historical sanitized evidence from the development project. On 2026-08-11 the Telegram build also passed the deployed Dashboard/secret/webhook/private-Start/link/test-message smoke and returned only sanitized connection fields to the browser. Those live gates were **not rerun** during the 2026-08-17 audit. The current user has separately observed OLED/DHT22 display, MC-38 Telegram notification, ten configured WS2812 pixels and SG90 travel at close `170°`/open `80°`; these are useful partial hardware evidence, not a synchronized final E2E pass. Preference re-enable, consumed-token replay, disconnect/relink, GPIO26 buzzer activation, WiFiManager recovery, measured power/full-load and the complete end-to-end sequence remain required before release/demo.
+
+The as-built mechanism no longer has a separate latch: the SG90 arm directly
+closes/opens the door. Existing MQTT enums remain `LOCKED`/`UNLOCKED` for
+compatibility, but they represent a timed open-loop servo command and do not
+prove tamper-resistant mechanical locking. Use the MC-38 and physical evidence
+to verify the actual door outcome.
 
 ## Quick start
 
@@ -90,14 +96,21 @@ Automated software evidence is not physical evidence. The Phase 3 forward migrat
    baud and run the physical smoke test; a successful compile is not hardware
    evidence.
 
+9. Run the complete release sequence in
+   [HUONG_DAN_TEST_END_TO_END.md](HUONG_DAN_TEST_END_TO_END.md). Use
+   [ON_TAP_VAN_DAP_CHI_TIET.md](ON_TAP_VAN_DAP_CHI_TIET.md) to rehearse the
+   architecture, physics, ownership, known limitations and oral-defense
+   questions. Do not mark a manual row PASS without the requested measurement,
+   log and physical evidence.
+
 The labeled standalone simulator is under
 [wokwi/smart-privacy-locker-wokwi](wokwi/smart-privacy-locker-wokwi), with a
 ready ZIP at
 [wokwi/smart-privacy-locker-wokwi.zip](wokwi/smart-privacy-locker-wokwi.zip).
 The report-content draft required by the course PDF is
 [NOI_DUNG_BAO_CAO_CUOI_KY.md](NOI_DUNG_BAO_CAO_CUOI_KY.md).
-The complete audit, verification matrix, honest limitations and files awaiting
-deletion approval are recorded in
+The current audit, P0–P3 findings, verification matrix and honest limitations
+are recorded in
 [BAO_CAO_RA_SOAT_CODEBASE.md](BAO_CAO_RA_SOAT_CODEBASE.md).
 The mechanical/VIVA package is preserved under [THUYETMINH](THUYETMINH). Its
 primary editable Fusion archive is
@@ -111,8 +124,8 @@ and verification manifests stored alongside it.
 - `lock=UNKNOWN` after a cold boot is intentional. The firmware never attaches or moves the servo merely because it booted.
 - DHT22 values stay local to the OLED; the firmware publishes no DHT temperature/humidity MQTT topic.
 - The Dashboard contains no MQTT credentials and never publishes directly to ESP32; Node-RED implements the Phase 2 policy/egress boundary.
-- MQTT v1 remains frozen; Phase 3 consumes it without a schema/topic/semantic change. Phase 3 persistence follows [docs/event-contract.md](docs/event-contract.md) and [docs/database-design.md](docs/database-design.md).
+- MQTT v1 command/ACK/state/availability/door payloads and enums remain compatible. The reliability correction adds one non-retained operational `heartbeat` topic without changing persisted event schemas. Phase 3 persistence follows [docs/event-contract.md](docs/event-contract.md) and [docs/database-design.md](docs/database-design.md).
 
 ## Evidence and status
 
-The current Node suite passes 145/145, the memory simulator passes 8 assertions across 14 scenarios, the authenticated local broker passes 15 assertions, and the secret/config and dependency audits report zero findings. P3-M04, P3-M05, the deployed P3-M06 Mailtrap SMTP success/failure paths, and the non-destructive Telegram rollout subset are recorded in sanitized evidence. On 2026-08-15 the ESP32 was detected through CH340 on COM4 and an isolated buzzer sketch established a silent inactive HIGH only after the LOW-trigger/TMB12A05 module VCC was moved from 5 V to ESP32 3V3. The tracked firmware baseline is now active-low (`SPL_BUZZER_ACTIVE_HIGH=0`); GPIO26 active output, production ACK/state and full-load hardware remain pending. COM4 is historical evidence, not a permanent port assignment. The current generated FlowFuse artifact is 235,945 bytes with SHA-256 `ee73551fac45c79b8706f0813595c386030e3acd32ed8fb4943f641d9d58afa8`. Use [docs/deployment-guide.md](docs/deployment-guide.md) and [docs/troubleshooting.md](docs/troubleshooting.md); never present simulator output or the isolated inactive test as full ESP32/buzzer proof.
+The 2026-08-17 rerun passed native firmware 20/20, a clean ESP32 build at 16.2% RAM/84.3% flash, Arduino mirror/profile compilation, Node 156/156, the memory simulator's 10 assertions across 15 scenarios, the authenticated local broker's 17 assertions, and the local configuration/dependency gates. Chrome/CDP at 1280×720 and 320×800 passed startup recovery, state truthfulness, localized status, pending feedback, auth-mode, target, focus, reflow and reduced-motion checks. `playwright-cli 0.1.18` itself was unavailable on Node `v24.14.1` because both wrapper and direct invocation hit the same upstream `UV_HANDLE_CLOSING` assertion; it was not reported as a false PASS. On 2026-08-15 the ESP32 was detected through CH340 on COM4 and an isolated buzzer sketch established a silent inactive HIGH only after the LOW-trigger/TMB12A05 module VCC was moved from 5 V to ESP32 3V3. The tracked firmware baseline is active-low (`SPL_BUZZER_ACTIVE_HIGH=0`); GPIO26 active output, production ACK/state and full-load hardware remain pending. COM4 is historical evidence, not a permanent port assignment. Use [docs/deployment-guide.md](docs/deployment-guide.md), [docs/troubleshooting.md](docs/troubleshooting.md) and the dedicated E2E guide; never present simulator output, a user observation without trace evidence, or the isolated inactive test as full ESP32/buzzer proof.

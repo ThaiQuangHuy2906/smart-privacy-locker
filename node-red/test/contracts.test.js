@@ -2,8 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateState, validateDoor, validateAvailability, validateAck, validateCommand } = require('../lib/contracts');
-const { state, availability, LOCKER_A } = require('./helpers');
+const { validateState, validateDoor, validateAvailability, validateHeartbeat,
+  validateAck, validateCommand } = require('../lib/contracts');
+const { state, availability, heartbeat, LOCKER_A } = require('./helpers');
 
 test('P2-A02 rejects malformed/schema/enum/topic mismatch without accepting input', () => {
   assert.equal(validateState(`locker/${LOCKER_A}/state`, '{').ok, false);
@@ -11,6 +12,15 @@ test('P2-A02 rejects malformed/schema/enum/topic mismatch without accepting inpu
   assert.equal(validateState(`locker/${LOCKER_A}/state`, state(LOCKER_A, { door: 'BROKEN' })).code, 'INVALID_STATE');
   assert.equal(validateState(`locker/${LOCKER_A}/state`, state('LOCKER-002')).code, 'LOCKER_MISMATCH');
   assert.equal(validateAvailability(`locker/${LOCKER_A}/availability`, availability()).ok, true);
+});
+
+test('heartbeat contract is non-state liveness with a bounded canonical shape', () => {
+  assert.equal(validateHeartbeat(`locker/${LOCKER_A}/heartbeat`, heartbeat()).ok, true);
+  assert.equal(validateHeartbeat(`locker/${LOCKER_A}/heartbeat`, heartbeat('LOCKER-002')).code,
+    'LOCKER_MISMATCH');
+  assert.equal(validateHeartbeat(`locker/${LOCKER_A}/heartbeat`, heartbeat(LOCKER_A,
+    { sent_at: 'not-a-time' })).code, 'INVALID_HEARTBEAT');
+  assert.equal(validateHeartbeat(`locker/${LOCKER_A}/state`, heartbeat()).ok, false);
 });
 
 test('door transition enforces non-UNKNOWN edge and unsynced timestamp policy', () => {

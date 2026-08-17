@@ -122,6 +122,9 @@ test('YC12 exposes only fresh validated Wi-Fi connectivity and hides stale value
   }, clock.value);
   await runtime.ingest(`locker/${LOCKER_A}/state`, state(LOCKER_A, {
     wifi_connected: false,
+    lock: 'LOCKED',
+    alarm: 'ACTIVE',
+    led: 'ON',
     timestamp: new Date(clock.value).toISOString(),
   }), clock.value);
 
@@ -131,6 +134,10 @@ test('YC12 exposes only fresh validated Wi-Fi connectivity and hides stale value
   clock.value += 30_001;
   ui = runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A });
   assert.equal(ui.wifi, 'UNKNOWN');
+  assert.equal(ui.lock, 'UNKNOWN');
+  assert.equal(ui.alarm, 'UNKNOWN');
+  assert.equal(ui.led, 'UNKNOWN');
+  assert.equal(ui.lock_unconfirmed, true);
 });
 
 test('dashboard never shows success on publish; pending domain remains disabled until ACK', async () => {
