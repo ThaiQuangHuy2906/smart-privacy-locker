@@ -1,11 +1,11 @@
 # Nội dung báo cáo cuối kỳ — Smart Privacy Locker
 
-> Trạng thái: bản Markdown đã được biên soạn theo
-> `TCTA_YÊU CẦU BÁO CÁO CUỐI KỲ.pdf`, đối chiếu thêm
-> `TCTA_QUY ĐỊNH ĐỒ ÁN CUỐI KỲ.pdf` và đề xuất đã nộp của nhóm
+> Trạng thái: bản Markdown đã được biên soạn theo hai PDF yêu cầu chính thức
+> `TCTA_YÊU CẦU BÁO CÁO CUỐI KỲ.pdf`, `TCTA_QUY ĐỊNH ĐỒ ÁN CUỐI KỲ.pdf`
+> và đối chiếu thêm đề xuất đã nộp của nhóm
 > [12_24127177_24127205_24127249.pdf](12_24127177_24127205_24127249.pdf).
-> Hai PDF TCTA hiện không còn hiện diện trong working tree, nên trước khi nộp
-> phải đối chiếu lại bản gốc nếu chúng được đưa trở lại workspace.
+> Các PDF nguồn ở thư mục gốc là hồ sơ chỉ đọc; không chỉnh sửa hoặc thay thế
+> chúng khi cập nhật báo cáo `FINAL`.
 > Những ô `CHƯA CHỐT` phải được thay bằng evidence thật trước khi xuất PDF.
 
 > Audit 2026-08-18: source/build/test tự động đạt trong phạm vi ghi ở
@@ -83,9 +83,11 @@ evidence của đúng chức năng đã PASS.
   `VCC→ESP32 3V3`, `GND→GND`, `IN←4,7 kΩ←GPIO26`, active-low.
 - CB2 dùng tay SG90 làm chốt quay ở mép cửa. Nhóm phải ghi nhất quán rằng servo
   khóa/mở chốt, người dùng đóng/mở cửa và MC-38 chỉ đo tiếp điểm cửa; không được
-  nói servo tự kéo cánh cửa. Sau một lượt mở, MC-38 xác nhận cửa đóng thì ESP32
-  tự quay chốt về `80°`; lượt mở không dùng cũng tự khóa đúng hạn 30 giây;
-  mô tả ACK như cảm biến góc chốt.
+  nói servo tự kéo cánh cửa. Sau một cạnh `CLOSED→OPEN` đã quan sát, MC-38 xác
+  nhận cửa đóng thì ESP32 tự quay chốt về `80°`; lượt mở không dùng cũng tự khóa
+  đúng hạn 30 giây. Cold boot chỉ lấy mẫu cửa ban đầu, không tự quay servo và giữ
+  lock `UNKNOWN` cho tới khi có thao tác được xác nhận. Không mô tả ACK/state
+  logic như cảm biến phản hồi góc chốt.
 - Nếu trạng thái thực tế trước ngày nộp khác bốn dòng trên, nhóm phải sửa bảng
   chức năng và cột thay đổi trung thực; không được giữ mô tả “hoàn thành” khi
   evidence không tồn tại.
@@ -130,8 +132,9 @@ cứng đã PASS.
 
 ## 4. Ảnh website và tên chức năng
 
-Mỗi ảnh phải chụp rõ trạng thái/đầu ra, che token/email/credential nhạy cảm và
-đặt caption nói đúng chức năng. Bộ ảnh tối thiểu đề xuất:
+Mỗi ảnh phải chụp rõ trạng thái/đầu ra, che token/credential, địa chỉ email và
+username Telegram cá nhân (hoặc thay bằng dữ liệu demo), rồi đặt caption nói
+đúng chức năng. Bộ ảnh tối thiểu đề xuất:
 
 | Hình | Nội dung ảnh | Caption chức năng |
 |---:|---|---|
@@ -206,6 +209,7 @@ dẫn trên lớp nếu có cập nhật.
 - [ ] Tất cả `CHƯA CHỐT` đã được thay bằng kết quả thật hoặc mô tả trung thực
   rằng chức năng chưa hoàn thành.
 - [ ] Tên trường, khoa, môn, đề tài, nhóm, giảng viên, họ tên và MSSV đúng.
+- [ ] Trang bìa ghi rõ `Mã số nhóm: 12`; không còn trang trắng chỉ có số trang.
 - [ ] Bảng chức năng có đủ cơ bản/nâng cao, người phụ trách và thay đổi so với
   đề xuất; tổng số chức năng thay đổi/thêm/xóa không vượt quá một.
 - [ ] Ảnh sản phẩm hoặc Wokwi có nhãn tên thiết bị.
@@ -213,6 +217,8 @@ dẫn trên lớp nếu có cập nhật.
 - [ ] Bảng tự đánh giá có điểm từng thành viên và được cả nhóm xác nhận.
 - [ ] Không có mật khẩu Wi-Fi, MQTT credential, JWT, Supabase service-role,
   Telegram token, Gemini key hoặc Gmail app password trong ảnh/PDF.
+- [ ] Email và username Telegram cá nhân trong ảnh website đã được che hoặc thay
+  bằng dữ liệu demo; ảnh và caption của cùng một hình không bị tách sang hai trang.
 - [ ] Render PDF và kiểm tra mọi trang: không chữ tràn, bảng vỡ, ảnh mờ hoặc
   link/placeholder còn sót.
 - [ ] Trưởng nhóm nộp đúng một file có tên:
