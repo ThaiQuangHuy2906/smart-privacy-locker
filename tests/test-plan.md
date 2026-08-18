@@ -134,7 +134,7 @@ Deferred ESP32/MC-38 rows remain hardware final gates and are not relabeled.
 | P3-A01 | `pio test -e native` + `.\firmware\build-esp32.ps1` | active-high/low, local door security/outbox/auto-lock, safe boot, idempotent ON/OFF, missing output writer and full firmware compatibility | PASS — native 28/28; clean ESP32 build succeeds (16.4% RAM, 84.5% flash) |
 | P3-A02/P3-A03 | `npm test` Phase 3 data tests | every canonical event mapping, idempotent insert, safe 503, persistence health | PASS |
 | P3-A04 | `npm test` statistics/time tests | 7/30 local boundaries, zero buckets, open/alert counts | PASS |
-| P3-A05/P3-A06 | `npm test` report tests | previous local day, rendered facts, settings ownership, atomic reservation, bounded retry, ambiguous outcome and duplicate suppression | PASS |
+| P3-A05/P3-A06 | `npm test` report tests | previous local day, localized activity/time labels, notification-event exclusion, settings ownership, atomic reservation, bounded retry, ambiguous outcome and duplicate suppression | PASS |
 | YC12 software | `npm test` live-state/Dashboard/export tests | validated `wifi_connected`, stale/cross-locker reset, local captive-portal guidance and absence of Dashboard credential inputs | PASS; physical P1-M08/P1-M09 remain deferred |
 | Integration | `npm run test:simulator` | deterministic command/ACK/state/heartbeat/event-ID matrix including alarm, lock-on-close, exact 30-second expiry and no-fake-ACK contracts | PASS — 28 assertions / 22 scenarios |
 | Broker | `npm run test:broker` | authenticated loopback MQTT, retained state/recovery, non-retained heartbeat, event ID and unauthorized alarm path | PASS — 18 assertions |

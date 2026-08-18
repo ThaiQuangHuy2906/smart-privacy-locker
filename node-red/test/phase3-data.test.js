@@ -485,6 +485,60 @@ test('P3-A05 daily email contains previous local day counts, range, and latest a
   assert.match(email.text, /Asia\/Ho_Chi_Minh/);
 });
 
+test('daily email ignores notification events when selecting the latest locker activity', () => {
+  const now = Date.parse('2026-08-18T13:00:00.000Z');
+  const events = [
+    { event_type: 'DOOR_OPENED', occurred_at: '2026-08-17T02:04:07.000Z', result: 'observed' },
+    { event_type: 'TELEGRAM_NOTIFICATION', occurred_at: '2026-08-17T03:00:00.000Z', result: 'success' },
+    { event_type: 'DAILY_EMAIL_REPORT', occurred_at: '2026-08-17T14:00:58.643Z', result: 'success' },
+  ];
+
+  const report = aggregateDailyReport(events, { now, timezone: 'Asia/Ho_Chi_Minh' });
+  const email = renderDailyEmail({ lockerId: LOCKER_A, report });
+
+  assert.deepEqual(report.latest_activity, {
+    event_type: 'DOOR_OPENED', occurred_at: '2026-08-17T02:04:07.000Z', result: 'observed',
+  });
+  assert.match(email.text, /Ngày thống kê: 17\/08\/2026/);
+  assert.match(email.text, /Mở cửa lúc 09:04:07, ngày 17\/08\/2026/);
+  assert.doesNotMatch(email.text, /DOOR_OPENED|TELEGRAM_NOTIFICATION|DAILY_EMAIL_REPORT/);
+  assert.doesNotMatch(email.html, /DOOR_OPENED|TELEGRAM_NOTIFICATION|DAILY_EMAIL_REPORT/);
+});
+
+test('notification-only report has no locker activity and keeps zero counts', () => {
+  const now = Date.parse('2026-08-18T13:00:00.000Z');
+  const events = [
+    { event_type: 'TELEGRAM_NOTIFICATION', occurred_at: '2026-08-17T03:00:00.000Z', result: 'success' },
+    { event_type: 'DAILY_EMAIL_REPORT', occurred_at: '2026-08-17T14:00:58.643Z', result: 'success' },
+  ];
+
+  const report = aggregateDailyReport(events, { now, timezone: 'Asia/Ho_Chi_Minh' });
+  const email = renderDailyEmail({ lockerId: 'LOCKER-<001>', report });
+
+  assert.equal(report.opens, 0);
+  assert.equal(report.alerts, 0);
+  assert.equal(report.latest_activity, null);
+  assert.match(email.text, /Không có hoạt động của tủ trong ngày\./);
+  assert.doesNotMatch(email.text, /TELEGRAM_NOTIFICATION|DAILY_EMAIL_REPORT/);
+  assert.match(email.html, /LOCKER-&lt;001&gt;/);
+  assert.doesNotMatch(email.html, /LOCKER-<001>/);
+});
+
+test('daily email formats activity in the locker timezone instead of the server timezone', () => {
+  const now = Date.parse('2026-08-10T14:00:00.000Z');
+  const events = [
+    { event_type: 'UNAUTHORIZED_OPEN', occurred_at: '2026-08-09T04:30:00.000Z', result: 'observed' },
+  ];
+
+  const report = aggregateDailyReport(events, { now, timezone: 'America/New_York' });
+  const email = renderDailyEmail({ lockerId: LOCKER_A, report });
+
+  assert.equal(report.report_date, '2026-08-09');
+  assert.match(email.text, /Phát hiện mở cửa trái phép lúc 00:30:00, ngày 09\/08\/2026/);
+  assert.match(email.text, /America\/New_York/);
+  assert.doesNotMatch(email.text, /2026-08-09T04:30:00\.000Z/);
+});
+
 test('P3-A06 scheduler sends once per locker/report date and records delivery', async () => {
   let now = Date.parse('2026-08-10T14:00:00.000Z'); // 21:00 in Ho Chi Minh City
   const attemptedAt = new Date(now).toISOString();

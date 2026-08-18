@@ -49,8 +49,11 @@
    **Ngắt liên kết** before moving the locker to another account. The Telegram
    switch becomes available only after a valid link. For daily email, enable
    the email channel, enter the intended address, choose local time/timezone,
-   then save. That timezone also governs history boundaries, chart dates and
-   grounded history questions.
+   then save. Each message summarizes the previous local calendar day; opening
+   the door today therefore appears in tomorrow's report. The report localizes
+   timestamps and activity labels, and notification-delivery events are not
+   presented as locker activity. That timezone also governs history boundaries,
+   chart dates and grounded history questions.
 9. Use the chatbot for the supported live/history questions. It summarizes
    trusted cache/database facts; it does not control hardware.
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const { calendarRange, localDateKey, previousDayRange } = require('./report-time');
+const { eventDevice } = require('./events');
 
 function withinRange(event, range) {
   const timestamp = Date.parse(event.occurred_at);
@@ -32,16 +33,17 @@ function aggregateDailyReport(events, { now, timezone }) {
   const range = previousDayRange(now, timezone);
   const included = events.filter((event) => withinRange(event, range))
     .sort((left, right) => Date.parse(right.occurred_at) - Date.parse(left.occurred_at));
+  const latestActivity = included.find((event) => eventDevice(String(event.event_type || '')) !== 'notification');
   return {
     timezone,
     report_date: range.reportDate,
     range: { from: range.from, to: range.to },
     opens: included.filter((event) => event.event_type === 'DOOR_OPENED').length,
     alerts: included.filter((event) => event.event_type === 'UNAUTHORIZED_OPEN').length,
-    latest_activity: included[0] ? {
-      event_type: included[0].event_type,
-      occurred_at: included[0].occurred_at,
-      result: included[0].result,
+    latest_activity: latestActivity ? {
+      event_type: latestActivity.event_type,
+      occurred_at: latestActivity.occurred_at,
+      result: latestActivity.result,
     } : null,
   };
 }

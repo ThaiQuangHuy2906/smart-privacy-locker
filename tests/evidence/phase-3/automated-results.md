@@ -4,12 +4,12 @@ Branch: `develop`
 
 | Gate | Result |
 |---|---|
-| `npm test` | PASS — 177/177; 0 failed, 0 skipped, 0 todo |
+| `npm test` | PASS — 180/180; 0 failed, 0 skipped, 0 todo, including the email notification-exclusion/local-time regressions and deterministic generated export |
 | `npm run test:simulator` | PASS — 28 assertions, 22 scenarios |
 | `npm run test:broker` | PASS — 18 assertions on authenticated loopback broker |
 | `npm run audit` | PASS — 0 configuration/secret findings |
 | `npm audit --omit=dev` | PASS — 0 vulnerabilities |
-| generated FlowFuse artifact + deterministic artifact test | PASS — SHA-256 `c154c9fbd41041667678c04bfc62e0181a87c9601c35d6606d4c801e84af1d37` (266,041 bytes; 81 nodes; 7 tabs; 15 unique HTTP routes; no credential object) |
+| generated FlowFuse artifact + deterministic artifact test | PASS — SHA-256 `99285b3535c64d711673fd4b701201b0232a62a292892b223a8f81b04640af55` (268,371 bytes; 81 nodes; 7 tabs; 15 unique HTTP routes; no credential object) |
 | Chrome/CDP responsive DOM + visual QA | PASS — 18 checks at 1280×720 and exact 320×800; action gates, auth privacy, focus, effective targets, reduced motion, chart/table equivalence, 5-second polling and classic-scrollbar reflow verified |
 | `python -m platformio test -e native` | PASS — 28/28 |
 | clean `.\firmware\build-esp32.ps1` | PASS — 53,580 RAM bytes (16.4%); 1,108,145 flash bytes (84.5%) |
@@ -24,8 +24,10 @@ independent history/chart failures, paginated event/settings reads beyond 1000
 rows, event-ID deduplication across concurrently shifted offset pages,
 timestamp-less retained availability, 7/30-day local-time aggregation,
 accessible zero buckets, email configuration preflight/content,
-bounded retry, ambiguous SMTP outcomes, restart recovery, canonical report-date
-dedupe and state-guarded database delivery transitions. Persistence health now
+localized report/activity timestamps, exclusion of notification-delivery events
+from the latest locker activity, bounded retry, ambiguous SMTP outcomes, restart
+recovery, canonical report-date dedupe and state-guarded database delivery
+transitions. Persistence health now
 retains an actionable pending/dead-letter error instead of exposing
 `status:error` with a null diagnostic after a later successful write.
 
