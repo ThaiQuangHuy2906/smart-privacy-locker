@@ -259,6 +259,10 @@ const char* toString(CommandError error) {
       return "LOCKER_MISMATCH";
     case CommandError::STALE_COMMAND:
       return "STALE_COMMAND";
+    case CommandError::DOOR_NOT_CLOSED:
+      return "DOOR_NOT_CLOSED";
+    case CommandError::DOOR_NOT_CLOSED_FOR_ACCESS:
+      return "DOOR_NOT_CLOSED_FOR_ACCESS";
     case CommandError::ACTUATION_FAILED:
       return "ACTUATION_FAILED";
     default:

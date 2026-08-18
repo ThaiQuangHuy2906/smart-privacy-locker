@@ -57,6 +57,7 @@ class MqttHeartbeatTimer {
 #include <WiFiClientSecure.h>
 
 #include "ack_publisher.h"
+#include "door_security.h"
 #include "state_manager.h"
 
 using MqttMessageCallback = void (*)(const char* topic, const uint8_t* payload,
@@ -66,12 +67,13 @@ class MqttClient {
  public:
   MqttClient();
   void begin(MqttMessageCallback messageCallback);
-  void tick(unsigned long now, StateManager& state);
+  void tick(unsigned long now, StateManager& state, bool doorOutboxEmpty);
   bool isConnected();
   bool publishAck(const AckRecord& record, bool duplicate, const char* timestamp);
   bool publishState(const DeviceState& state, bool retained = true);
   bool publishDoorTransition(DoorState previous, DoorState current,
-                             const char* timestamp, bool timeSynced);
+                             const char* timestamp, bool timeSynced,
+                             const char* eventId, DoorAccessResult access);
   void disconnectGracefully();
 
  private:
@@ -94,6 +96,7 @@ class MqttClient {
   unsigned long reconnectDelayMs_ = 0;
   bool bufferReady_ = false;
   bool configurationWarningPrinted_ = false;
+  bool bootstrapStatePending_ = false;
 
   static MqttClient* activeInstance_;
 };

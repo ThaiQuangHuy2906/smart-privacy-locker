@@ -1,9 +1,11 @@
 # Smart Privacy Locker — Wokwi hardware demo
 
-> Audit 2026-08-17: a clean Wokwi build passes at 6.8% RAM/24.5% flash. This
+> Audit 2026-08-18: a clean Wokwi build passes at 6.8% RAM/24.6% flash
+> (22,440 bytes RAM; 322,729 bytes flash). This
 > package is intentionally a standalone behavioral demo, not a byte-for-byte
-> production firmware or electrical model. Its help and runtime use close
-> `170°`, open `80°`; safe boot leaves the servo untouched until `L` or `U`.
+> production firmware or electrical model. Its help and runtime use latch-lock
+> `80°`, latch-unlock `170°` and a 2,000 ms settle time; safe boot leaves the
+> servo untouched until `L` or `U`.
 
 Gói này mô phỏng độc lập toàn bộ phần cứng được firmware điều khiển trực tiếp:
 
@@ -62,8 +64,8 @@ Mở Serial Monitor ở 115200 baud rồi gửi một ký tự:
 
 | Phím | Tác dụng |
 |---|---|
-| `L` | Đóng cửa (logical `LOCK`), servo về 170° |
-| `U` | Mở cửa (logical `UNLOCK`), servo tới 80° |
+| `L` | Khóa ngay (logical `LOCK`), chỉ khi MC-38 là `CLOSED`, servo về 80° |
+| `U` | Mở chốt (logical `UNLOCK`), servo tới 170° |
 | `1` | Bật WS2812B |
 | `0` | Tắt WS2812B |
 | `A` | Bật báo động: GPIO26 xuống LOW |
@@ -72,6 +74,11 @@ Mở Serial Monitor ở 115200 baud rồi gửi một ký tự:
 | `H` | In hướng dẫn |
 
 - Công tắc trượt bên trái là `CLOSED`, bên phải là `OPEN`.
+- Cánh cửa được đóng/mở bằng tay (công tắc mô phỏng MC-38); servo chỉ xoay
+  chốt. Mỗi lệnh `U` khi cửa `CLOSED` cấp đúng một lượt `CLOSED→OPEN` trong 30
+  giây. Lần đầu consume quyền và không báo còi; khi công tắc trở lại `CLOSED`,
+  servo tự về `80°`. Nếu không mở, chốt cũng tự khóa đúng biên 30 giây. Mở/ép
+  lại mà không nhấn `U` mới sẽ bật còi. `U` luôn bị từ chối khi cửa đang mở.
 - Click DHT22 để đổi nhiệt độ/độ ẩm; OLED cập nhật sau chu kỳ đọc.
 - Ngay khi boot/reset, còi phải im vì sketch nạp latch HIGH trước khi đặt
   GPIO26 thành OUTPUT.
@@ -104,9 +111,10 @@ Wokwi kiểm tra logic GPIO và trình tự hoạt động, không chứng minh 
 - mô hình boot giữ vị trí servo chưa xác định và không tự quay, tương tự invariant
   safe cold boot; nó vẫn không có MQTT/NVS/reconnect nên không chứng minh no-replay
   của firmware production;
-- cơ cấu thật không còn chốt: tay servo trực tiếp đóng/mở cửa, còn Wokwi chỉ
-  biểu diễn góc và không thể chứng minh outcome cơ khí;
-- chỉ kết luận hệ thống thật đạt sau khi hoàn thành
-  [hướng dẫn lắp mạch](../../HUONG_DAN_LAP_MACH_THEO_THU_TU.md),
+- cơ cấu thật dùng tay servo làm chốt quay; Wokwi chỉ biểu diễn góc điều khiển,
+  không có cảm biến phản hồi góc và không thể chứng minh outcome cơ khí;
+- chỉ kết luận hệ thống thật đạt sau khi đối chiếu
+  [pin map](../../hardware/pin-map.md), hoàn tất
+  [power budget](../../hardware/power-budget.md),
   [hướng dẫn chạy](../../HUONG_DAN_CHAY_HE_THONG.md) và
   [hướng dẫn E2E](../../HUONG_DAN_TEST_END_TO_END.md).

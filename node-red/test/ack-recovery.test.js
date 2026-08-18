@@ -26,7 +26,7 @@ test('P2-A06 matching ACK completes only its pending command and updates confirm
 
 test('P2-A07 wrong ID/locker/action/state cannot cancel pending; duplicate and late ACK cannot resurrect', async () => {
   const { runtime, clock } = makeRuntime(); await prime(runtime);
-  const dispatched = await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'LOCK' } });
+  const dispatched = await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'UNLOCK' } });
   const wrongId = ack(dispatched.command, { command_id: '10000000-0000-4000-8000-000000009999' });
   const unknown = await runtime.ingest(`locker/${LOCKER_A}/ack`, wrongId, clock.value);
   assert.equal(unknown.result.code, 'UNKNOWN_ACK');
@@ -34,11 +34,11 @@ test('P2-A07 wrong ID/locker/action/state cannot cancel pending; duplicate and l
   assert.equal(runtime.dispatcher.pending.size, 1);
   assert.equal((await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command, { locker_id: 'LOCKER-002' }), clock.value)).accepted, false);
   const wrongAction = await runtime.ingest(`locker/${LOCKER_A}/ack`,
-    ack(dispatched.command, { action: 'UNLOCK' }), clock.value);
+    ack(dispatched.command, { action: 'LOCK' }), clock.value);
   assert.equal(wrongAction.result.code, 'ACK_CORRELATION_MISMATCH');
   assert.equal(wrongAction.accepted, false);
   const wrongState = await runtime.ingest(`locker/${LOCKER_A}/ack`, ack(dispatched.command,
-    { device_state: { door: 'CLOSED', lock: 'UNLOCKED', alarm: 'INACTIVE', led: 'OFF' } }),
+    { device_state: { door: 'CLOSED', lock: 'LOCKED', alarm: 'INACTIVE', led: 'OFF' } }),
   clock.value);
   assert.equal(wrongState.result.code, 'ACK_CORRELATION_MISMATCH');
   assert.equal(wrongState.accepted, false);
@@ -90,7 +90,7 @@ test('P2-A08 timeout never retries actuator and emits at most one GET_STATE reco
   assert.equal(late.result.code, 'DUPLICATE_OR_LATE_ACK');
 });
 
-test('P2-A07 restart clears pending/cache/window and stale ACK cannot restore success', async () => {
+test('P2-A07 restart clears pending/cache/correlation and stale ACK cannot restore success', async () => {
   const { runtime, clock } = makeRuntime(); await prime(runtime);
   const dispatched = await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'UNLOCK' } });
   runtime.restart();

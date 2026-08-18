@@ -1,6 +1,6 @@
 # Ôn tập vấn đáp chi tiết — Smart Privacy Locker
 
-> Cập nhật: 2026-08-17
+> Cập nhật: 2026-08-18
 >
 > Dùng cho nhóm 12: Thái Quang Huy — 24127177, Nguyễn Văn Minh — 24127205,
 > Mai Phương Thùy — 24127249.
@@ -17,8 +17,8 @@ vẫn có thể làm giảm điểm cá nhân.
    quan sát”, “đã test live trước đây” và “chưa test E2E cuối”.
 2. **Trả lời từ nguyên nhân đến hệ quả.** Ví dụ: servo kéo dòng xung lớn → rail
    có thể sụt áp → ESP32 brownout → cần nguồn, dây, tụ và phép đo phù hợp.
-3. **Không che giới hạn.** SG90 không có feedback; hệ thống hiện không còn chốt
-   cơ khí; ACK không tự chứng minh cửa thật đã đóng.
+3. **Không che giới hạn.** SG90 là chốt quay nhưng không có feedback góc; ACK
+   không tự chứng minh chốt đã tới vị trí. MC-38 chỉ đo cửa OPEN/CLOSED.
 4. **Chỉ nhận phần việc thật.** Mỗi người phải biết phần tích hợp chung nhưng
    không nhận code/evidence của thành viên khác là của mình.
 
@@ -28,35 +28,37 @@ vẫn có thể làm giảm điểm cá nhân.
 
 - Source firmware, Node-RED, Dashboard, Supabase, simulator và Wokwi hiện diện
   trong repository và đã được rà soát.
-- Native firmware đạt 20/20 test; clean PlatformIO ESP32 build đạt khoảng
-  16.2% RAM và 84.3% flash; Arduino mirror 30 tệp đồng bộ và compile đạt.
-- Node suite đạt 156/156; simulator đạt 10 assertion trên 15 scenario; broker
-  cục bộ có xác thực đạt 17 assertion; audit dependency/config không có finding.
-- Chrome/CDP audit xác nhận responsive ở 1280 × 720 và 320 × 800, focus,
-  effective target, live region, reduced motion, startup retry, stale/unknown,
-  status localization, spinner pending và auth-mode đều đạt.
+- Native firmware đạt 28/28 test; clean PlatformIO ESP32 build dùng 16,4% RAM
+  và 84,5% flash; Arduino mirror 32 tệp đồng bộ và compile đạt.
+- Node suite đạt 177/177; simulator đạt 28 assertion trên 22 scenario; broker
+  cục bộ có xác thực đạt 18 assertion; audit dependency/config không có finding.
+- Chrome/CDP audit đạt 18 check ở 1280 × 720 và exact 320 × 800: action gates,
+  auth privacy, focus, effective target, reduced motion, biểu đồ/bảng, polling
+  và không tràn ngang với classic scrollbar.
 - Người lắp ráp đã quan sát riêng lẻ OLED, DHT22, MC-38/Telegram, 10 WS2812B và
   SG90 hoạt động.
-- Mapping as-built hiện tại: servo đóng `170°`, mở `80°`; buzzer active-low
+- Mapping as-built hiện tại: servo khóa chốt `80°`, mở chốt `170°`; buzzer active-low
   dùng VCC 3.3 V, GPIO26 qua 4.7 kΩ.
 
 ### 2.2. Chưa được khẳng định
 
 - chưa thể nói toàn hệ thống E2E thật đã PASS;
-- chưa có bảng đo nguồn/tải đồng thời hoàn chỉnh;
+- chưa có bảng đo nguồn/tải đồng thời hoàn chỉnh; P1-05 được người dùng chấp
+  nhận cho demo, nhưng không được gọi là measured PASS;
 - chưa chốt jack, công tắc, phân phối và bảo vệ nhánh bằng phép đo;
 - chưa đủ bằng chứng còi GPIO26 phát/tắt, ACK/state, cold boot và full-load;
 - chưa chứng minh servo không kẹt trong mọi chu kỳ hoặc cửa chống bị cạy;
 - các gate live Supabase/Telegram/Gemini/email có bằng chứng lịch sử, nhưng
-  audit ngày 2026-08-17 không chạy lại toàn bộ trên dịch vụ thật;
+  audit ngày 2026-08-18 không chạy lại toàn bộ trên dịch vụ thật;
 - `playwright-cli` riêng lẻ không chạy được trên Node 24 do assertion upstream;
   đây là giới hạn tool đã ghi, không phải bằng chứng giao diện fail.
 
 Một câu trả lời tốt khi bị hỏi “sản phẩm hoàn tất chưa?” là:
 
 > Phần mềm và từng linh kiện chính đã có bằng chứng mạnh ở các mức khác nhau,
-> nhưng nhóm chưa gọi sản phẩm là final-release-ready vì còn gate nguồn tải đầy,
-> còi tích hợp, 20 chu kỳ và luồng E2E thật. Nhóm dùng
+> nhưng nhóm chưa gọi sản phẩm là final-release-ready vì còn còi tích hợp, các
+> chu kỳ vật lý và luồng E2E thật. Gate nguồn P1-05 đã được chấp nhận riêng cho
+> demo, không phải kết quả đo. Nhóm dùng
 > `HUONG_DAN_TEST_END_TO_END.md` để đóng các gate này trước khi nộp.
 
 ## 3. Bài giới thiệu mẫu
@@ -64,7 +66,7 @@ Một câu trả lời tốt khi bị hỏi “sản phẩm hoàn tất chưa?�
 ### 3.1. Phiên bản 30 giây
 
 > Smart Privacy Locker là mô hình tủ riêng tư dùng ESP32. MC-38 cung cấp trạng
-> thái cửa; SG90 trực tiếp đóng/mở cánh cửa; WS2812B và buzzer là đầu ra; DHT22
+> thái cửa; SG90 khóa/mở chốt quay; người dùng đóng/mở cánh cửa; WS2812B và buzzer là đầu ra; DHT22
 > hiển thị cục bộ trên OLED. ESP32 giao tiếp MQTT với Node-RED, còn Dashboard
 > dùng Supabase Auth và ownership để người dùng chỉ điều khiển tủ của mình. Sự
 > kiện được lưu ở Supabase, hiển thị lịch sử/biểu đồ, có cảnh báo Telegram, báo
@@ -85,8 +87,8 @@ Một câu trả lời tốt khi bị hỏi “sản phẩm hoàn tất chưa?�
 > tổng hợp theo 7/30 ngày và dùng cho email ngày trước đó cũng như câu trả lời
 > Gemini đã giới hạn intent/facts. Điểm nhóm đặc biệt lưu ý là SG90 open-loop:
 > ACK sau thời gian settle chỉ xác nhận chu kỳ điều khiển logic; MC-38 mới là
-> tín hiệu cửa vật lý. Sản phẩm hiện dùng tay servo trực tiếp, không có chốt,
-> nên nhóm không tuyên bố đây là khóa cơ khí chống cạy.
+> tín hiệu cửa vật lý. Sản phẩm hiện dùng tay servo làm chốt quay nhưng không có
+> feedback góc, nên nhóm không suy diễn ACK thành bằng chứng cơ khí tuyệt đối.
 
 ### 3.3. Phiên bản 5 phút
 
@@ -382,12 +384,13 @@ và chạy lại. Giới hạn SG90 open-loop vẫn còn dù câu chữ UI đã 
 1. Chỉ sơ đồ và nói hai luồng bắt buộc.
 2. Đăng nhập, chỉ owner/locker và fresh state.
 3. Bật/tắt 10 LED; chỉ ACK/state và LED thật.
-4. Mở/đóng bằng SG90; chỉ rõ `80°/170°` và MC-38 xác nhận cửa.
+4. Đóng cửa bằng tay, khóa/mở chốt SG90 ở `80°/170°`; chỉ rõ MC-38 xác nhận cửa
+   chứ không xác nhận góc chốt.
 5. Mở trái phép; quan sát event, buzzer, Dashboard và Telegram.
 6. Mở lịch sử/biểu đồ; hỏi chatbot một câu live và một câu history.
 7. Chỉ email sandbox/record ngày trước đó.
 8. Ngắt Wi-Fi/broker ngắn theo kế hoạch; chỉ offline/stale và recovery.
-9. Kết thúc bằng evidence và giới hạn direct-arm/open-loop.
+9. Kết thúc bằng evidence và giới hạn chốt open-loop.
 
 Nếu phần cứng kẹt, ngắt nguồn trước; không cố lặp lệnh trước giảng viên.
 
@@ -398,14 +401,14 @@ Nếu phần cứng kẹt, ngắt nguồn trước; không cố lặp lệnh tr�
 #### Câu 1. Sản phẩm giải quyết vấn đề gì?
 
 Nó cho phép chủ sở hữu theo dõi trạng thái cửa, điều khiển các output và nhận
-cảnh báo khi cửa mở ngoài cửa sổ cho phép. Nó là mô hình IoT học thuật về cảm
+cảnh báo khi cửa mở trong lúc chốt logic đang `LOCKED`. Nó là mô hình IoT học thuật về cảm
 biến–cloud–giao diện, không phải chứng nhận an ninh thương mại.
 
 #### Câu 2. Vì sao gọi là “privacy locker” thay vì chỉ “smart box”?
 
 Vì có ownership, lịch sử, cảnh báo riêng theo người dùng và kiểm soát truy cập
-digital. Tuy nhiên bản hiện tại không có chốt cơ khí, nên “lock” trong UI là
-state điều khiển đóng/mở bằng tay servo, không đồng nghĩa chống cạy.
+digital. Bản hiện tại có chốt quay bằng servo nhưng không có cảm biến góc, nên
+“lock” trong UI là state hoàn tất chu trình chốt, không đồng nghĩa chống cạy.
 
 #### Câu 3. Hai luồng nào đáp ứng yêu cầu đề bài?
 
@@ -569,14 +572,14 @@ phải test as-built.
 #### Câu 31. Vì sao servo phải detach sau di chuyển?
 
 Thiết kế giảm giữ lực/jitter/nhiệt và chỉ attach khi có lệnh. Đổi lại, nếu cơ
-cấu cần holding torque thì cửa có thể không giữ; đó là lý do phải test cơ khí
-và không tuyên bố “khóa” khi không có chốt.
+cấu chốt cần holding torque thì có thể bị dịch chuyển; đó là lý do phải test cơ
+khí và không suy diễn ACK thành vị trí chốt đã đo.
 
 #### Câu 32. Làm sao chứng minh servo đã đến vị trí?
 
 SG90 không có feedback trong mạch này, nên firmware không đo được trực tiếp.
-Video và MC-38 xác nhận kết quả cửa; cải tiến có thể thêm limit switch/encoder
-hoặc đo dòng/kẹt.
+Video xác nhận chuyển động chốt; MC-38 chỉ xác nhận kết quả cửa. Cải tiến có thể
+thêm limit switch/encoder hoặc đo dòng/kẹt.
 
 #### Câu 33. Tại sao số pixel ảnh hưởng nguồn?
 
@@ -612,7 +615,7 @@ Firmware chủ động đưa chúng về trạng thái an toàn inactive/OFF, n�
 Nó yêu cầu mẫu OPEN/CLOSED giữ ổn định đủ thời gian trước khi commit transition.
 Điều này lọc rung contact nhưng vẫn phải test biên 50 ms và wrap `millis()`.
 
-#### Câu 39. Tại sao không dùng delay 550 ms cho servo?
+#### Câu 39. Tại sao không dùng `delay(2000)` cho servo?
 
 Controller lưu deadline settle và loop kiểm tra. Nhờ vậy MQTT, Wi-Fi và sensor
 tiếp tục chạy trong lúc servo di chuyển.
@@ -662,7 +665,7 @@ vẫn phải chấp nhận outcome mơ hồ nếu ACK mất sau hành động.
 
 #### Câu 48. Tại sao timeout là 5 giây?
 
-Nó lớn hơn thời gian actuator settle 550 ms và có dư cho mạng/backend, nhưng
+Nó lớn hơn thời gian actuator settle 2.000 ms và có dư cho mạng/backend, nhưng
 vẫn giới hạn UX. Đây là config/contract; tăng timeout tùy tiện không sửa nguyên
 nhân mất ACK.
 
@@ -714,9 +717,11 @@ trạng thái failure và refresh reported state.
 
 #### Câu 57. Restart Node-RED làm gì với pending?
 
-Xóa pending, completed IDs, authorization window và cache freshness trong RAM.
-Không thể đánh dấu command cũ success; durable event/settings/delivery vẫn ở
-Supabase.
+Xóa pending, completed IDs, legacy authorization window phía backend và cache
+freshness trong RAM. Không thể đánh dấu command cũ success; durable
+event/settings/delivery vẫn ở Supabase. Quyền một lần còn sống trên ESP32 không
+bị backend đoán lại: telemetry OPEN hiện tại mang boolean `authorized` do
+firmware quyết định.
 
 #### Câu 58. Vì sao state payload luôn đầy đủ?
 
@@ -781,9 +786,21 @@ vậy chart/report đếm lượt mở và cảnh báo theo semantics khác nhau
 
 #### Câu 69. Cửa sổ mở hợp lệ là gì?
 
-Sau lệnh mở được ủy quyền, backend giữ window ngắn mặc định 30 giây. OPEN trong
-window được phân loại authorized và window được consume; restart xóa window để
-không cấp quyền lâu ngoài ý muốn.
+Sau ACK `UNLOCK` khi cửa đóng, firmware cấp đúng một lượt OPEN trong 30 giây.
+Cạnh `CLOSED→OPEN` đầu tiên consume quyền và arm auto-lock; khi người dùng đóng
+cửa, cạnh `OPEN→CLOSED` ổn định làm servo tự về `80°`. Nếu không mở, đúng 30
+giây firmware cũng tự khóa. Hai đường này chạy cục bộ và không sinh ACK giả.
+Mở/ép lại mà chưa có quyền mới phải báo còi. Firmware gửi boolean `authorized`
+trong telemetry nên backend restart không làm đổi kết luận; muốn mở hợp lệ lần
+nữa phải chờ `LOCKED` rồi gửi lại `UNLOCK`.
+
+#### Câu 69a. Vì sao boot thấy `CLOSED` không tự khóa ngay?
+
+Mẫu ổn định đầu tiên chỉ khởi tạo trạng thái MC-38, không phải bằng chứng người
+dùng vừa mở rồi đóng cửa. Auto-lock-on-close chỉ được arm sau một cạnh thật
+`CLOSED→OPEN`; vì vậy cold boot luôn giữ `lock=UNKNOWN` và không làm servo chạy.
+Lượt `UNLOCK` chưa dùng là trường hợp khác: nó có timer riêng và tự khóa đúng
+biên 30 giây nếu cửa vẫn stable/raw `CLOSED`.
 
 #### Câu 70. Nếu Telegram chậm, còi có chậm không?
 
@@ -909,12 +926,12 @@ sung nhau.
 Pin mapping/logic/trình tự trong giới hạn mô hình. Nó không chứng minh dòng,
 brownout, logic threshold của clone, lực servo, nhiệt hoặc contact thật.
 
-#### Câu 92. 20/20 native test có nghĩa firmware không lỗi không?
+#### Câu 92. 28/28 native test có nghĩa firmware không lỗi không?
 
 Không. Nó chỉ chứng minh các case được viết chạy đúng trên native; clean ESP32
 build và hardware/manual/fault tests vẫn cần. Coverage không bao phủ vật lý.
 
-#### Câu 93. 156/156 Node test có nghĩa live service chắc chắn đúng không?
+#### Câu 93. 177/177 Node test có nghĩa live service chắc chắn đúng không?
 
 Không. Test xác nhận module/contracts; credential, ACL, migrations, provider và
 deployment thật có thể lệch. Live gate cần project thử và evidence.
@@ -932,9 +949,10 @@ sửa tùy ý.
 
 #### Câu 96. Finding nghiêm trọng nhất hiện tại là gì?
 
-Ba release blocker: nguồn/tải đồng thời chưa đo, semantics khóa cơ khí/direct-arm
-và SG90 không feedback, cùng việc chưa có E2E thật đầy đủ. Không có P0 source
-đã xác nhận trong audit.
+Hai giới hạn chính là SG90 không có feedback góc và chưa có E2E thật đầy đủ.
+Nguồn/tải đồng thời chưa đo nhưng P1-05 đã được người dùng chấp nhận riêng cho
+demo; không được gọi ngoại lệ đó là measured PASS. Không có P0 source đã xác
+nhận trong audit.
 
 #### Câu 97. Vì sao audit và lượt sửa được tách trạng thái?
 
@@ -1045,7 +1063,7 @@ reboot hoặc báo brownout thì nguyên nhân là nguồn/tải, không phải 
 | “Service-role đưa frontend cho tiện?” | Tuyệt đối không. |
 | “Gemini tự tính số lần mở?” | Không; backend tính facts, model chỉ diễn đạt. |
 | “Wokwi đã PASS nghĩa nguồn thật ổn?” | Không. |
-| “Không có chốt vẫn khóa an toàn?” | Chỉ đóng/mở bằng tay servo; không tuyên bố chống cạy. |
+| “ACK khóa có chứng minh chốt đã vào khớp?” | Không; chốt servo open-loop không có cảm biến góc, cần quan sát cơ khí riêng. |
 
 ## 15. Tình huống chẩn đoán thực hành
 
@@ -1117,7 +1135,7 @@ khôi phục destination/config và gửi test success.
 - hai luồng bắt buộc;
 - trust boundaries và secret handling;
 - nguồn/common GND/full-load;
-- trạng thái evidence hiện tại và giới hạn direct-arm/open-loop;
+- trạng thái evidence hiện tại và giới hạn chốt open-loop;
 - demo/failure recovery.
 
 ## 17. Kế hoạch ôn trong ba buổi
@@ -1155,7 +1173,7 @@ khôi phục destination/config và gửi test success.
 - [ ] biết auth/ownership/RLS/service-role;
 - [ ] biết Telegram link/Gemini grounding/email idempotency;
 - [ ] nói được bằng chứng nào PASS, PARTIAL, NOT RUN;
-- [ ] nói rõ không còn chốt và SG90 không có feedback;
+- [ ] nói rõ SG90 là chốt quay nhưng không có feedback góc; MC-38 chỉ đo cửa;
 - [ ] biết ít nhất năm lỗi audit đã sửa, regression tương ứng và giới hạn vật lý còn lại;
 - [ ] video/log dự phòng có version/timestamp và đã che bí mật;
 - [ ] báo cáo đúng tên `12_24127177_24127205_24127249_FINAL.PDF`;
@@ -1166,7 +1184,8 @@ khôi phục destination/config và gửi test success.
 
 > Điểm mạnh của dự án là contract rõ, safe boot, ownership/RLS nhiều lớp và
 > test phần mềm có khả năng tái lập. Giới hạn hiện tại là cơ cấu servo open-loop
-> không có chốt/feedback và gate nguồn/E2E vật lý chưa đóng; các lỗi UI/liveness
+> không có feedback góc và gate E2E vật lý chưa đóng; P1-05 nguồn là ngoại lệ
+> demo được chấp nhận chứ không phải measured PASS; các lỗi UI/liveness
 > đã có correction và regression. Nhóm không xem simulator hay ACK logic là bằng chứng thay
 > phần cứng; trước khi nộp, nhóm sẽ chỉ đánh dấu PASS cho các test có đo, log và
 > video gắn đúng phiên bản.

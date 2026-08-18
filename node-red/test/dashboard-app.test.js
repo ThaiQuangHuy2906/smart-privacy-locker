@@ -56,6 +56,14 @@ class FakeElement {
     this.attributes.delete(name);
   }
 
+  getAttribute(name) {
+    return this.attributes.get(name) ?? null;
+  }
+
+  focus() {
+    this.focused = true;
+  }
+
   async dispatch(type, values = {}) {
     const event = {
       target: this,
@@ -96,15 +104,15 @@ function createHarness({ hash = '', storedSession = null, fetchImpl, popupBlocke
   const ids = [
     'auth-form', 'full-name-field', 'full-name', 'email', 'password', 'auth-submit',
     'auth-mode-toggle', 'logout', 'session-label', 'auth-message',
-    'claim-form', 'locker-code', 'claim-message', 'locker-id', 'mqtt', 'device', 'wifi', 'door', 'lock', 'alarm', 'led', 'updated',
-    'alert', 'state-message', 'command-message', 'chat-form', 'question', 'answer',
+    'claim-form', 'claim-button', 'locker-code', 'claim-message', 'locker-id', 'mqtt', 'device', 'wifi', 'door', 'lock', 'alarm', 'led', 'updated',
+    'alert', 'state-message', 'control-hint', 'command-message', 'chat-form', 'question', 'chat-hint', 'chat-submit', 'answer',
     'range-days', 'refresh-phase3', 'history-list', 'history-message', 'chart-summary', 'chart-bars', 'chart-empty',
-    'chart-table-body',
+    'chart-table-body', 'data-access-hint',
     'settings-form', 'telegram-enabled', 'telegram-connection', 'telegram-status',
     'telegram-link', 'telegram-open-link', 'telegram-test', 'telegram-disconnect', 'email-enabled',
     'report-email', 'report-email-field', 'report-time', 'report-time-field',
     'report-timezone', 'report-timezone-field',
-    'load-settings', 'save-settings', 'settings-message',
+    'load-settings', 'save-settings', 'settings-message', 'settings-access-hint',
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new FakeElement(id)]));
   elements['locker-code'].value = 'LOCKER-001';
@@ -128,10 +136,13 @@ function createHarness({ hash = '', storedSession = null, fetchImpl, popupBlocke
     new FakeElement('led-on', { dataset: { action: 'LED_ON', domain: 'led' } }),
     new FakeElement('led-off', { dataset: { action: 'LED_OFF', domain: 'led' } }),
   ];
+  const documentListeners = new Map();
   const document = {
     title: 'Smart Privacy Locker',
+    visibilityState: 'visible',
     getElementById: (id) => elements[id],
     querySelectorAll: (selector) => (selector === '[data-action]' ? actionButtons : []),
+    addEventListener(type, handler) { documentListeners.set(type, handler); },
   };
 
   const stored = new Map();
@@ -211,6 +222,8 @@ function createHarness({ hash = '', storedSession = null, fetchImpl, popupBlocke
     openedWindows,
     timeouts,
     intervals,
+    document,
+    documentListeners,
   };
 }
 
@@ -293,11 +306,30 @@ test('auth mode exposes registration-only identity fields and correct password a
   assert.equal(harness.elements['full-name-field'].hidden, false);
   assert.equal(harness.elements['full-name'].required, true);
   assert.equal(harness.elements.password.autocomplete, 'new-password');
+  assert.equal(harness.elements['full-name'].focused, true);
+  assert.equal(harness.elements['auth-mode-toggle'].attributes.has('aria-pressed'), false);
 
   await harness.elements['auth-mode-toggle'].dispatch('click');
   assert.equal(harness.elements['full-name-field'].hidden, true);
   assert.equal(harness.elements['full-name'].required, false);
   assert.equal(harness.elements.password.autocomplete, 'current-password');
+  assert.equal(harness.elements.email.focused, true);
+});
+
+test('authenticated session hides credential fields and never exposes transport jargon', async () => {
+  const restored = { access_token: 'session-token', refresh_token: 'refresh-token',
+    expires_at: Math.floor(Date.now() / 1000) + 3600, user: { email: 'owner@example.test' } };
+  const harness = createHarness({
+    storedSession: restored,
+    fetchImpl: async (url) => url === '/api/v1/public-config'
+      ? jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' })
+      : jsonResponse(200, liveState()),
+  });
+  await settle();
+
+  assert.equal(harness.elements['auth-form'].hidden, true);
+  assert.equal(harness.elements['session-label'].textContent, 'Đã đăng nhập · owner@example.test');
+  assert.doesNotMatch(harness.elements['session-label'].textContent, /Bearer|token/i);
 });
 
 test('startup retries public configuration and enables authentication after recovery', async () => {
@@ -326,7 +358,8 @@ test('startup retries public configuration and enables authentication after reco
   assert.equal(configRequests, 2);
   assert.equal(harness.elements['auth-submit'].disabled, false);
   assert.equal(harness.elements['auth-mode-toggle'].disabled, false);
-  assert.ok([...harness.intervals.values()].some((value) => value.delay === 2000));
+  assert.ok([...harness.timeouts.values()].some((value) => value.delay === 5000));
+  assert.equal(harness.intervals.size, 0);
 });
 
 test('startup preserves an expired restorable session during a transient refresh outage', async () => {
@@ -571,9 +604,9 @@ test('rejected claim remains visible after a later live-state poll', async () =>
   await settle();
 
   await harness.elements['claim-form'].dispatch('submit');
-  const interval = [...harness.intervals.values()].find((value) => value.delay === 2000);
-  assert.ok(interval);
-  await interval.callback();
+  const pollTimer = [...harness.timeouts.values()].find((value) => value.delay === 5000);
+  assert.ok(pollTimer);
+  await pollTimer.callback();
 
   assert.equal(harness.elements['claim-message'].textContent, 'Claim bị từ chối: CLAIM_REJECTED');
   assert.match(harness.elements['state-message'].textContent, /mới nhất.*xác nhận/i);
@@ -708,7 +741,59 @@ test('stale API values are rendered as unknown instead of current actuator truth
   assert.ok(harness.actionButtons.every((button) => button.disabled));
 });
 
-test('one pending actuator request locks both controls in the same domain', async () => {
+test('action-level gates explain why LOCK is blocked while the physical door is open', async () => {
+  const restored = { access_token: 'session-token', refresh_token: 'refresh-token',
+    expires_at: Math.floor(Date.now() / 1000) + 3600 };
+  const harness = createHarness({
+    storedSession: restored,
+    fetchImpl: async (url) => {
+      if (url === '/api/v1/public-config') {
+        return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
+      }
+      return jsonResponse(200, liveState({
+        door: 'OPEN', lock: 'UNLOCKED',
+        actions: {
+          LOCK: { enabled: false, pending: false, reasons: ['DOOR_NOT_CLOSED'] },
+          UNLOCK: { enabled: false, pending: false, reasons: ['DOOR_NOT_CLOSED_FOR_ACCESS'] },
+          ALARM_ON: { enabled: true, pending: false, reasons: [] },
+          ALARM_OFF: { enabled: false, pending: false, reasons: ['ALREADY_IN_STATE'] },
+          LED_ON: { enabled: true, pending: false, reasons: [] },
+          LED_OFF: { enabled: false, pending: false, reasons: ['ALREADY_IN_STATE'] },
+        },
+      }));
+    },
+  });
+  await settle();
+
+  assert.equal(harness.actionButtons[0].disabled, true);
+  assert.match(harness.actionButtons[0].getAttribute('title'), /đóng cánh cửa bằng tay.*khóa ngay/i);
+  assert.match(harness.actionButtons[1].getAttribute('title'), /đóng cửa.*cấp lượt mở/i);
+  assert.match(harness.elements['control-hint'].textContent, /Cửa đang mở.*đóng cửa.*tự khóa.*Đã khóa.*cấp lượt mở mới/i);
+  assert.equal(harness.actionButtons[2].disabled, false);
+});
+
+test('a backend no-op response is rendered without assuming a command id', async () => {
+  const restored = { access_token: 'session-token', refresh_token: 'refresh-token',
+    expires_at: Math.floor(Date.now() / 1000) + 3600 };
+  const harness = createHarness({
+    storedSession: restored,
+    fetchImpl: async (url) => {
+      if (url === '/api/v1/public-config') {
+        return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
+      }
+      if (url === '/api/v1/commands') {
+        return jsonResponse(200, { ok: true, noop: true, code: 'ALREADY_IN_STATE', action: 'LOCK' });
+      }
+      return jsonResponse(200, liveState());
+    },
+  });
+  await settle();
+
+  await harness.actionButtons[0].dispatch('click');
+  assert.match(harness.elements['command-message'].textContent, /không gửi lệnh.*không quay servo/i);
+});
+
+test('one pending actuator request locks both controls but marks only the requested action busy', async () => {
   const restored = { access_token: 'session-token', refresh_token: 'refresh-token', expires_at: Math.floor(Date.now() / 1000) + 3600 };
   const command = deferred();
   let commandCalls = 0;
@@ -730,7 +815,9 @@ test('one pending actuator request locks both controls in the same domain', asyn
   assert.equal(harness.actionButtons[0].disabled, true);
   assert.equal(harness.actionButtons[1].disabled, true);
   assert.equal(harness.actionButtons[0].dataset.pending, 'true');
-  assert.equal(harness.actionButtons[1].dataset.pending, 'true');
+  assert.equal(harness.actionButtons[1].dataset.pending, 'false');
+  assert.equal(harness.actionButtons[0].attributes.get('aria-busy'), 'true');
+  assert.equal(harness.actionButtons[1].attributes.get('aria-busy'), 'false');
 
   await harness.actionButtons[1].dispatch('click');
   assert.equal(commandCalls, 1);
@@ -884,6 +971,8 @@ test('chart renders true zero-height buckets and an equivalent textual data tabl
   await harness.elements['refresh-phase3'].dispatch('click');
 
   assert.match(harness.elements['chart-bars'].innerHTML, /height:0px/);
+  assert.match(harness.elements['chart-bars'].innerHTML, /0\/0/);
+  assert.match(harness.elements['chart-bars'].innerHTML, /10\/08/);
   assert.doesNotMatch(harness.elements['chart-bars'].innerHTML, /title="0 [^"]+" style="height:2px/);
   assert.match(harness.elements['chart-table-body'].innerHTML, /2026-08-09/);
   assert.match(harness.elements['chart-table-body'].innerHTML, />0<\/td>/);
@@ -1193,7 +1282,7 @@ test('an old claim finally cannot unlock a newer session claim form', async () =
   assert.equal(harness.elements['claim-form'].dataset.pending, 'false');
 });
 
-test('periodic polling is serialized and coalesces a request that arrives in flight', async () => {
+test('recursive polling is serialized and coalesces a request that arrives in flight', async () => {
   const restored = { access_token: 'session-token', refresh_token: 'refresh-token', expires_at: Math.floor(Date.now() / 1000) + 3600 };
   const delayedState = deferred();
   let stateRequests = 0;
@@ -1208,12 +1297,12 @@ test('periodic polling is serialized and coalesces a request that arrives in fli
     },
   });
   await settle();
-  const interval = [...harness.intervals.values()].find((value) => value.delay === 2000);
-  assert.ok(interval);
+  const pollTimer = [...harness.timeouts.values()].find((value) => value.delay === 5000);
+  assert.ok(pollTimer);
 
-  const activePoll = interval.callback();
+  const activePoll = pollTimer.callback();
   await settle();
-  interval.callback();
+  pollTimer.callback();
   await settle();
   assert.equal(stateRequests, 2);
 
@@ -1221,6 +1310,20 @@ test('periodic polling is serialized and coalesces a request that arrives in fli
   await activePoll;
   await settle();
   assert.equal(stateRequests, 3);
+});
+
+test('state polling backs off while the dashboard tab is hidden', async () => {
+  const harness = createHarness({
+    fetchImpl: async (url) => url === '/api/v1/public-config'
+      ? jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' })
+      : jsonResponse(200, liveState()),
+  });
+  await settle();
+  assert.ok([...harness.timeouts.values()].some((value) => value.delay === 5000));
+
+  harness.document.visibilityState = 'hidden';
+  harness.documentListeners.get('visibilitychange')();
+  assert.ok([...harness.timeouts.values()].some((value) => value.delay === 15000));
 });
 
 test('logout clears local credentials and sensitive state without waiting for the network', async () => {
@@ -1337,10 +1440,9 @@ test('a current-session 401 clears identity fields and private question content'
   assert.notEqual(harness.elements.question.value, 'Private question');
 });
 
-test('an older chatbot response cannot overwrite the answer to a newer question', async () => {
+test('chatbot blocks duplicate submits while one question is pending', async () => {
   const restored = { access_token: 'session-token', refresh_token: 'refresh-token', expires_at: Math.floor(Date.now() / 1000) + 3600 };
   const first = deferred();
-  const second = deferred();
   let chatRequests = 0;
   const harness = createHarness({
     storedSession: restored,
@@ -1348,7 +1450,7 @@ test('an older chatbot response cannot overwrite the answer to a newer question'
       if (url === '/api/v1/public-config') return jsonResponse(200, { supabase_url: 'https://supabase.example.test', supabase_anon_key: 'anon-key' });
       if (url === '/api/v1/chatbot') {
         chatRequests += 1;
-        return chatRequests === 1 ? first.promise : second.promise;
+        return first.promise;
       }
       return jsonResponse(200, liveState());
     },
@@ -1362,11 +1464,14 @@ test('an older chatbot response cannot overwrite the answer to a newer question'
   const secondRequest = harness.elements['chat-form'].dispatch('submit');
   await settle();
 
-  second.resolve(jsonResponse(200, { answer: 'Câu trả lời mới' }));
   await secondRequest;
-  first.resolve(jsonResponse(200, { answer: 'Câu trả lời cũ' }));
+  assert.equal(chatRequests, 1);
+  assert.equal(harness.elements['chat-submit'].disabled, true);
+
+  first.resolve(jsonResponse(200, { answer: 'Câu trả lời hiện tại' }));
   await firstRequest;
-  assert.equal(harness.elements.answer.textContent, 'Câu trả lời mới');
+  assert.equal(harness.elements.answer.textContent, 'Câu trả lời hiện tại');
+  assert.equal(harness.elements['chat-submit'].disabled, false);
 });
 
 test('browser requests have a bounded timeout with a controlled error', async () => {

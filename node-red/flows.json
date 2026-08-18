@@ -1,7 +1,7 @@
 [
   {"id":"tab_mqtt","type":"tab","label":"MQTT - Validation and readiness","disabled":false,"info":"Validated MQTT ingress and broker readiness. Invalid payloads have diagnostic output only."},
   {"id":"tab_command","type":"tab","label":"Control - Auth and commands","disabled":false,"info":"Canonical Bearer auth, ownership gate, pending commands, ACK and timeout."},
-  {"id":"tab_security","type":"tab","label":"Security - Unauthorized alerts","disabled":false,"info":"Authorized window, episode detector, ALARM_ON interface and Telegram adapter are implemented by the shared runtime."},
+  {"id":"tab_security","type":"tab","label":"Security - Unauthorized alerts","disabled":false,"info":"Firmware-first one-time unlock authorization, episode detector, ALARM_ON interface and Telegram adapter are implemented by the shared runtime."},
   {"id":"tab_chat","type":"tab","label":"Assistant - Grounded chatbot","disabled":false,"info":"Protected chatbot endpoint with live cache/history adapter routing and structured Gemini context."},
   {"id":"tab_dashboard","type":"tab","label":"Dashboard - API and ownership","disabled":false,"info":"Frontend-safe config, claim and state endpoints. Static Dashboard is served at /locker; /phase2 remains a legacy alias in the FlowFuse export."},
   {"id":"tab_phase3_data","type":"tab","label":"Data - History and reports","disabled":false,"info":"Persistence, history, chart aggregation and daily email scheduler."},
@@ -24,7 +24,7 @@
   {"id":"cmd_response","type":"http response","z":"tab_command","name":"Command response","statusCode":"","headers":{},"x":820,"y":60,"wires":[]},
   {"id":"mqtt_out_link","type":"mqtt out","z":"tab_command","name":"Secure command egress","topic":"","qos":"0","retain":"false","respTopic":"","contentType":"","userProps":"","correl":"","expiry":"","broker":"broker","x":810,"y":110,"wires":[]},
   {"id":"timeout_tick","type":"inject","z":"tab_command","name":"Timeout scheduler 250 ms","props":[{"p":"payload"}],"repeat":"0.25","crontab":"","once":false,"onceDelay":"0.1","topic":"","payload":"","payloadType":"date","x":180,"y":180,"wires":[["timeout_fn"]]},
-  {"id":"timeout_fn","type":"function","z":"tab_command","name":"Expire pending; one GET_STATE max","func":"const runtime=global.get('splRuntime');if(!runtime)return null;const results=runtime.dispatcher.expire();const outbox=global.get('splOutbox')||[];const mqtt=[];while(outbox.length){const item=outbox.shift();mqtt.push({topic:item.topic,payload:JSON.stringify(item.payload),retain:false,qos:0});}return [results.length?{payload:results}:null,mqtt.length?mqtt:null];","outputs":2,"x":500,"y":180,"wires":[["timeout_debug"],["mqtt_out_link"]]},
+  {"id":"timeout_fn","type":"function","z":"tab_command","name":"Expire commands and retry event persistence","func":"const runtime=global.get('splRuntime');if(!runtime)return null;void runtime.retryPersistence().catch(error=>node.warn(`Persistence retry failed: ${error.message}`));const results=runtime.dispatcher.expire();const outbox=global.get('splOutbox')||[];const mqtt=[];while(outbox.length){const item=outbox.shift();mqtt.push({topic:item.topic,payload:JSON.stringify(item.payload),retain:false,qos:0});}return [results.length?{payload:results}:null,mqtt.length?mqtt:null];","outputs":2,"x":500,"y":180,"wires":[["timeout_debug"],["mqtt_out_link"]]},
   {"id":"timeout_debug","type":"debug","z":"tab_command","name":"Controlled timeout results","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","x":820,"y":170,"wires":[]},
 
   {"id":"security_results","type":"link in","z":"tab_security","name":"Validated security/event results","links":["validated_link"],"x":170,"y":80,"wires":[["security_result_fn"]]},
@@ -35,7 +35,7 @@
   {"id":"notification_handoff","type":"link out","z":"tab_security","name":"Notification status hook","mode":"link","links":[],"x":795,"y":150,"wires":[]},
 
   {"id":"chat_http","type":"http in","z":"tab_chat","name":"POST protected chatbot","url":"/api/v1/chatbot","method":"post","upload":false,"swaggerDoc":"","x":180,"y":80,"wires":[["chat_fn"]]},
-  {"id":"chat_fn","type":"function","z":"tab_chat","name":"Bearer + owner + classifier + grounding","func":"const runtime=global.get('splRuntime');return runtime.protectedChat({headers:msg.req.headers,body:msg.payload}).then(result=>{msg.statusCode=result.status||(result.ok?200:result.code==='LIVE_STATE_UNAVAILABLE'?409:503);msg.payload=result;return msg;});","outputs":1,"x":520,"y":80,"wires":[["chat_response"]]},
+  {"id":"chat_fn","type":"function","z":"tab_chat","name":"Bearer + owner + classifier + grounding","func":"const runtime=global.get('splRuntime');return runtime.protectedChat({headers:msg.req.headers,body:msg.payload}).then(result=>{msg.statusCode=result.status||(result.ok?200:result.code==='QUESTION_UNSUPPORTED'?422:result.code==='LIVE_STATE_UNAVAILABLE'?409:503);msg.payload=result;return msg;});","outputs":1,"x":520,"y":80,"wires":[["chat_response"]]},
   {"id":"chat_response","type":"http response","z":"tab_chat","name":"Chatbot response","statusCode":"","headers":{},"x":830,"y":80,"wires":[]},
 
   {"id":"claim_http","type":"http in","z":"tab_dashboard","name":"POST one-time claim","url":"/api/v1/lockers/claim","method":"post","upload":false,"swaggerDoc":"","x":170,"y":80,"wires":[["claim_fn"]]},

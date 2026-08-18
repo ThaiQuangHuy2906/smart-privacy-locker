@@ -1,19 +1,22 @@
-# Phase 3 automated results — 2026-08-11
+# Phase 3 automated results — revalidated 2026-08-18
 
 Branch: `develop`
 
 | Gate | Result |
 |---|---|
-| `npm test` | PASS — 145/145; 0 failed, 0 skipped, 0 todo |
-| `npm run test:simulator` | PASS — 8 assertions, 14 scenarios |
-| `npm run test:broker` | PASS — 15 assertions on authenticated loopback broker |
+| `npm test` | PASS — 177/177; 0 failed, 0 skipped, 0 todo |
+| `npm run test:simulator` | PASS — 28 assertions, 22 scenarios |
+| `npm run test:broker` | PASS — 18 assertions on authenticated loopback broker |
 | `npm run audit` | PASS — 0 configuration/secret findings |
-| `npm audit --audit-level=high` | PASS — 0 vulnerabilities |
-| generated FlowFuse artifact + deterministic artifact test | PASS — SHA-256 `ee73551fac45c79b8706f0813595c386030e3acd32ed8fb4943f641d9d58afa8` (235,945 bytes; 81 nodes; 7 tabs; 15 unique HTTP routes; no credential object) |
-| Chrome/CDP responsive DOM + visual QA | PASS — 1440 px desktop plus exact 390/320 px mobile; no card overlap or horizontal overflow; no button below 44 px; skip-link/focus, reduced-motion, conditional settings and the local-only YC12 setup panel verified |
-| `pio test -e native` | PASS — 17/17 |
-| clean `pio run -e esp32dev` | PASS — RAM 16.2%, flash 84.2% |
-| CB3 host `g++ -Wall -Wextra -Werror` smoke | PASS |
+| `npm audit --omit=dev` | PASS — 0 vulnerabilities |
+| generated FlowFuse artifact + deterministic artifact test | PASS — SHA-256 `c154c9fbd41041667678c04bfc62e0181a87c9601c35d6606d4c801e84af1d37` (266,041 bytes; 81 nodes; 7 tabs; 15 unique HTTP routes; no credential object) |
+| Chrome/CDP responsive DOM + visual QA | PASS — 18 checks at 1280×720 and exact 320×800; action gates, auth privacy, focus, effective targets, reduced motion, chart/table equivalence, 5-second polling and classic-scrollbar reflow verified |
+| `python -m platformio test -e native` | PASS — 28/28 |
+| clean `.\firmware\build-esp32.ps1` | PASS — 53,580 RAM bytes (16.4%); 1,108,145 flash bytes (84.5%) |
+| `.\arduino\sync-sketch.ps1 -Check` | PASS — 32 tracked source files match byte-for-byte |
+| isolated Arduino profile | PASS — 53,608 RAM bytes; 1,112,269 program bytes |
+| Arduino IDE-equivalent profile | NOT RERUN after auto-lock — earlier 53,600/1,111,201-byte result is historical; current mirror is covered by isolated profile + byte parity |
+| clean Wokwi build | PASS — 22,440 RAM bytes (6.8%); 322,729 flash bytes (24.6%) |
 
 The Phase 3 Node tests cover alarm ACK/state/persistence, every canonical event
 mapping, duplicate/error handling, owner gates, offline history/chart/settings,
@@ -22,7 +25,9 @@ rows, event-ID deduplication across concurrently shifted offset pages,
 timestamp-less retained availability, 7/30-day local-time aggregation,
 accessible zero buckets, email configuration preflight/content,
 bounded retry, ambiguous SMTP outcomes, restart recovery, canonical report-date
-dedupe and state-guarded database delivery transitions.
+dedupe and state-guarded database delivery transitions. Persistence health now
+retains an actionable pending/dead-letter error instead of exposing
+`status:error` with a null diagnostic after a later successful write.
 
 YC12 regressions prove that the validated `wifi_connected` state reaches the
 owner UI only while fresh, becomes `UNKNOWN` after staleness or locker-context
@@ -37,6 +42,15 @@ chart empty state. The latest regressions also prove that history, chart,
 Dashboard timestamps and YC8 database context use the selected locker's saved
 timezone, and that database-backed views/chat use longer but still bounded
 browser deadlines without leaking client-only options to `fetch`.
+
+The current firmware/simulator regressions additionally prove that one CLOSED
+door `UNLOCK` grants exactly one opening, an observed close auto-locks without a
+fake ACK, an unused grant auto-locks at the exact wrap-safe 30-second boundary,
+boot does not arm servo movement, and a later ungranted OPEN alarms. Re-arm is
+denied while OPEN. In-flight command-driven or automatic servo movement cannot
+enter a same-state success shortcut; cancellation makes lock state `UNKNOWN`.
+Reconnect bootstrap, heartbeat and deferred retained state all wait for the
+door-event FIFO so newer snapshots cannot overtake queued physical edges.
 
 The 2026-08-11 revalidation additionally covers owner-scoped automatic Telegram
 linking: private-chat-only deep links, hash-only short-lived tokens, byte-safe
@@ -56,11 +70,12 @@ compatibility alias for existing direct links; the public HTML and FlowFuse tab
 labels no longer present Phase 1/2/3 as product branding.
 
 PlatformIO Core 6.1.18 ran the native suite directly from the repository's
-Vietnamese Windows path and passed 17/17. The Xtensa clean `esp32dev` build
+Vietnamese Windows path and passed 28/28. The Xtensa clean `esp32dev` build
 reproduced a path-encoding failure there, then succeeded against the same
 unchanged source through a temporary ASCII drive mapping; the mapping was
 removed after the run. The build used the pinned
-`espressif32@6.10.0` platform. This is compile/native software evidence only; no
+`espressif32@6.10.0` platform and produced 53,580 RAM bytes plus 1,108,145
+flash bytes. This is compile/native software evidence only; no
 GPIO, active-buzzer polarity, current draw, ESP32 transport or other physical
 behavior is implied.
 

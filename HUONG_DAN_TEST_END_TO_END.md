@@ -1,16 +1,16 @@
 # Hướng dẫn kiểm thử End-to-End Smart Privacy Locker
 
-> Cập nhật: 2026-08-17
+> Cập nhật: 2026-08-18
 >
 > Trạng thái hiện tại: kiểm thử phần mềm tự động đạt; một số linh kiện đã được
 > người lắp ráp quan sát hoạt động riêng lẻ; **chưa có bằng chứng đủ để kết luận
 > toàn hệ thống E2E và tải đồng thời đạt**.
 
 Tài liệu này là quy trình kiểm thử chính thức từ lúc chưa cấp nguồn đến lúc đủ
-bằng chứng demo/nghiệm thu. Không thay thế hướng dẫn đấu dây trong
-[HUONG_DAN_LAP_MACH_THEO_THU_TU.md](HUONG_DAN_LAP_MACH_THEO_THU_TU.md), ngân
-sách nguồn trong [hardware/power-budget.md](hardware/power-budget.md), hay hợp
-đồng MQTT trong [docs/mqtt-contract.md](docs/mqtt-contract.md).
+bằng chứng demo/nghiệm thu cho prototype đã lắp xong. GPIO/calibration và gate
+nguồn hiện hành lần lượt nằm trong [hardware/pin-map.md](hardware/pin-map.md) và
+[hardware/power-budget.md](hardware/power-budget.md); hợp đồng MQTT nằm trong
+[docs/mqtt-contract.md](docs/mqtt-contract.md).
 
 ## 1. Mục tiêu và tiêu chuẩn ghi kết quả
 
@@ -50,16 +50,16 @@ nhưng chưa chứng minh ACK, state, nguồn tải đầy và phục hồi MQTT
 | DHT22 | Giá trị đã hiển thị trên OLED | `PARTIAL / USER-REPORTED` |
 | MC-38 | Đã tạo thông báo Telegram | `PARTIAL / USER-REPORTED` |
 | WS2812B | Đã sáng đúng số LED cấu hình | `PARTIAL / USER-REPORTED` |
-| SG90 | Đã chạy ở khoảng đóng `170°`, mở `80°` | `PARTIAL / USER-REPORTED` |
+| SG90 | Đã chạy chốt ở `LOCK=80°`, `UNLOCK=170°`; ảnh xác nhận cơ cấu chốt quay | `PARTIAL / USER-REPORTED` |
 | Còi LOW-trigger GPIO26 | Đã đấu VCC 3.3 V, GND và I/O qua 4.7 kΩ; trước đó chỉ xác nhận trạng thái không kích hoạt riêng lẻ | Chưa đủ bằng chứng còi phát âm, ACK/state, boot và tải đầy |
-| Adapter/jack/phân phối nguồn | Jack 5.5 × 2.5 mm đã mua; chưa có kết quả đo hoàn chỉnh | `NOT RUN` cho gate nguồn ngoài |
-| Phần mềm tự động | Native 20/20; Node 156/156; simulator 10 assertion/15 scenario; broker 17; audit 0; build ESP32/Arduino/Wokwi đạt | `PASS` trong phạm vi phần mềm |
+| Adapter/jack/phân phối nguồn | Chưa có kết quả đo hoàn chỉnh; P1-05 được người dùng chấp nhận riêng cho demo ngày 18/08/2026 | `ACCEPTED DEMO RISK`, không phải measured PASS |
+| Phần mềm tự động | Native 28/28; Node 177/177; simulator 28 assertion/22 scenario; broker 18; Chrome/CDP 18; audit 0; build ESP32/Arduino/Wokwi đạt | `PASS` trong phạm vi phần mềm |
 | E2E thật toàn hệ thống | Chưa chạy trọn bộ theo tài liệu này | `NOT RUN` |
 
-Servo hiện dùng tay đòn để trực tiếp đóng/mở cửa, không còn chốt khóa cơ khí.
-Vì vậy trạng thái logic `LOCKED` trong mã hiện có nghĩa là “đã phát lệnh servo
-đến góc đóng và hết thời gian di chuyển”, không chứng minh cửa chống bị mở và
-không chứng minh servo không kẹt. Đây là giới hạn phải nói rõ khi demo.
+Servo hiện dùng tay đòn làm chốt quay; người dùng đóng/mở cánh cửa bằng tay.
+Trạng thái logic `LOCKED` nghĩa là “chu trình servo tới góc khóa đã hết deadline
+2.000 ms”, không chứng minh chốt không kẹt. MC-38 chỉ đo tiếp điểm cửa. Đây là
+giới hạn phải nói rõ khi demo.
 
 ## 3. An toàn bắt buộc trước khi thử
 
@@ -186,20 +186,40 @@ giá trị thật là sự cố phải dừng, xóa khỏi bằng chứng và ro
 
 ## 7. Gate E1 — kiểm thử phần mềm tái lập
 
+Không chạy toàn bộ chuỗi bên dưới sau mỗi sửa đổi nhỏ. Quy trình ngắn được
+chốt như sau:
+
+1. Trong lúc sửa, chỉ chạy test trực tiếp phủ file/logic vừa đổi. Ví dụ:
+   `node --test test/dashboard-app.test.js` cho Dashboard hoặc
+   `pio test -e native -f test_door_security` cho logic cửa/chốt.
+2. Sau thay đổi chỉ ở Markdown, chỉ chạy kiểm tra link và `git diff --check`;
+   không build lại firmware hay mở Chrome.
+3. Chỉ khi chốt một release candidate mới chạy **một lần** full Node,
+   simulator, broker, browser, audit, native firmware và ESP32 build.
+4. Hai build Arduino chỉ cần chạy nếu source firmware/mirror thay đổi; không
+   chạy lại sau thay đổi Dashboard, backend hoặc tài liệu.
+5. Một gate đã PASS trên đúng source hiện tại không được chạy lặp lại chỉ để
+   “chắc thêm”; chỉ chạy lại khi file đầu vào của gate đó thay đổi hoặc lần
+   trước thất bại.
+
+Các lệnh ở 7.1–7.4 là danh mục release gate, không phải chuỗi lệnh bắt buộc cho
+mỗi lần chỉnh code.
+
 ### 7.1. Firmware native và build ESP32
 
 ```powershell
 Set-Location firmware
 pio test -e native
 pio run -e esp32dev -t clean
-pio run -e esp32dev
 Set-Location ..
+.\firmware\build-esp32.ps1
 ```
 
 Kết quả chuẩn hiện tại:
 
-- native: `20/20 PASS`;
-- build: exit code 0, khoảng `16.2% RAM`, `84.3% flash`.
+- native: `28/28 PASS`;
+- build: exit code 0, `53.580` byte RAM (`16,4%`), `1.108.145` byte flash
+  (`84,5%`).
 
 Nếu Xtensa làm hỏng đường dẫn Windows có ký tự tiếng Việt, dùng ánh xạ ổ tạm
 ASCII được mô tả trong [firmware/README.md](firmware/README.md). Đây là hạn chế
@@ -214,7 +234,7 @@ bản. Xóa ánh xạ sau khi dùng.
 .\arduino\verify-sketch.ps1
 ```
 
-Điều kiện PASS: 30 tệp production mirror khớp byte-for-byte và build profile
+Điều kiện PASS: 32 tệp production mirror khớp byte-for-byte và build profile
 pin thành công. Nếu dùng Arduino IDE GUI, chọn đúng board/options trong
 [HUONG_DAN_CHAY_HE_THONG.md](HUONG_DAN_CHAY_HE_THONG.md).
 
@@ -226,18 +246,21 @@ npm ci
 npm test
 npm run test:simulator
 npm run test:broker
+npm run test:dashboard-browser
 npm run audit
 npm audit --omit=dev --audit-level=low
+npm run docs:links
 Set-Location ..
 ```
 
 Kết quả chuẩn hiện tại:
 
-| Gate | Kết quả tham chiếu 2026-08-17 |
+| Gate | Kết quả tham chiếu 2026-08-18 |
 |---|---:|
-| `npm test` | 156/156 PASS |
-| simulator | 10 assertion / 15 scenario PASS |
-| broker cục bộ có xác thực | 17 assertion PASS |
+| `npm test` | 177/177 PASS |
+| simulator | 28 assertion / 22 scenario PASS |
+| broker cục bộ có xác thực | 18 assertion PASS |
+| Chrome/CDP local | 18 check PASS ở 1280×720 và 320×800 |
 | audit cấu hình/bí mật | 0 finding |
 | audit dependency production | 0 vulnerability |
 
@@ -254,8 +277,8 @@ Build/chạy dự án trong
 - mô phỏng dùng 1 pixel thay vì 10 pixel thật;
 - điện trở data có thể khác bản lắp 470 Ω;
 - không có MQTT/NVS/reconnect như firmware production;
-- safe boot không tự quay servo; trợ giúp và lệnh mô phỏng dùng đúng đóng
-  `170°`, mở `80°`.
+- safe boot không tự quay servo; trợ giúp và lệnh mô phỏng dùng đúng khóa chốt
+  `80°`, mở chốt `170°`.
 
 Chỉ ghi `WOKWI PASS`, không ghi `HARDWARE PASS`.
 
@@ -353,18 +376,19 @@ PASS khi cả output vật lý, ACK và state đồng ý; không flicker/sai mà
 Direct-D chỉ được chấp nhận cho đúng specimen và wiring đã test; nếu không ổn
 định, dùng level shifter phù hợp.
 
-### H2-05 — servo và cửa
+### H2-05 — servo, chốt và cửa
 
-1. Test không tải: `UNLOCK` đến `80°`, `LOCK` đến `170°`, xen kẽ 10 chu kỳ.
-2. Lắp tay đòn vào cửa; kiểm tra cơ cấu bằng tay khi tắt nguồn.
-3. Test có tải 20 chu kỳ, quay cả cửa, servo và Dashboard.
+1. Test không tải: `UNLOCK` đến `170°`, `LOCK` đến `80°`, xen kẽ 10 chu kỳ.
+2. Lắp tay đòn làm chốt; kiểm tra cơ cấu bằng tay khi tắt nguồn.
+3. Test có tải 20 chu kỳ; đóng/mở cánh cửa bằng tay và điều khiển chốt từ Dashboard.
 4. Đo sụt áp khi khởi động/đảo chiều; chạm kiểm tra nhiệt chỉ khi an toàn.
-5. Dùng MC-38 làm bằng chứng cửa thật đã OPEN/CLOSED.
+5. Dùng MC-38 làm bằng chứng cửa thật đã OPEN/CLOSED; không dùng nó làm bằng
+   chứng góc chốt.
 
 PASS khi không kẹt, rung, nóng hoặc reset; MC-38 xác nhận kết quả vật lý. ACK
 servo chỉ chứng minh firmware hoàn tất chu kỳ lệnh sau thời gian settle vì SG90
-không có feedback vị trí/dòng. Không gọi đây là khóa chống cạy nếu không có
-chốt cơ khí.
+không có feedback vị trí/dòng. Thử thêm: `LOCK` khi cửa OPEN phải bị chặn, và
+mở cửa trong lúc servo đang khóa phải hủy lệnh với `DOOR_NOT_CLOSED`.
 
 ### H2-06 — buzzer active-low
 
@@ -408,24 +432,33 @@ MC-38 → ESP32 → MQTT telemetry/state → Node-RED → Supabase/cache → Das
 ### A1 — đóng/mở hợp lệ
 
 1. Đăng nhập đúng owner, xác nhận Dashboard online/fresh.
-2. Tạo cửa sổ mở khóa hợp lệ bằng lệnh mở qua Dashboard.
-3. Đưa MC-38 sang OPEN trong cửa sổ.
-4. Đưa về CLOSED.
-5. Ghép timestamp ở serial, MQTT, Node-RED, database và Dashboard.
+2. Gửi **Mở chốt**, chờ ACK/full state `UNLOCKED`; ACK này cấp đúng một lượt
+   mở trong 30 giây.
+3. Đưa MC-38 sang OPEN: telemetry phải có `authorized=true` và không bật còi.
+4. Đưa MC-38 về CLOSED: sau 50 ms stable debounce, servo tự về `80°`; chờ full
+   state `LOCKED`. Không được có ACK mới vì đây là auto-lock cục bộ.
+5. Chỉ khi cơ khí an toàn, ép/mở lại **không gửi UNLOCK mới**: telemetry phải có
+   `authorized=false` và còi bật. Đóng lại để auto-lock lần nữa.
+6. Tắt còi, chờ `LOCKED`, gửi **Mở chốt** lần nữa; ACK mới cấp lượt mới và OPEN
+   kế tiếp hợp lệ.
+7. Gửi thêm một **Mở chốt**, giữ cửa đóng đủ 30 giây: chốt phải tự khóa đúng
+   hạn và không sinh ACK tự động.
+8. Ghép `event_id`/timestamp ở serial, MQTT, Node-RED, database và Dashboard.
 
 PASS khi event được phân loại hợp lệ, không kích hoạt báo động trái phép, lịch
 sử owner đúng và không rò dữ liệu sang user khác.
 
 ### A2 — mở trái phép
 
-1. Đảm bảo không còn cửa sổ mở khóa hợp lệ.
-2. Chuyển MC-38 CLOSED → OPEN ổn định.
+1. Đóng cửa, gửi **Khóa ngay** và chờ ACK/full state `LOCKED`.
+2. Chuyển MC-38 CLOSED → OPEN ổn định, kể cả khi MQTT bị ngắt có kiểm soát.
 3. Giữ cửa mở rồi đóng lại.
 
 PASS khi:
 
 - một episode trái phép được tạo, không nhân bản bởi bounce;
 - `ALARM_ON` được phát và còi kêu độc lập với Telegram;
+- còi cục bộ bật ngay cả khi MQTT đang mất; door event có cùng UUIDv4 khi replay;
 - Telegram gửi đúng tài khoản đã link, trạng thái delivery đúng `delivered`
   hoặc `failed`;
 - event lưu Supabase và xuất hiện đúng owner trên Dashboard;
@@ -449,16 +482,17 @@ Chạy lần lượt và dùng UUID/correlation ID riêng:
 
 | Test | Thao tác UI | Output cần quan sát | State/ACK cần đối chiếu |
 |---|---|---|---|
-| B1 | Mở cửa | SG90 đến `80°`; MC-38 sau đó OPEN | `UNLOCKED` logic + door OPEN |
-| B2 | Đóng cửa | SG90 đến `170°`; MC-38 sau đó CLOSED | `LOCKED` logic + door CLOSED |
+| B1 | Mở chốt, rồi mở cửa bằng tay | SG90 đến `170°`; MC-38 sau đó OPEN | `UNLOCKED` logic + door OPEN |
+| B2 | Đóng cửa bằng tay sau B1 | MC-38 CLOSED; SG90 tự đến `80°` sau debounce | `LOCKED` logic + door CLOSED; không có ACK mới |
 | B3 | Bật đèn | đủ 10 pixel sáng | LED ON |
 | B4 | Tắt đèn | toàn bộ pixel tắt | LED OFF |
-| B5 | Kiểm tra còi | còi kêu | alarm ACTIVE |
+| B5 | Bật còi | còi kêu | alarm ACTIVE |
 | B6 | Tắt còi | còi im | alarm INACTIVE |
 | B7 | `GET_STATE` sau reconnect | không tự làm actuator chạy | retained full state mới |
 
-Mỗi hàng chỉ PASS khi đồng thời có video output, HTTP result, ACK đúng
-`command_id`, retained state và không có reset. Nếu HTTP timeout nhưng actuator
+Mỗi hàng do command chỉ PASS khi đồng thời có video output, HTTP result, ACK
+đúng `command_id`, retained state và không có reset. Riêng B2 là hành vi cục bộ:
+PASS cần video + door/state nhưng phải xác nhận **không có ACK mới**. Nếu HTTP timeout nhưng actuator
 đã chạy, ghi `FAIL/AMBIGUOUS`, không bấm lặp vô thức: QoS0 có thể mất ACK sau
 hành động và hệ thống phải reconcile bằng `GET_STATE`.
 
@@ -563,10 +597,10 @@ Kiểm tra trên desktop 1280 × 720 và mobile 320 × 800:
 - [ ] password autocomplete đúng theo login/register;
 - [ ] không có raw enum tiếng Anh ở giao diện người dùng.
 
-Audit Chrome/CDP 2026-08-17 đã đạt cấu trúc, responsive, focus, effective
-target, reduced motion, state stale/unknown, spinner, status localization,
-auth-mode và config 503→recovery. Bộ DOM regression tương ứng nằm trong
-`npm test`. `playwright-cli 0.1.18` trên Node `v24.14.1` bị assertion upstream
+Audit Chrome/CDP 2026-08-18 đã đạt 18 check: cấu trúc, exact 320 px không tràn
+ngang với classic scrollbar, focus, effective target, reduced motion,
+action-level gates, auth privacy, biểu đồ/bảng và polling 5 giây. Bộ DOM
+regression sâu hơn nằm trong `npm test`. `playwright-cli` trên Node `v24.14.1` bị assertion upstream
 `UV_HANDLE_CLOSING` ở cả wrapper và direct command nên được ghi `UNAVAILABLE`,
 không ghi PASS. Tiêu chí tham chiếu:
 [WCAG 2.2](https://www.w3.org/TR/WCAG22/),
@@ -683,13 +717,14 @@ cách làm việc với file/artifact nằm tại
 - ảnh toàn cảnh từ trên xuống, đủ thấy cả bốn rail;
 - ảnh cận jack, cực tính, công tắc, terminal/phân phối và bảo vệ nhánh;
 - ảnh cận từng GPIO và nhãn module;
-- ảnh servo/cửa ở mở `80°` và đóng `170°`;
+- ảnh chốt servo ở `LOCK=80°` và `UNLOCK=170°`, cùng ảnh cửa OPEN/CLOSED riêng;
 - mặt trước/sau của module, exact part number, datasheet chính hãng;
 - số pixel và revision WS2812 thật;
 - sơ đồ as-built có màu dây, không chỉ sơ đồ dự kiến;
 - bảng đo điện áp/dòng ở idle, servo, LED, buzzer và tải đồng thời;
 - video boot, 20 chu kỳ, reconnect và full-load;
-- mô tả rõ đã bỏ chốt, tay servo trực tiếp đóng/mở cửa.
+- mô tả rõ tay servo là chốt quay, cửa do người dùng đóng/mở và không có cảm
+  biến góc chốt.
 
 Che SSID, mật khẩu Wi-Fi, serial number nhạy cảm và địa chỉ nhà/phòng trong ảnh.
 
@@ -735,7 +770,7 @@ Mục tiêu: chạy các gate <ID> trong HUONG_DAN_TEST_END_TO_END.md
 Cho phép: build/test/flash board COM<x>/gọi các dịch vụ ở project TEST <tên>
 Không cho phép: production, gửi người thật, commit/push/deploy ngoài scope
 Secrets: đã đặt cục bộ trong file ignore; không in giá trị
-Hardware: sơ đồ revision <x>, servo 170/80, 10 LED, buzzer active-low 3.3 V
+Hardware: sơ đồ revision <x>, servo LOCK80/UNLOCK170, 10 LED, buzzer active-low 3.3 V
 Test accounts/locker: tên định danh đã làm sạch
 Bằng chứng vật lý: nằm tại <đường dẫn workspace>
 Tiêu chí kết luận: mọi gate bắt buộc PASS; giữ nguyên mọi thay đổi chưa commit
@@ -757,16 +792,19 @@ Các trường hợp sau chỉ cho phép review hạn chế:
 
 - [ ] mọi bí mật nằm ngoài Git và ngoài ảnh/log;
 - [ ] pin map/as-built/power budget khớp sản phẩm thật;
-- [ ] jack/công tắc/phân phối nguồn đã đo và được chấp nhận;
+- [ ] jack/công tắc/phân phối nguồn đã đo, hoặc P1-05 được ghi rõ là ngoại lệ
+  demo do người dùng chấp nhận ngày 18/08/2026;
 - [ ] từng linh kiện dùng firmware release đã PASS;
-- [ ] boot an toàn và 20 chu kỳ/tải đồng thời đã PASS;
+- [ ] boot an toàn đã PASS; 20 chu kỳ/tải đồng thời đã PASS hoặc được ghi đúng
+  là phần chưa đo thuộc ngoại lệ P1-05, không giả thành PASS;
 - [ ] E2E-A và E2E-B có correlation/timestamp từ đầu đến cuối;
 - [ ] account B không đọc/điều khiển locker A;
 - [ ] Telegram/Gemini/email có success và failure an toàn;
 - [ ] reconnect/restart/stale không tạo trạng thái sai hoặc lệnh lặp;
 - [ ] UI release đã qua config-retry/stale/status/spinner/auth-mode checks; nếu
   còn hành vi cũ thì dừng và sửa version/deploy/cache;
-- [ ] báo cáo dùng thuật ngữ “tay servo đóng/mở cửa”, không tuyên bố có chốt;
+- [ ] báo cáo dùng thuật ngữ “servo khóa/mở chốt; người dùng đóng/mở cửa”,
+  không tuyên bố có feedback góc;
 - [ ] có kịch bản demo offline/fallback và bản sao bằng chứng;
 - [ ] mọi `FAIL/BLOCKED/NOT RUN` còn lại được nói trung thực.
 

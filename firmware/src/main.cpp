@@ -3,11 +3,14 @@
 #include <string.h>
 #include <time.h>
 
+#include <esp_system.h>
+
 #include "ack_publisher.h"
 #include "alarm_controller.h"
 #include "command_handler.h"
 #include "display_controller.h"
 #include "door_sensor.h"
+#include "door_security.h"
 #include "environment_monitor.h"
 #include "led_controller.h"
 #include "lock_controller.h"
@@ -28,6 +31,9 @@ EnvironmentMonitor environmentMonitor;
 DisplayController displayController;
 DoorSensor doorSensor(AppConfig::DOOR_DEBOUNCE_MS, AppConfig::MC38_CLOSED_LEVEL_HIGH);
 RecentCommandCache recentCommands(AppConfig::RECENT_COMMAND_CACHE_SIZE);
+DoorTransitionOutbox doorTransitionOutbox(AppConfig::DOOR_EVENT_OUTBOX_SIZE);
+DoorAccessController doorAccessController;
+DoorAutoLockPolicy autoLockPolicy;
 
 void writeBuzzerOutput(bool high) {
   digitalWrite(static_cast<int>(PinMap::BUZZER_CONTROL), high ? HIGH : LOW);
@@ -37,6 +43,53 @@ AlarmController alarmController(RuntimeConfig::BUZZER_ACTIVE_HIGH, writeBuzzerOu
 
 AckRecord inFlightLockAck;
 bool lockCommandInFlight = false;
+bool autoLockInFlight = false;
+bool autoLockPending = false;
+bool statePublishPending = false;
+
+bool rawDoorIsClosed();
+
+void makeEventId(char* destination, size_t capacity) {
+  if (destination == nullptr || capacity < 37) {
+    return;
+  }
+  uint8_t bytes[16] = {};
+  esp_fill_random(bytes, sizeof(bytes));
+  bytes[6] = static_cast<uint8_t>((bytes[6] & 0x0F) | 0x40);
+  bytes[8] = static_cast<uint8_t>((bytes[8] & 0x3F) | 0x80);
+  snprintf(destination, capacity,
+           "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+           bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+           bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]);
+}
+
+void flushDoorTransitionOutbox() {
+  if (!mqttClient.isConnected()) {
+    return;
+  }
+  const DoorTransitionRecord* record = doorTransitionOutbox.front();
+  if (record == nullptr) {
+    return;
+  }
+  if (mqttClient.publishDoorTransition(record->previous, record->current,
+                                       record->timeSynced ? record->timestamp : nullptr,
+                                       record->timeSynced, record->eventId, record->access)) {
+    doorTransitionOutbox.pop();
+  }
+}
+
+void requestStatePublish() { statePublishPending = true; }
+
+void flushPendingStatePublish() {
+  if (!statePublishPending || !doorTransitionOutbox.empty() || !mqttClient.isConnected()) {
+    return;
+  }
+  if (mqttClient.publishState(stateManager.current(), true)) {
+    statePublishPending = false;
+  } else {
+    Serial.println("MQTT pending state publish failed");
+  }
+}
 
 bool expectedCommandTopic(const char* topic) {
   char expected[96] = {};
@@ -80,6 +133,10 @@ const char* errorMessage(CommandError error) {
       return "locker_id does not match the command topic/device";
     case CommandError::STALE_COMMAND:
       return "Command is outside the accepted age window";
+    case CommandError::DOOR_NOT_CLOSED:
+      return "Close the door before locking the latch";
+    case CommandError::DOOR_NOT_CLOSED_FOR_ACCESS:
+      return "Close the door before granting another opening";
     case CommandError::ACTUATION_FAILED:
       return "Requested actuator is unavailable or busy";
     default:
@@ -94,9 +151,10 @@ void publishAckAndState(const AckRecord& record, bool duplicate) {
     Serial.println("MQTT ACK publish failed; command will require timeout reconciliation");
   }
   if (!duplicate) {
-    if (!mqttClient.publishState(stateManager.current(), true)) {
-      Serial.println("MQTT state publish failed after command handling");
-    }
+    // Keep ACK latency low, but do not let a newer retained state overtake a
+    // queued door edge. The main loop publishes the state as soon as the FIFO
+    // has drained.
+    requestStatePublish();
   }
 }
 
@@ -180,9 +238,47 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
   }
 
   if (parsed.command.action == CommandAction::LOCK || parsed.command.action == CommandAction::UNLOCK) {
-    if (!lockController.start(parsed.command.action == CommandAction::LOCK ? LockState::LOCKED
-                                                                            : LockState::UNLOCKED,
-                              millis())) {
+    const LockState desiredState = parsed.command.action == CommandAction::LOCK
+        ? LockState::LOCKED : LockState::UNLOCKED;
+    if (desiredState == LockState::LOCKED) {
+      // A lock request immediately revokes any unused one-time opening grant,
+      // including when the movement later fails its door interlock.
+      doorAccessController.revoke();
+    }
+    if (lockCommandInFlight || lockController.isBusy()) {
+      rememberAndPublish(makeAck(parsed.command, AckResult::ERROR,
+                                 CommandError::ACTUATION_FAILED,
+                                 errorMessage(CommandError::ACTUATION_FAILED)));
+      return;
+    }
+    if (desiredState == LockState::LOCKED
+        && (stateManager.current().door != DoorState::CLOSED || !rawDoorIsClosed())) {
+      rememberAndPublish(makeAck(parsed.command, AckResult::ERROR, CommandError::DOOR_NOT_CLOSED,
+                                 errorMessage(CommandError::DOOR_NOT_CLOSED)));
+      return;
+    }
+    if (desiredState == LockState::UNLOCKED
+        && (stateManager.current().door != DoorState::CLOSED || !rawDoorIsClosed())) {
+      // An ACKed UNLOCK must always create a usable one-time opening grant.
+      // Rejecting here also prevents any stale grant from surviving an open-door request.
+      doorAccessController.revoke();
+      rememberAndPublish(makeAck(parsed.command, AckResult::ERROR,
+                                 CommandError::DOOR_NOT_CLOSED_FOR_ACCESS,
+                                 errorMessage(CommandError::DOOR_NOT_CLOSED_FOR_ACCESS)));
+      return;
+    }
+    autoLockPolicy.disarm();
+    autoLockPending = false;
+    if (stateManager.current().lock == desiredState) {
+      if (desiredState == LockState::UNLOCKED) {
+        // Repeating UNLOCK does not move the servo; it deliberately grants one
+        // new opening after the universal closed-door check above.
+        doorAccessController.grantNextOpen(stateManager.current().door, millis());
+      }
+      rememberAndPublish(makeAck(parsed.command, AckResult::SUCCESS, CommandError::NONE, ""));
+      return;
+    }
+    if (!lockController.start(desiredState, millis())) {
       rememberAndPublish(makeAck(parsed.command, AckResult::ERROR, CommandError::ACTUATION_FAILED,
                                  errorMessage(CommandError::ACTUATION_FAILED)));
       return;
@@ -193,6 +289,129 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
   }
 
   handleImmediateCommand(parsed.command);
+}
+
+bool isLatchActuationInFlight() {
+  return lockCommandInFlight || autoLockInFlight || lockController.isBusy();
+}
+
+void cancelInFlightLatch() {
+  const bool commandOperation = lockCommandInFlight;
+  lockController.cancel();
+  // Once a servo has started moving and is detached early, its old logical
+  // position is no longer trustworthy. Force the next LOCK/UNLOCK to move the
+  // latch to a newly confirmed endpoint instead of taking a same-state no-op.
+  stateManager.setLock(LockState::UNKNOWN);
+  doorAccessController.revoke();
+  if (commandOperation) {
+    const CommandError doorError = inFlightLockAck.action == CommandAction::UNLOCK
+        ? CommandError::DOOR_NOT_CLOSED_FOR_ACCESS : CommandError::DOOR_NOT_CLOSED;
+    inFlightLockAck.result = AckResult::ERROR;
+    inFlightLockAck.error = doorError;
+    inFlightLockAck.state = stateManager.current();
+    copyText(inFlightLockAck.errorMessage, sizeof(inFlightLockAck.errorMessage),
+             errorMessage(doorError));
+    rememberAndPublish(inFlightLockAck);
+  } else {
+    requestStatePublish();
+  }
+  lockCommandInFlight = false;
+  autoLockInFlight = false;
+  autoLockPending = false;
+  Serial.println("Latch actuation cancelled because the door opened");
+}
+
+bool rawDoorIsClosed() {
+  const bool electricalHigh = digitalRead(static_cast<int>(PinMap::MC38_DOOR_SENSOR)) == HIGH;
+  return electricalHigh == AppConfig::MC38_CLOSED_LEVEL_HIGH;
+}
+
+void tryStartPendingAutoLock(unsigned long now) {
+  if (!autoLockPending) {
+    return;
+  }
+  if (stateManager.current().door != DoorState::CLOSED) {
+    autoLockPending = false;
+    return;
+  }
+  // Keep the request pending across a sub-debounce raw HIGH/LOW glitch. A real
+  // stable OPEN clears it above and the following stable CLOSE requests a new
+  // auto-lock, so the servo is never deliberately driven against an open door.
+  if (!rawDoorIsClosed()) {
+    return;
+  }
+  if (lockCommandInFlight || autoLockInFlight || lockController.isBusy()) {
+    return;
+  }
+  if (stateManager.current().lock == LockState::LOCKED) {
+    autoLockPending = false;
+    return;
+  }
+  if (!lockController.start(LockState::LOCKED, now)) {
+    autoLockPending = false;
+    Serial.println("Automatic latch lock could not start");
+    requestStatePublish();
+    return;
+  }
+  autoLockPending = false;
+  autoLockInFlight = true;
+  Serial.println("Automatic latch lock started after stable door close");
+}
+
+void startAutoLock(unsigned long now) {
+  autoLockPolicy.disarm();
+  doorAccessController.revoke();
+  if (stateManager.current().door != DoorState::CLOSED) {
+    return;
+  }
+  autoLockPending = true;
+  tryStartPendingAutoLock(now);
+}
+
+void processDoorSensor(unsigned long now) {
+  DoorTransition doorTransition;
+  if (!doorSensor.sample(digitalRead(static_cast<int>(PinMap::MC38_DOOR_SENSOR)) == HIGH,
+                         now, &doorTransition)) {
+    return;
+  }
+
+  stateManager.setDoor(doorTransition.current);
+  if (!doorTransition.initialStableSample) {
+    if (doorTransition.current != DoorState::CLOSED) {
+      autoLockPending = false;
+    }
+    if (shouldCancelLatchActuation(doorTransition.current, isLatchActuationInFlight())) {
+      cancelInFlightLatch();
+    }
+    const DoorAccessResult access = doorAccessController.evaluateTransition(
+        doorTransition.previous, doorTransition.current,
+        stateManager.current().lock, now);
+    const bool shouldAutoLock = autoLockPolicy.observeTransition(
+        doorTransition.previous, doorTransition.current);
+    if (access == DoorAccessResult::UNAUTHORIZED
+        && stateManager.current().alarm != AlarmState::ACTIVE) {
+      if (alarmController.setActive(true)) {
+        stateManager.setAlarm(AlarmState::ACTIVE);
+        Serial.println("Local unauthorized-open alarm activated");
+      } else {
+        Serial.println("Local unauthorized-open alarm actuation failed");
+      }
+    }
+    DoorTransitionRecord record;
+    record.previous = doorTransition.previous;
+    record.current = doorTransition.current;
+    record.access = access;
+    record.timeSynced = formatUtcTimestamp(record.timestamp, sizeof(record.timestamp));
+    makeEventId(record.eventId, sizeof(record.eventId));
+    if (!doorTransitionOutbox.enqueue(record)) {
+      Serial.println("Door event outbox full; local alarm/state remain active");
+    }
+    flushDoorTransitionOutbox();
+    if (shouldAutoLock) {
+      startAutoLock(now);
+    }
+  }
+  requestStatePublish();
 }
 
 void processUsbMaintenanceCommand() {
@@ -235,37 +454,50 @@ void loop() {
   processUsbMaintenanceCommand();
   wifiProvisioning.tick();
   stateManager.setWifiConnected(wifiProvisioning.isConnected());
-  mqttClient.tick(now, stateManager);
+  mqttClient.tick(now, stateManager, doorTransitionOutbox.empty());
+  // Sample the debounced door before completing any in-flight latch move. If the
+  // door opened during servo travel, cancel and report the interlock failure.
+  processDoorSensor(millis());
+  flushDoorTransitionOutbox();
+
+  const bool rawDoorClosed = rawDoorIsClosed();
+  if (isLatchActuationInFlight() && !rawDoorClosed) {
+    // The raw edge is used only as a fail-safe interlock. User-visible door
+    // state and events still require the normal stable debounce path.
+    cancelInFlightLatch();
+  }
 
   // mqttClient.tick() can synchronously start the servo from its MQTT callback.
   // Refresh the timestamp so elapsed time is never calculated from a value
   // captured before LockController::start().
   const unsigned long actuatorNow = millis();
-  LockState completedLockState = LockState::UNKNOWN;
-  if (lockController.tick(actuatorNow, &completedLockState) && lockCommandInFlight) {
-    stateManager.setLock(completedLockState);
-    inFlightLockAck.state = stateManager.current();
-    rememberAndPublish(inFlightLockAck);
-    lockCommandInFlight = false;
+  if (doorAccessController.expireIfDue(actuatorNow)
+      && stateManager.current().door == DoorState::CLOSED) {
+    startAutoLock(actuatorNow);
   }
+  tryStartPendingAutoLock(actuatorNow);
+  LockState completedLockState = LockState::UNKNOWN;
+  if (lockController.tick(actuatorNow, &completedLockState)
+      && (lockCommandInFlight || autoLockInFlight)) {
+    stateManager.setLock(completedLockState);
+    if (completedLockState == LockState::UNLOCKED) {
+      doorAccessController.grantNextOpen(stateManager.current().door, actuatorNow);
+    } else {
+      doorAccessController.revoke();
+    }
+    if (lockCommandInFlight) {
+      inFlightLockAck.state = stateManager.current();
+      rememberAndPublish(inFlightLockAck);
+    } else if (autoLockInFlight) {
+      requestStatePublish();
+      Serial.println("Automatic latch lock completed");
+    }
+    lockCommandInFlight = false;
+    autoLockInFlight = false;
+  }
+
+  flushPendingStatePublish();
 
   environmentMonitor.tick(now);
   displayController.tick(now, environmentMonitor.latest(), stateManager.current());
-
-  DoorTransition doorTransition;
-  if (doorSensor.sample(digitalRead(static_cast<int>(PinMap::MC38_DOOR_SENSOR)) == HIGH,
-                        now, &doorTransition)) {
-    stateManager.setDoor(doorTransition.current);
-    if (!doorTransition.initialStableSample) {
-      char timestamp[25] = {};
-      const bool timeSynced = formatUtcTimestamp(timestamp, sizeof(timestamp));
-      if (!mqttClient.publishDoorTransition(doorTransition.previous, doorTransition.current,
-                                            timeSynced ? timestamp : nullptr, timeSynced)) {
-        Serial.println("MQTT door telemetry publish failed");
-      }
-    }
-    if (!mqttClient.publishState(stateManager.current(), true)) {
-      Serial.println("MQTT state publish failed after door sample");
-    }
-  }
 }

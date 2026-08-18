@@ -10,8 +10,8 @@ development-project P3-M04 owner-isolation/history gate passes. P3-M05's
 7/30-day, empty-bucket and local-midnight owner paths also pass.
 
 Those deployed/live PASS statements refer to their sanitized historical test
-records. The 2026-08-17 audit reran the automated suite but did not mutate or
-rebuild the external Supabase project; a release-candidate project must rerun
+records. The 2026-08-18 local audit reran the automated suite but did not mutate
+or rebuild the external Supabase project; a release-candidate project must rerun
 the User A/User B/RLS gates in
 [../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md).
 
@@ -23,10 +23,18 @@ to Node-RED carries the current Supabase access token in the HTTP Authorization
 header. There is no custom session, cookie fallback, query-string token, client
 `user_id`, or MQTT route.
 
-The current Dashboard requests public config only once at startup. A transient
-503 can leave the page in “chưa cấu hình” until a manual reload; this is a
-confirmed UI availability finding, not an authorization fallback. Do not
-hard-code keys or bypass the Bearer/owner gate to work around it.
+`AuthGate` keeps only bounded, 15-second authentication/ownership cache entries
+and keys them with SHA-256 digests rather than raw access tokens. Read-only
+history/chart/chat routes may reuse a valid cache entry. Commands, claim,
+settings writes and Telegram link/disconnect/test mutations force a fresh
+provider verification; a successful claim clears both caches. This reduces
+provider load without allowing a cached ownership result to authorize a new
+side effect.
+
+The Dashboard retries `/api/v1/public-config` every five seconds while its auth
+controls remain disabled. A transient provider/backend failure therefore
+recovers automatically without weakening the authorization boundary. Do not
+hard-code keys or bypass the Bearer/owner gate to work around an outage.
 
 Node-RED calls `GET {SUPABASE_URL}/auth/v1/user` with the anon key and received
 Bearer token. The returned `user.id` is the only trusted identity. It then

@@ -1,12 +1,15 @@
 # Power budget and combined-load acceptance
 
-**Status: unmeasured worksheet — not permission to energize the full build.**
-Individual functions were reported working on 2026-08-17, but the jack,
-distribution, switch and combined-load rails have not yet produced the required
-measurements. The candidate architecture uses a regulated 5 V / 3 A SELV
-supply for SG90 and WS2812B, while ESP32 remains on its separate USB supply.
-The 5 V / 3 A rating is accepted only after the exact-part values and real
-measurements below show adequate margin.
+**Status: P1-05 is an explicitly accepted demo-only risk as of 2026-08-18.**
+This worksheet remains unmeasured. The user's acceptance means it is not a
+software/demo blocker for the current prototype; it does **not** establish
+electrical margin, long-duration reliability or suitability for unattended or
+public deployment. Reopen this gate before changing the wiring/supply, running
+long demonstrations, or presenting the build as electrically validated.
+
+The candidate architecture uses a regulated 5 V / 3 A SELV supply for SG90 and
+WS2812B, while ESP32 remains on its separate USB supply. The 5 V / 3 A label is
+not a measured result.
 
 Use Gate H1 and Gate L in
 [../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md) to collect the
@@ -56,12 +59,12 @@ the servo; an accidental/mechanical-limit test must be immediately stopped.
 | ESP32 idle, peripherals connected | TBD | TBD | TBD | TBD | TBD | TBD | P1-M03 |
 | Wi-Fi + MQTT reconnect | TBD | TBD | TBD | TBD | TBD | TBD | P1-M03/P1-M09 |
 | Servo no-load travel | TBD | TBD | TBD | TBD | TBD | TBD | P1-M01/P1-M03 |
-| Servo installed door close/open (`170°`/`80°`) | TBD | TBD | TBD | TBD | TBD | TBD | P1-M02/P1-M03 |
+| Servo moves latch lock/unlock (`80°`/`170°`) | TBD | TBD | TBD | TBD | TBD | TBD | P1-M02/P1-M03 |
 | WS2812 configured maximum | TBD | TBD | TBD | TBD | TBD | TBD | P1-M07 |
 | Buzzer active | TBD | TBD | TBD | TBD | TBD | TBD | P3-M01–M03 |
 | Servo + LED + buzzer + radio combined | TBD | TBD | TBD | TBD | TBD | TBD | full-load final gate |
 
-## Pass conditions
+## Pass conditions for any future scope beyond the accepted demo risk
 
 The combined-load gate passes only when all of the following are recorded:
 

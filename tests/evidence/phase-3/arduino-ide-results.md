@@ -1,4 +1,4 @@
-# Arduino IDE conversion evidence — 2026-08-14; revalidated 2026-08-15
+# Arduino IDE conversion evidence — 2026-08-14; revalidated 2026-08-18
 
 ## Scope and environment
 
@@ -27,12 +27,12 @@ Commands actually run from the repository:
 
 Result: **PASS**.
 
-- 30 production `.cpp`/`.h` source files matched the `firmware/` source of
+- 32 production `.cpp`/`.h` source files matched the `firmware/` source of
   truth byte-for-byte by SHA-256 comparison.
 - The sketch compiled directly from the repository path containing Vietnamese
   characters.
-- Program storage: 1,107,893 / 1,310,720 bytes (84%).
-- Global variables: 52,968 / 327,680 bytes (16%).
+- Program storage after the auto-lock correction: 1,112,269 / 1,310,720 bytes (84%).
+- Global variables: 53,608 / 327,680 bytes (16%).
 - No compiler error was ignored.
 
 The profile build automatically used the versions pinned in
@@ -50,14 +50,16 @@ The Arduino IDE global environment was prepared with:
 .\arduino\verify-arduino-ide.ps1
 ```
 
-Result: **PASS**.
+Result: **HISTORICAL PASS BEFORE AUTO-LOCK; NOT RERUN FOR THE CURRENT SOURCE**.
 
 - Global Arduino-ESP32 core: 2.0.17.
 - Every listed direct/transitive library matched the release versions. Because
   installing SSD1306 selected a newer compatible GFX transitively, setup pins
   Adafruit GFX Library 1.12.1 again as its final step.
-- GUI-equivalent program storage: 1,107,681 / 1,310,720 bytes (84%).
-- GUI-equivalent global variables: 52,960 / 327,680 bytes (16%).
+- Historical GUI-equivalent program storage: 1,111,201 / 1,310,720 bytes (84%).
+- Historical GUI-equivalent global variables: 53,600 / 327,680 bytes (16%).
+- Current source is verified by the byte-identical 32-file mirror and isolated
+  pinned profile above; do not cite these older GUI numbers as the current binary.
 - The earlier Unicode library-discovery failure from the default OneDrive
   Documents path was avoided by using the Arduino IDE's configured ASCII
   Sketchbook path.
@@ -75,15 +77,15 @@ python -X utf8 -m platformio run -e esp32dev
 
 Result: **PASS**.
 
-- Native suite: 17/17.
-- ESP32 build RAM: 52,940 / 327,680 bytes (16.2%).
-- ESP32 build flash: 1,103,737 / 1,310,720 bytes (84.2%).
+- Native suite: 28/28.
+- ESP32 build RAM: 53,580 / 327,680 bytes (16.4%).
+- ESP32 build flash: 1,108,145 / 1,310,720 bytes (84.5%).
 
 The application MQTT packet size is now a shared
 `RuntimeConfig::MQTT_PACKET_SIZE = 1024`; PubSubClient buffer allocation is
 checked at runtime instead of depending on a PlatformIO-only compiler flag.
 
-## Adjacent software regression recheck
+## Adjacent software regression recheck — 2026-08-18
 
 The existing Node-RED/FlowFuse software gates were rerun after the Arduino IDE
 conversion:
@@ -99,14 +101,14 @@ npm run build:flowfuse
 
 Result: **PASS**.
 
-- Node tests: 145/145; 0 failed, skipped or todo.
-- Deterministic simulator: 8 assertions across 14 scenarios.
-- Authenticated loopback MQTT broker: 15 assertions.
+- Node tests: 177/177; 0 failed, skipped or todo.
+- Deterministic simulator: 28 assertions across 22 scenarios.
+- Authenticated loopback MQTT broker: 18 assertions.
 - Configuration/secret audit: 0 findings.
 - Dependency audit: 0 vulnerabilities.
-- FlowFuse export regeneration preserved SHA-256
-  `ee73551fac45c79b8706f0813595c386030e3acd32ed8fb4943f641d9d58afa8`
-  and size 235,945 bytes.
+- FlowFuse export regeneration produced deterministic SHA-256
+  `c154c9fbd41041667678c04bfc62e0181a87c9601c35d6606d4c801e84af1d37`
+  and size 266,041 bytes.
 
 Supabase CLI and Docker were unavailable in the local environment, so the
 clean database rebuild and pgTAP migration tests were not rerun. This is the

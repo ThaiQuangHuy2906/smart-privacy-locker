@@ -1,7 +1,8 @@
 # Smart Privacy Locker Dashboard behavior
 
-> Audit 2026-08-17: responsive/keyboard/focus/target/live-region/reduced-motion
-> checks passed in Chrome at 1280×720 and 320×800. Regression coverage also
+> Audit 2026-08-18: responsive/keyboard/focus/target/live-region/reduced-motion
+> checks passed in Chrome at 1280×720 and an exact 320×800 window with classic
+> scrollbars. Regression coverage also
 > confirms startup retry, localized status labels, stale/no-data truthfulness,
 > visible pending feedback and the login/register mode contract. This is
 > software evidence only; it does not replace the final physical E2E run.
@@ -20,7 +21,7 @@ single-flight provider-outage-safe refresh, no protected polling with a known-ex
 access token, local-first logout, operation-specific bounded browser requests,
 serialized/coalesced state polling,
 one-time locker claim, distinct MQTT/ESP32 state, live-state freshness, pending
-controls, Telegram delivery status, CB3 **Kiểm tra còi/Tắt còi**
+controls, Telegram delivery status, CB3 **Bật còi/Tắt còi**
 (`ALARM_ON/OFF`), YC4 recent
 history, YC5 7/30-day chart, YC7 notification settings, and the YC8 chat interface. It never contains MQTT credentials
 and never publishes MQTT. A command remains `PENDING` after HTTP acceptance;
@@ -34,6 +35,19 @@ physical-command request timeout is shown as an ambiguous result and is never
 retried automatically. Commands in the same actuator domain are locked
 together while one request is pending, and a response from an older
 session/locker generation cannot re-enable them.
+
+The backend exposes an action-level decision for each button. A same-state
+action is normally disabled as a no-op; `UNLOCK` is the deliberate exception
+when MC-38 is `CLOSED`: it grants exactly one new opening and does not move the
+servo when the latch is already `UNLOCKED`. Every `UNLOCK` is disabled while
+the door is open with `DOOR_NOT_CLOSED_FOR_ACCESS`, regardless of the current
+logical latch state. `LOCK` is also disabled until MC-38 says the door is
+`CLOSED`; its user-facing label is **Khóa ngay** because normal closing after an
+opening already triggers local auto-lock. The control hint explains the
+30-second unused-grant expiry and asks the user to wait for confirmed `LOCKED`
+before requesting another opening. State polling is serialized at 5 seconds while the tab is
+visible and 15 seconds while hidden. Telegram-link polling starts at 2 seconds,
+then backs off to 5 and 10 seconds for longer operations.
 
 Telegram setup is owner-driven but does not expose provider identifiers. The
 Dashboard requests a short-lived link for the selected owned locker, opens the
@@ -72,22 +86,27 @@ these source files directly after import.
 
 ## Audit corrections and remaining physical limitation
 
-The 2026-08-17 correction pass closed the confirmed Dashboard findings:
+The 2026-08-18 correction pass closed the confirmed Dashboard findings:
 
 1. every known command and Telegram-delivery status has a Vietnamese label,
    with a safe unknown fallback instead of a raw enum;
-2. pending controls retain a visible, independently colored spinner;
+2. pending controls retain a visible, independently colored 17 px spinner,
+   centered on only the requested button while both same-domain controls remain
+   disabled;
 3. `/api/v1/public-config` retries every five seconds while authentication
    remains disabled, then recovers without a manual reload;
 4. missing or stale lock/alarm/LED values render as unknown and controls stay
    disabled;
 5. the auth form has one unambiguous submit action; registration alone exposes
    the full-name field and uses `autocomplete="new-password"`;
-6. user-facing actuator language says the SG90 arm closes/opens the door while
-   the frozen MQTT v1 enums remain `LOCK`/`UNLOCK` and `LOCKED`/`UNLOCKED` for
-   compatibility.
+6. user-facing actuator language says the user moves the door and the SG90
+   locks/unlocks the latch, including local lock-on-close/expiry; frozen MQTT
+   v1 enums remain compatible;
+7. authenticated sessions hide credential inputs and avoid transport jargon;
+8. action-level reasons, duplicate-submit prevention, progressive polling,
+   visible chart values/table and exact-width reflow are verified by tests.
 
-The as-built SG90 arm is still open-loop and has no latch/position feedback.
+The as-built SG90 latch is still open-loop and has no position feedback.
 A success ACK confirms that firmware completed the requested servo sequence; it
 does not prove that a jammed or disconnected mechanism physically reached its
 position. Keep that limitation explicit in the final report and physical test.

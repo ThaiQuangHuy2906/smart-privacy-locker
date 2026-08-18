@@ -6,6 +6,8 @@ const configRetryMs = 5_000;
 const requestTimeoutMs = 15_000;
 const dataRequestTimeoutMs = 30_000;
 const chatbotRequestTimeoutMs = 40_000;
+const statePollVisibleMs = 5_000;
+const statePollHiddenMs = 15_000;
 let config = null;
 let session = null;
 let sessionEpoch = 0;
@@ -15,6 +17,7 @@ let refreshTimer = null;
 let refreshRequest = null;
 let pollInFlight = null;
 let pollRequested = 0;
+let statePollTimer = null;
 let chatRequestGeneration = 0;
 let authRequestGeneration = 0;
 let claimRequestGeneration = 0;
@@ -35,13 +38,13 @@ const statusLabels = {
   device: { ONLINE: 'Đang hoạt động', OFFLINE: 'Ngoại tuyến' },
   wifi: { CONNECTED: 'Đã kết nối', DISCONNECTED: 'Chưa kết nối', UNKNOWN: 'Chưa xác định' },
   door: { OPEN: 'Đang mở', CLOSED: 'Đang đóng', UNKNOWN: 'Chưa xác định' },
-  lock: { LOCKED: 'Servo ở vị trí đóng', UNLOCKED: 'Servo ở vị trí mở', UNKNOWN: 'Chưa xác nhận vị trí' },
+  lock: { LOCKED: 'Đã ra lệnh khóa chốt', UNLOCKED: 'Đã ra lệnh mở chốt', UNKNOWN: 'Chưa xác nhận lệnh chốt' },
   alarm: { ACTIVE: 'Đang bật', INACTIVE: 'Đang tắt', UNKNOWN: 'Chưa xác định' },
   led: { ON: 'Đang bật', OFF: 'Đang tắt', UNKNOWN: 'Chưa xác định' },
 };
 const actionLabels = {
-  LOCK: 'Đóng cửa',
-  UNLOCK: 'Mở cửa',
+  LOCK: 'Khóa ngay',
+  UNLOCK: 'Mở chốt',
   ALARM_ON: 'Bật còi',
   ALARM_OFF: 'Tắt còi',
   LED_ON: 'Bật đèn',
@@ -52,9 +55,9 @@ const eventTypeLabels = {
   DOOR_OPENED: 'Cửa được mở',
   DOOR_CLOSED: 'Cửa đã đóng',
   DOOR_UNKNOWN: 'Trạng thái cửa chưa xác định',
-  LOCK_COMMAND: 'Yêu cầu đóng cửa',
-  UNLOCK_COMMAND: 'Yêu cầu mở cửa',
-  LOCK_STATE_CHANGED: 'Vị trí tay servo thay đổi',
+  LOCK_COMMAND: 'Yêu cầu khóa chốt',
+  UNLOCK_COMMAND: 'Yêu cầu mở chốt',
+  LOCK_STATE_CHANGED: 'Trạng thái lệnh chốt thay đổi',
   ALARM_STARTED: 'Còi cảnh báo đã bật',
   ALARM_STOPPED: 'Còi cảnh báo đã tắt',
   LED_TURNED_ON: 'Đèn trong tủ đã bật',
@@ -81,6 +84,20 @@ const commandStatusLabels = {
   MQTT_DISCONNECTED: 'Mất kết nối MQTT',
   COMMAND_SUCCEEDED: 'Thiết bị đã thực hiện thành công',
   COMMAND_FAILED: 'Thiết bị báo thực hiện thất bại',
+  ALREADY_IN_STATE: 'Trạng thái đã đúng, không gửi lại lệnh',
+  DOOR_NOT_CLOSED: 'Cửa chưa đóng nên không thể khóa chốt',
+  DOOR_NOT_CLOSED_FOR_ACCESS: 'Đóng cửa trước khi cấp lượt mở mới',
+};
+const controlReasonLabels = {
+  AUTH_REQUIRED: 'Cần đăng nhập',
+  LOCKER_FORBIDDEN: 'Tài khoản không sở hữu tủ này',
+  MQTT_DISCONNECTED: 'Máy chủ đang mất kết nối MQTT',
+  DEVICE_OFFLINE: 'Thiết bị đang ngoại tuyến',
+  STATE_UNTRUSTED: 'Trạng thái thiết bị chưa đủ mới để điều khiển',
+  PENDING_CONFLICT: 'Đang chờ thiết bị xác nhận lệnh trước',
+  DOOR_NOT_CLOSED: 'Hãy đóng cánh cửa bằng tay trước khi khóa ngay',
+  DOOR_NOT_CLOSED_FOR_ACCESS: 'Hãy đóng cửa trước khi cấp lượt mở mới',
+  ALREADY_IN_STATE: 'Trạng thái này đã được ghi nhận',
 };
 const notificationStatusLabels = {
   delivered: 'đã gửi',
@@ -89,11 +106,15 @@ const notificationStatusLabels = {
   duplicate_suppressed: 'đã bỏ qua bản trùng',
   rate_limited: 'tạm hoãn do giới hạn tần suất',
 };
-function message(id, text) { $(id).textContent = text; }
+function setText(element, text) {
+  const value = String(text ?? '');
+  if (element.textContent !== value) element.textContent = value;
+}
+function message(id, text) { setText($(id), text); }
 function renderStatus(id, rawValue = 'UNKNOWN') {
   const normalized = String(rawValue || 'UNKNOWN').toUpperCase();
   const element = $(id);
-  element.textContent = statusLabels[id]?.[normalized] || 'Chưa xác định';
+  setText(element, statusLabels[id]?.[normalized] || 'Chưa xác định');
   element.dataset.state = normalized.toLowerCase();
 }
 function actionLabel(action) { return actionLabels[action] || 'Lệnh chưa xác định'; }
@@ -101,15 +122,16 @@ function notificationStatusLabel(status) {
   return notificationStatusLabels[status] || (status ? 'chưa xác định' : 'đang xử lý');
 }
 
-function setAuthMode(mode) {
+function setAuthMode(mode, { focus = false } = {}) {
   const registering = mode === 'register';
   $('auth-form').dataset.mode = registering ? 'register' : 'login';
   $('full-name-field').hidden = !registering;
   $('full-name').required = registering;
   $('password').autocomplete = registering ? 'new-password' : 'current-password';
-  $('auth-submit').textContent = registering ? 'Đăng ký' : 'Đăng nhập';
-  $('auth-mode-toggle').textContent = registering ? 'Quay lại đăng nhập' : 'Tạo tài khoản mới';
-  $('auth-mode-toggle').setAttribute('aria-pressed', registering ? 'true' : 'false');
+  setText($('auth-submit'), registering ? 'Đăng ký' : 'Đăng nhập');
+  setText($('auth-mode-toggle'), registering ? 'Quay lại đăng nhập' : 'Tạo tài khoản mới');
+  $('auth-mode-toggle').removeAttribute('aria-pressed');
+  if (focus) (registering ? $('full-name') : $('email')).focus?.();
 }
 
 function setAuthConfigReady(ready) {
@@ -142,13 +164,34 @@ function hasAuthenticatedLockerSelection() {
   return Boolean(session?.access_token) && lockerId().length > 0;
 }
 
+function syncCapabilities() {
+  const authenticated = Boolean(session?.access_token);
+  const selected = lockerId().length > 0;
+  const hasLiveContext = hasRenderedContext();
+  const claimPending = $('claim-form').dataset.pending === 'true';
+  const chatPending = $('chat-form').dataset.pending === 'true';
+  const dataPending = $('refresh-phase3').dataset.pending === 'true';
+
+  $('claim-button').disabled = !authenticated || claimPending || !$('locker-code').value.trim();
+  $('chat-submit').disabled = !hasLiveContext || chatPending;
+  $('range-days').disabled = !authenticated || !selected || dataPending;
+  $('refresh-phase3').disabled = !authenticated || !selected || dataPending;
+
+  message('chat-hint', hasLiveContext
+    ? (chatPending ? 'Đang xử lý câu hỏi hiện tại.' : 'Trợ lý chỉ dùng dữ liệu của tủ đang xem.')
+    : 'Đăng nhập và chờ trạng thái tủ được xác minh để đặt câu hỏi.');
+  message('data-access-hint', authenticated && selected
+    ? 'Lịch sử vẫn có thể xem khi thiết bị ngoại tuyến.'
+    : 'Đăng nhập và chọn mã tủ để tải lịch sử.');
+  syncNotificationFields();
+}
+
 function clearPhase3State() {
   phase3RequestGeneration += 1;
   settingsRequestGeneration += 1;
   telegramOperationGeneration += 1;
   clearTimeout(telegramLinkPollTimer);
   telegramLinkPollTimer = null;
-  $('refresh-phase3').disabled = false;
   $('refresh-phase3').dataset.pending = 'false';
   $('refresh-phase3').setAttribute('aria-busy', 'false');
   $('settings-form').dataset.pending = 'false';
@@ -180,6 +223,7 @@ function clearPhase3State() {
   $('report-timezone').value = 'Asia/Ho_Chi_Minh';
   syncNotificationFields();
   message('settings-message', '');
+  syncCapabilities();
 }
 
 function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nhận.', clearAnswer = false) {
@@ -214,6 +258,7 @@ function clearSensitiveState(reason = 'Chưa có dữ liệu live đã xác nh�
       $(id).setAttribute('aria-busy', 'false');
     });
   }
+  syncCapabilities();
 }
 
 function invalidateLockerContext(reason = 'Locker ID đã thay đổi; đang chờ trạng thái được xác nhận.') {
@@ -244,7 +289,10 @@ async function jsonFetch(url, options = {}) {
   try {
     const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error(body.msg || body.message || body.code || `HTTP ${response.status}`), { status: response.status, body });
+    if (!response.ok) throw Object.assign(
+      new Error(body.msg || body.message || body.code || `HTTP ${response.status}`),
+      { status: response.status, body, code: body.code },
+    );
     return body;
   } catch (error) {
     if (timedOut) throw Object.assign(new Error('REQUEST_TIMEOUT'), { code: 'REQUEST_TIMEOUT' });
@@ -310,13 +358,16 @@ function saveSession(value, { clearPrivate = false } = {}) {
   pollRequested += 1;
   if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey);
   $('logout').hidden = !value;
-  $('session-label').textContent = value ? 'Đã đăng nhập — token được vận chuyển bằng Bearer' : 'Chưa đăng nhập';
+  $('auth-form').hidden = Boolean(value);
+  const identity = value?.user?.email || value?.email;
+  setText($('session-label'), value ? `Đã đăng nhập${identity ? ` · ${identity}` : ''}` : 'Chưa đăng nhập');
   if (!value) {
     setAuthMode('login');
     clearSensitiveState(undefined, shouldClearPrivate);
   }
   scheduleRefresh();
   renderControls(null);
+  syncCapabilities();
 }
 
 function scheduleRefresh() {
@@ -388,12 +439,33 @@ async function protectedFetch(path, options = {}) {
 function renderControls(ui) {
   document.querySelectorAll('[data-action]').forEach((button) => {
     const domain = button.dataset.domain;
-    const pending = Boolean(ui?.controls?.[domain]?.pending) || commandRequests.has(domain);
+    const action = button.dataset.action;
+    const actionState = ui?.actions?.[action] || ui?.controls?.[domain];
+    const domainPending = Boolean(actionState?.pending) || Boolean(ui?.controls?.[domain]?.pending)
+      || commandRequests.has(domain);
+    const actionPending = commandRequests.get(domain)?.action === action;
+    const reasons = Array.isArray(actionState?.reasons) ? actionState.reasons : [];
     button.disabled = !hasRenderedContext() || Boolean(ui?.stale)
-      || !ui?.controls?.[domain]?.enabled || pending;
-    button.dataset.pending = pending ? 'true' : 'false';
-    button.setAttribute('aria-busy', pending ? 'true' : 'false');
+      || !actionState?.enabled || domainPending;
+    button.dataset.pending = actionPending ? 'true' : 'false';
+    button.setAttribute('aria-busy', actionPending ? 'true' : 'false');
+    const explanation = reasons.map((reason) => controlReasonLabels[reason]).filter(Boolean).join('. ');
+    if (explanation) button.setAttribute('title', explanation);
+    else button.removeAttribute('title');
   });
+
+  let hint = 'Đăng nhập và chờ trạng thái tủ được xác minh để điều khiển.';
+  if (hasRenderedContext() && ui?.stale) {
+    hint = 'Dữ liệu đã cũ; điều khiển tạm khóa cho đến khi có trạng thái mới.';
+  } else if (hasRenderedContext() && ui?.door === 'OPEN') {
+    hint = 'Cửa đang mở và lượt mở hiện tại đã được dùng. Khi bạn đóng cửa, ESP32 sẽ tự khóa chốt; hãy chờ trạng thái Đã khóa trước khi cấp lượt mở mới.';
+  } else if (hasRenderedContext() && ui?.lock === 'LOCKED') {
+    hint = 'Chốt đang khóa. ESP32 tự khóa sau khi cửa được mở rồi đóng lại, hoặc khi lượt mở 30 giây hết hạn. MC-38 không đo góc servo.';
+  } else if (hasRenderedContext() && ui?.lock === 'UNLOCKED') {
+    hint = 'Chốt đang mở. Hãy mở cửa trong 30 giây; nếu hết hạn hoặc sau khi bạn mở rồi đóng cửa, ESP32 sẽ tự khóa chốt.';
+  }
+  message('control-hint', hint);
+  syncCapabilities();
 }
 
 function renderState(ui, targetLocker) {
@@ -408,20 +480,22 @@ function renderState(ui, targetLocker) {
   renderStatus('lock', ui.stale || ui.lock_unconfirmed ? 'UNKNOWN' : ui.lock);
   renderStatus('alarm', ui.stale ? 'UNKNOWN' : ui.alarm);
   renderStatus('led', ui.stale ? 'UNKNOWN' : ui.led);
-  $('updated').textContent = ui.last_updated ? formatDateTime(ui.last_updated) : '—';
-  $('alert').textContent = ui.latest_alert
+  setText($('updated'), ui.last_updated ? formatDateTime(ui.last_updated) : '—');
+  setText($('alert'), ui.latest_alert
     ? `${eventTypeLabels[ui.latest_alert.event_type] || 'Cảnh báo'} · ${formatDateTime(ui.latest_alert.occurred_at)}`
       + ` · Telegram: ${notificationStatusLabel(ui.latest_alert.notification_status)}`
-    : '—';
+    : '—');
   const persistence = ui.persistence?.status === 'error'
-    ? ` Supabase: ${ui.persistence.last_error}.` : '';
+    ? ` Supabase: ${ui.persistence.last_error}.`
+    : (ui.persistence?.pending > 0 ? ` Đang chờ ghi lại ${ui.persistence.pending} sự kiện.` : '');
   message('state-message', (ui.stale
     ? 'Dữ liệu đã cũ hoặc chưa được xác minh; các nút điều khiển tạm khóa.'
     : 'Dữ liệu mới nhất đã được xác nhận.') + persistence);
   if (ui.command_status) {
     const value = ui.command_status;
+    const commandId = typeof value.command_id === 'string' ? value.command_id.slice(0, 8) : '';
     message('command-message', `${actionLabel(value.action)}: ${commandStatusLabels[value.status] || 'Trạng thái lệnh chưa xác định'}`
-      + ` (${value.command_id.slice(0, 8)})`);
+      + (commandId ? ` (${commandId})` : ''));
   }
   renderControls(ui);
 }
@@ -450,8 +524,8 @@ function renderHistory(result) {
 function renderChart(result) {
   const buckets = Array.isArray(result.buckets) ? result.buckets : [];
   const maximum = Math.max(1, ...buckets.flatMap((bucket) => [Number(bucket.opens) || 0, Number(bucket.alerts) || 0]));
-  $('chart-summary').textContent = `${result.days || validRangeDays()} ngày · ${result.timezone || 'Asia/Ho_Chi_Minh'} · `
-    + `${result.totals?.opens || 0} lần mở · ${result.totals?.alerts || 0} cảnh báo`;
+  setText($('chart-summary'), `${result.days || validRangeDays()} ngày · ${result.timezone || 'Asia/Ho_Chi_Minh'} · `
+    + `${result.totals?.opens || 0} lần mở · ${result.totals?.alerts || 0} cảnh báo`);
   $('chart-empty').hidden = buckets.some((bucket) => (Number(bucket.opens) || 0) > 0
     || (Number(bucket.alerts) || 0) > 0);
   $('chart-bars').innerHTML = buckets.map((bucket) => {
@@ -460,9 +534,11 @@ function renderChart(result) {
     const alerts = Math.max(0, Number(bucket.alerts) || 0);
     const openHeight = opens === 0 ? 0 : Math.max(2, Math.round((opens / maximum) * 170));
     const alertHeight = alerts === 0 ? 0 : Math.max(2, Math.round((alerts / maximum) * 170));
-    return `<div class="chart-day"><i class="chart-bar chart-bar--open" title="${opens} lần mở" style="height:${openHeight}px"></i>`
+    const dateLabel = date === 'unknown' ? '—' : `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+    return `<div class="chart-day"><span class="chart-values">${opens}/${alerts}</span>`
+      + `<i class="chart-bar chart-bar--open" title="${opens} lần mở" style="height:${openHeight}px"></i>`
       + `<i class="chart-bar chart-bar--alert" title="${alerts} cảnh báo" style="height:${alertHeight}px"></i>`
-      + `<span class="chart-label">${date.slice(5)}</span></div>`;
+      + `<span class="chart-label">${dateLabel}</span></div>`;
   }).join('');
   $('chart-table-body').innerHTML = buckets.map((bucket) => {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(String(bucket.date)) ? String(bucket.date) : 'unknown';
@@ -484,6 +560,7 @@ async function loadPhase3Data() {
   $('refresh-phase3').disabled = true;
   $('refresh-phase3').dataset.pending = 'true';
   $('refresh-phase3').setAttribute('aria-busy', 'true');
+  syncCapabilities();
   message('history-message', 'Đang tải lịch sử và biểu đồ…');
   try {
     const [historyResult, chartResult] = await Promise.allSettled([
@@ -525,21 +602,36 @@ async function loadPhase3Data() {
       $('refresh-phase3').disabled = false;
       $('refresh-phase3').dataset.pending = 'false';
       $('refresh-phase3').setAttribute('aria-busy', 'false');
+      syncCapabilities();
     }
   }
 }
 
 function syncNotificationFields() {
+  const settingsAvailable = hasAuthenticatedLockerSelection();
+  const settingsPending = $('settings-form').dataset.pending === 'true';
   const emailEnabled = $('email-enabled').checked;
-  $('telegram-enabled').disabled = !telegramConnected;
+  $('load-settings').disabled = !settingsAvailable || settingsPending;
+  $('save-settings').disabled = !settingsAvailable || settingsPending;
+  $('email-enabled').disabled = !settingsAvailable || settingsPending;
+  $('telegram-enabled').disabled = !settingsAvailable || settingsPending || !telegramConnected;
+  $('telegram-link').disabled = !settingsAvailable || settingsPending
+    || $('telegram-link').dataset.pending === 'true';
+  $('telegram-test').disabled = !settingsAvailable || settingsPending
+    || $('telegram-test').dataset.pending === 'true';
+  $('telegram-disconnect').disabled = !settingsAvailable || settingsPending
+    || $('telegram-disconnect').dataset.pending === 'true';
   if (!telegramConnected) $('telegram-enabled').checked = false;
   ['report-email', 'report-time', 'report-timezone'].forEach((id) => {
-    $(id).disabled = !emailEnabled;
+    $(id).disabled = !settingsAvailable || settingsPending || !emailEnabled;
   });
-  $('report-email').required = emailEnabled;
+  $('report-email').required = settingsAvailable && emailEnabled;
   ['report-email-field', 'report-time-field', 'report-timezone-field'].forEach((id) => {
     $(id).dataset.enabled = emailEnabled ? 'true' : 'false';
   });
+  message('settings-access-hint', settingsAvailable
+    ? 'Bạn có thể tải và lưu cài đặt ngay cả khi thiết bị ngoại tuyến.'
+    : 'Đăng nhập và chọn mã tủ để quản lý thông báo.');
 }
 
 function renderTelegramConnection(setting = {}) {
@@ -575,6 +667,7 @@ async function loadSettings(options = {}) {
   const targetLocker = lockerId();
   $('settings-form').dataset.pending = 'true';
   $('settings-form').setAttribute('aria-busy', 'true');
+  syncCapabilities();
   try {
     const result = await protectedFetch(
       `/api/v1/lockers/${encodeURIComponent(targetLocker)}/notification-settings`,
@@ -590,6 +683,7 @@ async function loadSettings(options = {}) {
     if (generation === settingsRequestGeneration) {
       $('settings-form').dataset.pending = 'false';
       $('settings-form').setAttribute('aria-busy', 'false');
+      syncCapabilities();
     }
   }
 }
@@ -597,6 +691,7 @@ async function loadSettings(options = {}) {
 function scheduleTelegramLinkPolling({ operation, requestEpoch, targetLocker, expiresAt }) {
   clearTimeout(telegramLinkPollTimer);
   const deadline = Number.isFinite(Date.parse(expiresAt)) ? Date.parse(expiresAt) : Date.now() + 10 * 60_000;
+  const startedAt = Date.now();
   const poll = async () => {
     if (operation !== telegramOperationGeneration || requestEpoch !== sessionEpoch
         || targetLocker !== lockerId()) return;
@@ -630,10 +725,23 @@ function scheduleTelegramLinkPolling({ operation, requestEpoch, targetLocker, ex
     }
     if (operation === telegramOperationGeneration && requestEpoch === sessionEpoch
         && targetLocker === lockerId()) {
-      telegramLinkPollTimer = setTimeout(poll, 2000);
+      const elapsed = Date.now() - startedAt;
+      const delay = elapsed < 30_000 ? 2_000 : (elapsed < 120_000 ? 5_000 : 10_000);
+      telegramLinkPollTimer = setTimeout(poll, delay);
     }
   };
   telegramLinkPollTimer = setTimeout(poll, 1500);
+}
+
+function scheduleStatePoll(delay) {
+  clearTimeout(statePollTimer);
+  const nextDelay = Number.isFinite(delay)
+    ? delay
+    : (document.visibilityState === 'hidden' ? statePollHiddenMs : statePollVisibleMs);
+  statePollTimer = setTimeout(async () => {
+    await pollState();
+    scheduleStatePoll();
+  }, nextDelay);
 }
 
 function pollState() {
@@ -686,6 +794,7 @@ $('auth-form').addEventListener('submit', async (event) => {
   const requestGeneration = ++authRequestGeneration;
   form.dataset.pending = 'true';
   form.setAttribute('aria-busy', 'true');
+  setAuthConfigReady(false);
   try {
     const path = mode === 'register' ? '/auth/v1/signup' : '/auth/v1/token?grant_type=password';
     const payload = mode === 'register' ? { email, password, data: { full_name: fullName } } : { email, password };
@@ -705,12 +814,13 @@ $('auth-form').addEventListener('submit', async (event) => {
     if (authRequestGeneration === requestGeneration) {
       form.dataset.pending = 'false';
       form.setAttribute('aria-busy', 'false');
+      setAuthConfigReady(Boolean(config));
     }
   }
 });
 
 $('auth-mode-toggle').addEventListener('click', () => {
-  setAuthMode($('auth-form').dataset.mode === 'register' ? 'login' : 'register');
+  setAuthMode($('auth-form').dataset.mode === 'register' ? 'login' : 'register', { focus: true });
   message('auth-message', $('auth-form').dataset.mode === 'register'
     ? 'Nhập họ tên, email và mật khẩu để tạo tài khoản.'
     : 'Nhập email và mật khẩu để đăng nhập.');
@@ -735,6 +845,7 @@ $('claim-form').addEventListener('submit', async (event) => {
   if (form.dataset.pending === 'true') return;
   form.dataset.pending = 'true';
   form.setAttribute('aria-busy', 'true');
+  syncCapabilities();
   const requestEpoch = sessionEpoch;
   const requestGeneration = ++claimRequestGeneration;
   const requestedLocker = $('locker-code').value.trim();
@@ -754,11 +865,17 @@ $('claim-form').addEventListener('submit', async (event) => {
     if (claimRequestGeneration === requestGeneration) {
       form.dataset.pending = 'false';
       form.setAttribute('aria-busy', 'false');
+      syncCapabilities();
     }
   }
 });
 
 document.querySelectorAll('[data-action]').forEach((button) => button.addEventListener('click', async () => {
+  if (button.disabled) {
+    const reason = button.getAttribute?.('title') || button.attributes?.get?.('title');
+    if (reason) message('command-message', reason);
+    return;
+  }
   const requestEpoch = sessionEpoch;
   const targetLocker = lockerId();
   const domain = button.dataset.domain;
@@ -767,23 +884,32 @@ document.querySelectorAll('[data-action]').forEach((button) => button.addEventLi
     return;
   }
   if (commandRequests.has(domain)) return;
+  const action = button.dataset.action;
   const requestId = ++commandRequestSequence;
-  commandRequests.set(domain, { requestId, requestEpoch, targetLocker });
+  commandRequests.set(domain, { requestId, requestEpoch, targetLocker, action });
   renderControls(renderedUi);
-  message('command-message', `${actionLabel(button.dataset.action)}: đang chờ thiết bị xác nhận…`);
+  message('command-message', `${actionLabel(action)}: đang chờ thiết bị xác nhận…`);
   try {
-    const result = await protectedFetch('/api/v1/commands', { method: 'POST', body: JSON.stringify({ locker_id: targetLocker, action: button.dataset.action }) });
+    const result = await protectedFetch('/api/v1/commands', { method: 'POST', body: JSON.stringify({ locker_id: targetLocker, action }) });
     if (sessionEpoch !== requestEpoch || lockerId() !== targetLocker
       || renderedLockerId !== targetLocker) return;
-    message('command-message', `${actionLabel(button.dataset.action)}: đã gửi, đang chờ ACK (${result.command.command_id.slice(0, 8)}).`);
+    if (result.noop) {
+      message('command-message', `${actionLabel(action)}: trạng thái đã đúng; không gửi lệnh và không quay servo.`);
+      await pollState();
+      return;
+    }
+    const commandId = typeof result.command?.command_id === 'string'
+      ? result.command.command_id.slice(0, 8) : '';
+    message('command-message', `${actionLabel(action)}: đã gửi, đang chờ ACK${commandId ? ` (${commandId})` : ''}.`);
     await pollState();
   } catch (error) {
     if (sessionEpoch !== requestEpoch || lockerId() !== targetLocker
       || renderedLockerId !== targetLocker) return;
     if (error.code === 'REQUEST_TIMEOUT') {
-      message('command-message', `${actionLabel(button.dataset.action)}: KẾT QUẢ CHƯA XÁC ĐỊNH — đang đối soát; không gửi lại ngay.`);
+      message('command-message', `${actionLabel(action)}: KẾT QUẢ CHƯA XÁC ĐỊNH — đang đối soát; không gửi lại ngay.`);
     } else {
-      message('command-message', `Lệnh bị từ chối: ${error.message}`);
+      const friendly = controlReasonLabels[error.code] || error.message;
+      message('command-message', `Lệnh bị từ chối: ${friendly}`);
     }
     await pollState();
   } finally {
@@ -814,6 +940,7 @@ $('telegram-link').addEventListener('click', async () => {
   $('telegram-open-link').removeAttribute('href');
   $('telegram-link').dataset.pending = 'true';
   $('telegram-link').setAttribute('aria-busy', 'true');
+  syncCapabilities();
   message('settings-message', 'Đang tạo liên kết Telegram dùng một lần…');
   let popup = null;
   try {
@@ -847,6 +974,7 @@ $('telegram-link').addEventListener('click', async () => {
     if (operation === telegramOperationGeneration) {
       $('telegram-link').dataset.pending = 'false';
       $('telegram-link').setAttribute('aria-busy', 'false');
+      syncCapabilities();
     }
   }
 });
@@ -859,6 +987,7 @@ $('telegram-test').addEventListener('click', async () => {
   const targetLocker = lockerId();
   $('telegram-test').dataset.pending = 'true';
   $('telegram-test').setAttribute('aria-busy', 'true');
+  syncCapabilities();
   try {
     await protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/telegram-test`, {
       method: 'POST', timeoutMs: dataRequestTimeoutMs,
@@ -873,6 +1002,7 @@ $('telegram-test').addEventListener('click', async () => {
     if (operation === telegramOperationGeneration) {
       $('telegram-test').dataset.pending = 'false';
       $('telegram-test').setAttribute('aria-busy', 'false');
+      syncCapabilities();
     }
   }
 });
@@ -888,6 +1018,7 @@ $('telegram-disconnect').addEventListener('click', async () => {
   clearTimeout(telegramLinkPollTimer);
   $('telegram-disconnect').dataset.pending = 'true';
   $('telegram-disconnect').setAttribute('aria-busy', 'true');
+  syncCapabilities();
   try {
     const result = await protectedFetch(
       `/api/v1/lockers/${encodeURIComponent(targetLocker)}/telegram-link`,
@@ -906,6 +1037,7 @@ $('telegram-disconnect').addEventListener('click', async () => {
     if (operation === telegramOperationGeneration) {
       $('telegram-disconnect').dataset.pending = 'false';
       $('telegram-disconnect').setAttribute('aria-busy', 'false');
+      syncCapabilities();
     }
   }
 });
@@ -922,6 +1054,7 @@ $('settings-form').addEventListener('submit', async (event) => {
   const form = event.currentTarget;
   form.dataset.pending = 'true';
   form.setAttribute('aria-busy', 'true');
+  syncCapabilities();
   try {
     const result = await protectedFetch(`/api/v1/lockers/${encodeURIComponent(targetLocker)}/notification-settings`, {
       method: 'PUT',
@@ -945,6 +1078,7 @@ $('settings-form').addEventListener('submit', async (event) => {
     if (generation === settingsRequestGeneration) {
       form.dataset.pending = 'false';
       form.setAttribute('aria-busy', 'false');
+      syncCapabilities();
     }
   }
 });
@@ -952,6 +1086,7 @@ $('settings-form').addEventListener('submit', async (event) => {
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  if (form.dataset.pending === 'true') return;
   const requestEpoch = sessionEpoch;
   const targetLocker = lockerId();
   if (!hasRenderedContext()) {
@@ -961,7 +1096,8 @@ $('chat-form').addEventListener('submit', async (event) => {
   const requestGeneration = ++chatRequestGeneration;
   form.dataset.pending = 'true';
   form.setAttribute('aria-busy', 'true');
-  $('answer').textContent = 'Đang xử lý…';
+  syncCapabilities();
+  setText($('answer'), 'Đang xử lý…');
   try { const result = await protectedFetch('/api/v1/chatbot', {
     method: 'POST', timeoutMs: chatbotRequestTimeoutMs,
     body: JSON.stringify({ locker_id: targetLocker, question: $('question').value }),
@@ -977,13 +1113,17 @@ $('chat-form').addEventListener('submit', async (event) => {
     if (chatRequestGeneration === requestGeneration) {
       form.dataset.pending = 'false';
       form.setAttribute('aria-busy', 'false');
+      syncCapabilities();
     }
   }
 });
 
 $('locker-id').addEventListener('input', () => {
   invalidateLockerContext();
+  syncCapabilities();
 });
+
+$('locker-code').addEventListener('input', syncCapabilities);
 
 $('locker-id').addEventListener('change', async () => {
   if (session) {
@@ -995,6 +1135,7 @@ $('locker-id').addEventListener('change', async () => {
 syncNotificationFields();
 setAuthMode('login');
 setAuthConfigReady(false);
+syncCapabilities();
 
 (async function start() {
   const callback = consumeAuthFragment();
@@ -1022,7 +1163,7 @@ setAuthConfigReady(false);
       if (session) await loadSettings({ quiet: true });
       if (!pollingStarted) {
         pollingStarted = true;
-        setInterval(pollState, 2000);
+        scheduleStatePoll();
       }
       if ($('auth-message').textContent.startsWith('Dashboard chưa được cấu hình')) {
         message('auth-message', 'Dashboard đã kết nối lại và sẵn sàng xác thực.');
@@ -1036,3 +1177,12 @@ setAuthConfigReady(false);
   };
   await loadConfigAndStart();
 }());
+
+document.addEventListener?.('visibilitychange', () => {
+  if (!config) return;
+  if (document.visibilityState === 'hidden') scheduleStatePoll();
+  else {
+    void pollState();
+    scheduleStatePoll();
+  }
+});

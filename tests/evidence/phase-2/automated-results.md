@@ -1,5 +1,11 @@
 # Automated evidence — Phase 2
 
+> Historical snapshot: the dated counts and artifact hashes below are preserved
+> exactly as recorded for the Phase 2 baseline. They are not the current-tree
+> totals. See [../phase-3/automated-results.md](../phase-3/automated-results.md)
+> and [../../../BAO_CAO_RA_SOAT_CODEBASE.md](../../../BAO_CAO_RA_SOAT_CODEBASE.md)
+> for the 2026-08-18 correction-pass results.
+
 **Recorded:** 2026-08-09; full current-tree revalidation 2026-08-11 on Windows
 
 **Source:** the current corrective working tree after the Phase 1/Phase 2 review.

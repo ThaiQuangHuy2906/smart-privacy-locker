@@ -14,7 +14,7 @@ test('P2-A03 canonical Bearer auth ignores spoofed user_id and denies missing/ex
   ]) assert.equal((await runtime.protectedCommand(request)).status, request.status);
   assert.equal(publications.length, 0);
   const accepted = await runtime.protectedCommand({ headers: headers(), body: {
-    locker_id: LOCKER_A, action: 'LOCK', user_id: '20000000-0000-4000-8000-000000000099' } });
+    locker_id: LOCKER_A, action: 'UNLOCK', user_id: '20000000-0000-4000-8000-000000000099' } });
   assert.equal(accepted.ok, true);
   assert.equal(accepted.command.requested_by, USER_A);
 });
@@ -39,9 +39,91 @@ test('dispatcher rejects MQTT/device/stale gates before publish', async () => {
 
 test('P2-A05 same-domain pending conflicts while a different domain remains allowed', async () => {
   const { runtime } = makeRuntime(); await prime(runtime);
-  assert.equal((await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'LOCK' } })).ok, true);
-  assert.equal((await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'UNLOCK' } })).code, 'PENDING_CONFLICT');
+  assert.equal((await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'UNLOCK' } })).ok, true);
+  assert.equal((await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'LOCK' } })).code, 'PENDING_CONFLICT');
   assert.equal((await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'LED_ON' } })).ok, true);
+});
+
+test('LOCK requires a fresh CLOSED door and ordinary same-state actions are no-op without MQTT publish', async () => {
+  const { runtime, clock, publications } = makeRuntime();
+  await prime(runtime);
+
+  const alreadyLocked = await runtime.protectedCommand({
+    headers: headers(), body: { locker_id: LOCKER_A, action: 'LOCK' },
+  });
+  assert.deepEqual({ ok: alreadyLocked.ok, status: alreadyLocked.status, code: alreadyLocked.code,
+    noop: alreadyLocked.noop },
+  { ok: true, status: 200, code: 'ALREADY_IN_STATE', noop: true });
+  assert.equal(publications.length, 0);
+
+  clock.value += 1;
+  await runtime.ingest(`locker/${LOCKER_A}/state`, {
+    schema_version: 1, locker_id: LOCKER_A, door: 'OPEN', lock: 'UNLOCKED',
+    alarm: 'INACTIVE', led: 'OFF', wifi_connected: true, mqtt_connected: true,
+    timestamp: new Date(clock.value).toISOString(),
+  }, clock.value);
+  publications.length = 0;
+  const unsafe = await runtime.protectedCommand({
+    headers: headers(), body: { locker_id: LOCKER_A, action: 'LOCK' },
+  });
+  assert.deepEqual({ ok: unsafe.ok, status: unsafe.status, code: unsafe.code },
+    { ok: false, status: 409, code: 'DOOR_NOT_CLOSED' });
+  assert.equal(publications.length, 0);
+});
+
+test('UNLOCK is published or rearms one opening only while the door is CLOSED', async () => {
+  const closed = makeRuntime();
+  await prime(closed.runtime);
+  closed.clock.value += 1;
+  await closed.runtime.ingest(`locker/${LOCKER_A}/state`, {
+    schema_version: 1, locker_id: LOCKER_A, door: 'CLOSED', lock: 'UNLOCKED',
+    alarm: 'INACTIVE', led: 'OFF', wifi_connected: true, mqtt_connected: true,
+    timestamp: new Date(closed.clock.value).toISOString(),
+  }, closed.clock.value);
+  const rearm = await closed.runtime.protectedCommand({
+    headers: headers(), body: { locker_id: LOCKER_A, action: 'UNLOCK' },
+  });
+  assert.equal(rearm.status, 202);
+  assert.equal(closed.publications.at(-1).payload.action, 'UNLOCK');
+
+  for (const lock of ['LOCKED', 'UNLOCKED', 'UNKNOWN']) {
+    const open = makeRuntime();
+    await prime(open.runtime);
+    open.clock.value += 1;
+    await open.runtime.ingest(`locker/${LOCKER_A}/state`, {
+      schema_version: 1, locker_id: LOCKER_A, door: 'OPEN', lock,
+      alarm: 'INACTIVE', led: 'OFF', wifi_connected: true, mqtt_connected: true,
+      timestamp: new Date(open.clock.value).toISOString(),
+    }, open.clock.value);
+    open.publications.length = 0;
+    const rejected = await open.runtime.protectedCommand({
+      headers: headers(), body: { locker_id: LOCKER_A, action: 'UNLOCK' },
+    });
+    assert.deepEqual({ status: rejected.status, code: rejected.code },
+      { status: 409, code: 'DOOR_NOT_CLOSED_FOR_ACCESS' });
+    assert.equal(open.publications.length, 0);
+  }
+});
+
+test('AuthGate caches successful read authorization briefly but forceFresh bypasses the cache', async () => {
+  let now = 1000;
+  let verifyCalls = 0;
+  let ownsCalls = 0;
+  const gate = new AuthGate({
+    async verify() { verifyCalls += 1; return { id: USER_A }; },
+    async owns() { ownsCalls += 1; return true; },
+  }, { now: () => now, cacheTtlMs: 15_000 });
+
+  assert.equal((await gate.authorize(headers(), LOCKER_A)).ok, true);
+  assert.equal((await gate.authorize(headers(), LOCKER_A)).ok, true);
+  assert.deepEqual({ verifyCalls, ownsCalls }, { verifyCalls: 1, ownsCalls: 1 });
+
+  assert.equal((await gate.authorize(headers(), LOCKER_A, { forceFresh: true })).ok, true);
+  assert.deepEqual({ verifyCalls, ownsCalls }, { verifyCalls: 2, ownsCalls: 2 });
+
+  now += 15_001;
+  assert.equal((await gate.authorize(headers(), LOCKER_A)).ok, true);
+  assert.deepEqual({ verifyCalls, ownsCalls }, { verifyCalls: 3, ownsCalls: 3 });
 });
 
 test('internal automation is allowlisted and is not an HTTP auth bypass', async () => {

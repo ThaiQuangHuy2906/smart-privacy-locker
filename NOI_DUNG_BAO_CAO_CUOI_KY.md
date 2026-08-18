@@ -1,17 +1,18 @@
 # Nội dung báo cáo cuối kỳ — Smart Privacy Locker
 
-> Trạng thái: bản Markdown biên soạn theo
-> [TCTA_YÊU CẦU BÁO CÁO CUỐI KỲ.pdf](TCTA_YÊU%20CẦU%20BÁO%20CÁO%20CUỐI%20KỲ.pdf),
-> đối chiếu thêm
-> [TCTA_QUY ĐỊNH ĐỒ ÁN CUỐI KỲ.pdf](TCTA_QUY%20ĐỊNH%20ĐỒ%20ÁN%20CUỐI%20KỲ.pdf)
-> và đề xuất đã nộp của nhóm
+> Trạng thái: bản Markdown đã được biên soạn theo
+> `TCTA_YÊU CẦU BÁO CÁO CUỐI KỲ.pdf`, đối chiếu thêm
+> `TCTA_QUY ĐỊNH ĐỒ ÁN CUỐI KỲ.pdf` và đề xuất đã nộp của nhóm
 > [12_24127177_24127205_24127249.pdf](12_24127177_24127205_24127249.pdf).
+> Hai PDF TCTA hiện không còn hiện diện trong working tree, nên trước khi nộp
+> phải đối chiếu lại bản gốc nếu chúng được đưa trở lại workspace.
 > Những ô `CHƯA CHỐT` phải được thay bằng evidence thật trước khi xuất PDF.
 
-> Audit 2026-08-17: source/build/test tự động đạt trong phạm vi ghi ở
+> Audit 2026-08-18: source/build/test tự động đạt trong phạm vi ghi ở
 > [BAO_CAO_RA_SOAT_CODEBASE.md](BAO_CAO_RA_SOAT_CODEBASE.md). Người lắp ráp đã
 > quan sát riêng lẻ OLED, DHT22, MC-38/Telegram, 10 LED WS2812B và SG90; nguồn
-> ngoài, buzzer tích hợp, tải đồng thời và E2E cuối chưa đủ bằng chứng. Không
+> ngoài, buzzer tích hợp, tải đồng thời và E2E cuối chưa đủ bằng chứng. P1-05
+> nguồn/tải đã được chấp nhận cho demo nhưng không phải measured PASS. Không
 > chuyển các quan sát riêng lẻ thành “hoàn thành toàn hệ thống”.
 
 ## 1. Trang bìa
@@ -47,7 +48,7 @@
 | Mã | Luồng chức năng được đăng ký | Sinh viên phụ trách | Trạng thái/evidence cuối | Thay đổi so với đề xuất |
 |---|---|---|---|---|
 | CB1 | MC-38 phát hiện trạng thái cửa → ESP32 → MQTT → Node-RED/FlowFuse → Dashboard hiển thị | Nguyễn Văn Minh — 24127205 | `PARTIAL / USER-REPORTED`: MC-38 đã tạo Telegram; còn cần video đồng bộ contact, telemetry/state, event và Dashboard | Không |
-| CB2 | Dashboard gửi lệnh đóng/mở → Node-RED/FlowFuse → MQTT → ESP32 → SG90 trực tiếp điều khiển cánh cửa | Thái Quang Huy — 24127177 | `PARTIAL / USER-REPORTED`: servo chạy ở đóng `170°`/mở `80°`; còn cần video cơ khí, MC-38 outcome, correlated ACK, retained state và tải | Cơ cấu as-built bỏ chốt, tay servo trực tiếp đóng/mở; phải mô tả trung thực và xác nhận cách khai báo thay đổi với giảng viên |
+| CB2 | Dashboard gửi lệnh mở/khóa ngay → Node-RED/FlowFuse → MQTT → ESP32 → SG90 xoay chốt; người dùng đóng/mở cửa bằng tay; firmware tự khóa sau `OPEN→CLOSED` hoặc khi lượt mở 30 giây hết hạn | Thái Quang Huy — 24127177 | `PARTIAL / USER-REPORTED`: servo chạy ở `LOCK=80°`/`UNLOCK=170°`, ảnh xác nhận chốt quay; logic tự khóa có test phần mềm nhưng còn cần video cơ khí, interlock, correlated ACK/state | Giữ đúng chức năng chốt; cần ghi rõ chốt open-loop không có cảm biến góc và auto-lock không phát ACK giả |
 | CB3 | Dashboard/luồng cảnh báo gửi lệnh → MQTT → ESP32 → active buzzer LOW-trigger phát/tắt âm | Mai Phương Thùy — 24127249 | `CHƯA CHỐT`: inactive HIGH ở VCC 3V3 đã quan sát; còn GPIO26 LOW/HIGH, ACK/state, boot lặp và full-load | Không thay đổi chức năng; chỉ hiệu chỉnh wiring module từ VCC 5 V trong đề xuất sang VCC 3V3 theo specimen thật |
 
 Ghi chú: thay đổi `VCC` của buzzer là thay đổi chi tiết triển khai phần cứng để
@@ -80,10 +81,11 @@ evidence của đúng chức năng đã PASS.
 - Không đổi người phụ trách so với đề xuất.
 - CB3 giữ nguyên chức năng active buzzer; revision phần cứng chốt
   `VCC→ESP32 3V3`, `GND→GND`, `IN←4,7 kΩ←GPIO26`, active-low.
-- CB2 có sai lệch cơ khí thực tế: không còn chốt, tay SG90 trực tiếp đóng/mở
-  cửa. Nhóm phải hỏi giảng viên liệu đây được tính là một “cập nhật chức năng”
-  hay chỉ là revision triển khai, rồi ghi nhất quán; không được vừa ghi “không
-  thay đổi” vừa chụp một cơ cấu khác mô tả.
+- CB2 dùng tay SG90 làm chốt quay ở mép cửa. Nhóm phải ghi nhất quán rằng servo
+  khóa/mở chốt, người dùng đóng/mở cửa và MC-38 chỉ đo tiếp điểm cửa; không được
+  nói servo tự kéo cánh cửa. Sau một lượt mở, MC-38 xác nhận cửa đóng thì ESP32
+  tự quay chốt về `80°`; lượt mở không dùng cũng tự khóa đúng hạn 30 giây;
+  mô tả ACK như cảm biến góc chốt.
 - Nếu trạng thái thực tế trước ngày nộp khác bốn dòng trên, nhóm phải sửa bảng
   chức năng và cột thay đổi trung thực; không được giữ mô tả “hoàn thành” khi
   evidence không tồn tại.
@@ -102,7 +104,8 @@ hoàn chỉnh:
    - OLED SSD1306;
    - DHT22;
    - MC-38 và nam châm;
-   - SG90 và tay đòn trực tiếp đóng/mở cửa; ghi rõ **không có chốt khóa riêng**;
+   - SG90 và tay đòn làm chốt quay; ghi rõ `LOCK=80°`, `UNLOCK=170°`, cửa được
+     đóng/mở bằng tay và **không có feedback góc chốt**;
    - WS2812B;
    - module active buzzer LOW-trigger TMB12A05;
    - nguồn tải 5 V, công tắc và common GND.
@@ -135,7 +138,7 @@ Mỗi ảnh phải chụp rõ trạng thái/đầu ra, che token/email/credentia
 | 2 | Trang đăng nhập/đăng ký | YC9 — Supabase Auth |
 | 3 | Claim/chọn locker và trạng thái owner | YC9 — ownership và RLS |
 | 4 | Dashboard live: MQTT, device, door, lock, alarm, LED | CB1/CB2/CB3 — trạng thái và điều khiển thiết bị |
-| 5 | Lệnh đóng/mở (`LOCK/UNLOCK` ở contract) đã có ACK/state và MC-38 outcome | CB2 — SG90 direct-arm; state logic không phải feedback vị trí |
+| 5 | Lệnh khóa/mở chốt (`LOCK/UNLOCK`) đã có ACK/state; ảnh cửa/MC-38 tách riêng | CB2 — SG90 làm chốt quay; state logic không phải feedback góc |
 | 6 | Lệnh LED ON/OFF đã có ACK/state | YC3 — điều khiển WS2812B từ web |
 | 7 | Alarm/unauthorized event | CB3 + YC6 — buzzer và cảnh báo mở trái phép |
 | 8 | History | YC4 — lưu lịch sử Supabase |
@@ -148,9 +151,10 @@ Mỗi ảnh phải chụp rõ trạng thái/đầu ra, che token/email/credentia
 Không cần cố nhét tất cả ảnh vào một trang. Ưu tiên ảnh đọc được, mỗi ảnh có
 caption ngay bên dưới và cùng kích thước hợp lý.
 
-Khi chụp Dashboard, dùng đúng artifact đã sinh lại sau lượt sửa 2026-08-17.
-Bản hiện tại dịch `COMMAND_SUCCEEDED` và Telegram `failed`, có spinner pending,
-tự retry startup 503 và hiển thị unknown khi stale/no-data. Đối chiếu
+Khi chụp Dashboard, dùng đúng artifact đã sinh lại ngày 2026-08-18. Bản hiện
+tại dùng gate theo từng action, poll 5 giây khi visible/15 giây khi hidden,
+dịch `COMMAND_SUCCEEDED` và Telegram `failed`, có spinner pending, tự retry
+startup 503 và hiển thị unknown khi stale/no-data. Đối chiếu
 API/MQTT/database và timestamp; nếu ảnh còn hành vi cũ thì kiểm version/deploy/
 cache, không lựa ảnh che lỗi. ACK servo vẫn không thay feedback cơ khí.
 

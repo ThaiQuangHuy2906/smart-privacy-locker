@@ -112,11 +112,21 @@ class ChatbotRouter {
         return { ok: false, code: 'HISTORY_UNAVAILABLE', route };
       }
       const events = Array.isArray(response.events) ? response.events : [];
+      const safeEvent = ({ event_type, occurred_at, authorized }) => ({
+        event_type, occurred_at, authorized,
+      });
+      const latest = (candidates) => candidates
+        .filter((event) => Number.isFinite(Date.parse(event.occurred_at)))
+        .sort((left, right) => Date.parse(right.occurred_at) - Date.parse(left.occurred_at))[0];
+      const latestAlert = latest(events.filter((event) => event.event_type === 'UNAUTHORIZED_OPEN'));
+      const latestActivity = latest(events);
       facts = {
         range: response.range,
         open_count: events.filter((event) => event.event_type === 'DOOR_OPENED').length,
         alert_count: events.filter((event) => event.event_type === 'UNAUTHORIZED_OPEN').length,
-        recent_events: events.slice(0, 10).map(({ event_type, occurred_at, authorized }) => ({ event_type, occurred_at, authorized })),
+        latest_alert: latestAlert ? safeEvent(latestAlert) : null,
+        latest_activity: latestActivity ? safeEvent(latestActivity) : null,
+        recent_events: events.slice(0, 10).map(safeEvent),
         source: response.source || 'history-adapter-v1',
       };
     }

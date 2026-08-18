@@ -1,8 +1,10 @@
 # Phase 3 pin map
 
 **Status: implemented in source; individual OLED, DHT22, MC-38, WS2812B and
-SG90 functions were reported working on 2026-08-17; final external-power and
-combined-load acceptance remain pending.** The ESP32 was detected as a CH340
+SG90 functions were reported working on 2026-08-17, and the physical photos in
+`../AnhVatLi/` confirm the servo is a rotating latch at the door edge.** Final
+external-power measurements remain unrecorded; the user explicitly accepted
+that item as a demo-only risk on 2026-08-18. The ESP32 was detected as a CH340
 device on COM4 during the earlier bench test. User-observed operation is useful
 evidence, but every final rail and combined-load behavior must still pass its
 manual gate before this document is called fully accepted as-built.
@@ -30,9 +32,9 @@ The public baseline in `firmware/include/app_config.example.h` is:
 
 | Setting | Baseline | Must be verified physically |
 |---|---:|---|
-| `LOCK_ANGLE` | 170° | confirmed as the door-closing arm position; still verify no stall/holding force under final power |
-| `UNLOCK_ANGLE` | 80° | confirmed as the door-opening arm position; still verify no stall/holding force under final power |
-| `SERVO_SETTLE_MS` | 550 ms | yes — enough travel without stall |
+| `LOCK_ANGLE` | 80° | observed/configured latch-locked position; there is no angle sensor |
+| `UNLOCK_ANGLE` | 170° | observed/configured latch-unlocked position; there is no angle sensor |
+| `SERVO_SETTLE_MS` | 2,000 ms | software deadline selected for the real travel; not position feedback |
 | `WS2812_PIXEL_COUNT` | public example 1; local deployment 10 | local strip lit the configured 10 pixels; calculate and measure current for all 10 |
 | `WS2812_BRIGHTNESS` | 32/255 | yes — actual rail/current/visibility |
 | OLED I2C address | `0x3C` | yes — scan/confirm module address |
@@ -47,11 +49,11 @@ Copy-Item firmware\include\app_config.example.h firmware\include\app_config.h
 Then edit `OLED_I2C_ADDRESS` directly in ignored
 `firmware/include/app_config.h`; for a `0x3D` module, set the copied constant to
 `0x3D`. Do not include the example and redeclare a constant. The current local
-servo mapping keeps the legacy logical state names but physically uses
-`LOCK→170°→door closed` and `UNLOCK→80°→door open`; there is no separate latch.
-Record final non-secret values, meter readings, and evidence in the Phase 1
-manual test record; do not claim values above are measured merely because they
-build.
+servo mapping uses `LOCK→80°→latch locked` and
+`UNLOCK→170°→latch unlocked`. The user closes/opens the door manually, while
+MC-38 reports only the door contact. Record final non-secret values and
+evidence in the manual test record; do not claim the latch position is measured
+merely because a timed command ACK succeeds.
 
 For this buzzer specimen, the tracked example and `runtime_config.h` fallback
 both set `#define SPL_BUZZER_ACTIVE_HIGH 0`; `runtime_config.h` exposes it as

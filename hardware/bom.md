@@ -5,6 +5,10 @@ marking and primary datasheet are recorded.** Quantities assume one locker and
 the 10 WS2812 pixels configured in the local deployment. Update the quantity
 and power worksheet if the physical model changes the strip count.
 
+For the current supervised demo only, the user accepted unmeasured power gate
+P1-05 on 2026-08-18. That waiver does not turn any candidate row below into an
+accepted electrical part and does not apply to unattended/public operation.
+
 Record the accepted exact parts and measurements against the gate IDs in
 [../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md). A purchased
 part or a user-observed smoke test is not automatically an accepted release

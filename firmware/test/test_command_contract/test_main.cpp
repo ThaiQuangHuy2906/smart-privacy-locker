@@ -170,6 +170,11 @@ void test_cold_boot_state_does_not_claim_lock_position() {
   TEST_ASSERT_EQUAL(LockState::UNKNOWN, state.current().lock);
 }
 
+void test_rearm_open_door_error_has_a_stable_contract_code() {
+  TEST_ASSERT_EQUAL_STRING("DOOR_NOT_CLOSED_FOR_ACCESS",
+                           toString(CommandError::DOOR_NOT_CLOSED_FOR_ACCESS));
+}
+
 }  // namespace
 
 void setUp() {}
@@ -185,5 +190,6 @@ int main(int, char**) {
   RUN_TEST(test_future_command_respects_configured_clock_skew_when_synced);
   RUN_TEST(test_cached_ack_replays_original_state_with_duplicate_true);
   RUN_TEST(test_cold_boot_state_does_not_claim_lock_position);
+  RUN_TEST(test_rearm_open_door_error_has_a_stable_contract_code);
   return UNITY_END();
 }

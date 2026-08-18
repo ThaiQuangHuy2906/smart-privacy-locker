@@ -16,16 +16,17 @@ constexpr uint8_t PIXEL_PIN = 25;
 constexpr uint8_t BUZZER_PIN = 26;
 constexpr uint8_t DOOR_PIN = 27;
 
-constexpr uint8_t LOCK_ANGLE = 170;
-constexpr uint8_t UNLOCK_ANGLE = 80;
+constexpr uint8_t LOCK_ANGLE = 80;
+constexpr uint8_t UNLOCK_ANGLE = 170;
 constexpr uint8_t PIXEL_COUNT = 1;
 constexpr uint8_t PIXEL_BRIGHTNESS = 32;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 
-constexpr uint32_t SERVO_SETTLE_MS = 550;
+constexpr uint32_t SERVO_SETTLE_MS = 2000;
 constexpr uint32_t DHT_READ_INTERVAL_MS = 2500;
 constexpr uint32_t DISPLAY_REFRESH_MS = 200;
 constexpr uint32_t DOOR_DEBOUNCE_MS = 50;
+constexpr uint32_t AUTHORIZED_OPEN_WINDOW_MS = 30000;
 
 enum class LockState : uint8_t {
   UNKNOWN,
@@ -44,11 +45,14 @@ bool pixelOn = false;
 bool alarmOn = false;
 bool doorClosed = true;
 bool doorCandidateClosed = true;
+bool openGrantAvailable = false;
+bool autoLockOnClose = false;
 
 float temperatureC = NAN;
 float humidityPercent = NAN;
 
 uint32_t doorCandidateSince = 0;
+uint32_t openGrantStartedAt = 0;
 uint32_t nextDhtReadAt = 0;
 uint32_t nextDisplayRefreshAt = 0;
 
@@ -98,7 +102,7 @@ void renderDisplay() {
 
   display.print(F("Door: "));
   display.println(doorStateText());
-  display.print(F("Lock: "));
+  display.print(F("Latch: "));
   display.println(lockStateText());
   display.print(F("LED: "));
   display.println(onOffText(pixelOn));
@@ -110,8 +114,9 @@ void renderDisplay() {
 void printHelp() {
   Serial.println();
   Serial.println(F("=== SMART PRIVACY LOCKER - WOKWI ==="));
-  Serial.println(F("L : dong cua (servo 170 do)"));
-  Serial.println(F("U : mo cua (servo 80 do)"));
+  Serial.println(F("L : khoa chot (servo 80 do; cua phai CLOSED)"));
+  Serial.println(F("U : mo chot (servo 170 do)"));
+  Serial.println(F("    moi lenh U khi cua CLOSED cap 1 luot mo trong 30 giay"));
   Serial.println(F("1 : bat WS2812"));
   Serial.println(F("0 : tat WS2812"));
   Serial.println(F("A : bat bao dong"));
@@ -146,7 +151,31 @@ void printState() {
   }
 }
 
-void moveLock(LockState target) {
+void moveLock(LockState target, bool automatic = false) {
+  if (target == LockState::LOCKED) {
+    openGrantAvailable = false;
+  }
+  if (!doorClosed || digitalRead(DOOR_PIN) != LOW) {
+    Serial.println(target == LockState::LOCKED
+        ? F("ERR door_not_closed: dong cua bang tay truoc khi khoa chot")
+        : F("ERR door_not_closed_for_access: dong cua truoc khi cap luot mo"));
+    return;
+  }
+  autoLockOnClose = false;
+  if (target == lockState) {
+    if (target == LockState::UNLOCKED) {
+      openGrantAvailable = doorClosed;
+      openGrantStartedAt = millis();
+      Serial.println(openGrantAvailable
+          ? F("OK one opening granted for 30 seconds; servo not moved")
+          : F("ERR close door before granting another opening"));
+      return;
+    }
+    Serial.println(automatic
+        ? F("AUTO latch already locked; servo not moved")
+        : F("OK latch already in requested logical state; servo not moved"));
+    return;
+  }
   if (!lockServo.attached()) {
     lockServo.attach(SERVO_PIN, 500, 2400);
   }
@@ -157,8 +186,12 @@ void moveLock(LockState target) {
   delay(SERVO_SETTLE_MS);
   lockServo.detach();
   lockState = target;
+  if (target == LockState::UNLOCKED) {
+    openGrantAvailable = doorClosed;
+    openGrantStartedAt = millis();
+  }
 
-  Serial.print(F("OK lock="));
+  Serial.print(automatic ? F("AUTO lock=") : F("OK lock="));
   Serial.print(lockStateText());
   Serial.print(F(" angle="));
   Serial.println(targetAngle);
@@ -194,9 +227,26 @@ void pollDoor(uint32_t now) {
 
   if (doorClosed != doorCandidateClosed &&
       now - doorCandidateSince >= DOOR_DEBOUNCE_MS) {
+    const bool wasClosed = doorClosed;
     doorClosed = doorCandidateClosed;
     Serial.print(F("EVENT door="));
     Serial.println(doorStateText());
+    if (wasClosed && !doorClosed) {
+      const bool authorized = openGrantAvailable
+          && lockState == LockState::UNLOCKED
+          && now - openGrantStartedAt < AUTHORIZED_OPEN_WINDOW_MS;
+      openGrantAvailable = false;
+      autoLockOnClose = true;
+      if (!authorized && !alarmOn) {
+        setAlarm(true);
+        Serial.println(F("ALERT unauthorized_open: local alarm activated"));
+      } else if (authorized) {
+        Serial.println(F("OK authorized_open: one-time grant consumed"));
+      }
+    } else if (!wasClosed && doorClosed && autoLockOnClose) {
+      Serial.println(F("AUTO stable door close: locking latch"));
+      moveLock(LockState::LOCKED, true);
+    }
     renderDisplay();
   }
 }
@@ -307,6 +357,16 @@ void loop() {
   const uint32_t now = millis();
   handleSerial();
   pollDoor(now);
+  if (openGrantAvailable
+      && now - openGrantStartedAt >= AUTHORIZED_OPEN_WINDOW_MS) {
+    openGrantAvailable = false;
+    if (doorClosed && digitalRead(DOOR_PIN) == LOW) {
+      Serial.println(F("AUTO unused opening grant expired: locking latch"));
+      moveLock(LockState::LOCKED, true);
+    } else {
+      Serial.println(F("INFO opening grant expired while door was not closed"));
+    }
+  }
   readEnvironment(now);
 
   if (timeReached(now, nextDisplayRefreshAt)) {

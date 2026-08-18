@@ -43,4 +43,12 @@ bool LockController::tick(unsigned long now, LockState* completedState) {
   return true;
 }
 
+void LockController::cancel() {
+  if (servo_.attached()) {
+    servo_.detach();
+  }
+  busy_ = false;
+  desiredState_ = LockState::UNKNOWN;
+}
+
 bool LockController::isBusy() const { return busy_; }

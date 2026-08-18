@@ -14,8 +14,8 @@ node tools/device-simulator/run-live-broker.js
 `MemoryBroker` models topic subscription and retained replay so tests can prove
 that full state/availability are retained while heartbeat, door transitions and
 commands are not. `DeviceSimulator` supports success/error/duplicate/delayed/no ACK,
-wrong ID/locker/action/state, malformed payload, reconnect, `GET_STATE`, and
-restart-recovery inputs. `scenario-fixtures.json` is deterministic and contains
+wrong ID/locker/action/state, malformed payload, reconnect, `GET_STATE`, local
+lock-on-close and exact 30-second unused-grant expiry. `scenario-fixtures.json` is deterministic and contains
 no account, credential, or production data.
 
 For a live broker deployment, connect the same `DeviceSimulator.receiveCommand`
@@ -29,8 +29,9 @@ non-retained heartbeat/door telemetry, command/ACK, LWT and reconnect. Its crede
 fixed test-only strings and the port is not exposed beyond localhost. This is
 network-broker software evidence, still not physical ESP32/MC-38 evidence.
 
-Audit rerun 2026-08-17: `npm run test:simulator` passed 10 assertions across 15
-scenarios and `npm run test:broker` passed 17 assertions. These results do not
+Audit rerun 2026-08-18: `npm run test:simulator` passed 28 assertions across 22
+scenarios and `npm run test:broker` passed 18 assertions, including the
+UUIDv4 door-event identity. These results do not
 close power, GPIO, motion, sound or full E2E gates. Follow
 [../../HUONG_DAN_TEST_END_TO_END.md](../../HUONG_DAN_TEST_END_TO_END.md) for the
 hardware/deployment sequence.

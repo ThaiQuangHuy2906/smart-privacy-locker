@@ -24,11 +24,12 @@ constexpr uint32_t MQTT_HEARTBEAT_INTERVAL_MS = 10000;
 constexpr uint32_t COMMAND_MAX_AGE_SECONDS = 120;
 constexpr uint32_t COMMAND_MAX_FUTURE_SKEW_SECONDS = 30;
 constexpr size_t RECENT_COMMAND_CACHE_SIZE = 16;
-// The current mechanism has no separate latch. The logical LOCK command closes
-// the door with the servo arm; UNLOCK opens it.
+// The user opens/closes the door manually. The servo rotates the latch:
+// LOCK secures a CLOSED door; UNLOCK releases the latch.
 constexpr uint8_t LOCK_ANGLE = 80;
 constexpr uint8_t UNLOCK_ANGLE = 170;
 constexpr uint32_t SERVO_SETTLE_MS = 2000;
+constexpr size_t DOOR_EVENT_OUTBOX_SIZE = 8;
 constexpr uint32_t DHT_READ_INTERVAL_MS = 2500;
 constexpr uint32_t DISPLAY_REFRESH_INTERVAL_MS = 1000;
 constexpr uint8_t OLED_I2C_ADDRESS = 0x3C;

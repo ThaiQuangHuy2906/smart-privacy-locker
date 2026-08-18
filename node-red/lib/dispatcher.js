@@ -13,6 +13,17 @@ function domain(action) {
   return 'system';
 }
 
+function actionAlreadyApplied(action, state) {
+  return ({
+    LOCK: state.lock === 'LOCKED',
+    UNLOCK: state.lock === 'UNLOCKED',
+    ALARM_ON: state.alarm === 'ACTIVE',
+    ALARM_OFF: state.alarm === 'INACTIVE',
+    LED_ON: state.led === 'ON',
+    LED_OFF: state.led === 'OFF',
+  })[action] === true;
+}
+
 class CommandDispatcher {
   constructor({ cache, publish, timeoutMs = 5000, now = Date.now, uuid = randomUUID,
     completedLimit = 64, onResult = () => {} }) {
@@ -52,6 +63,16 @@ class CommandDispatcher {
     const actuatorDomain = domain(action);
     if ([...this.pending.values()].some((item) => item.lockerId === lockerId && item.domain === actuatorDomain)) {
       return { ok: false, status: 409, code: 'PENDING_CONFLICT' };
+    }
+    if (action === 'LOCK' && snapshot.state.door !== 'CLOSED') {
+      return { ok: false, status: 409, code: 'DOOR_NOT_CLOSED' };
+    }
+    if (action === 'UNLOCK' && snapshot.state.door !== 'CLOSED') {
+      return { ok: false, status: 409, code: 'DOOR_NOT_CLOSED_FOR_ACCESS' };
+    }
+    if (requireReady && action !== 'UNLOCK' && actionAlreadyApplied(action, snapshot.state)) {
+      return { ok: true, status: 200, code: 'ALREADY_IN_STATE', noop: true,
+        locker_id: lockerId, action, state: snapshot.state };
     }
     const commandId = this.uuid();
     const issuedAt = new Date(this.now()).toISOString();
@@ -125,4 +146,4 @@ class CommandDispatcher {
   }
 }
 
-module.exports = { CommandDispatcher, domain, USER_ACTIONS, INTERNAL_ACTIONS };
+module.exports = { CommandDispatcher, domain, actionAlreadyApplied, USER_ACTIONS, INTERNAL_ACTIONS };

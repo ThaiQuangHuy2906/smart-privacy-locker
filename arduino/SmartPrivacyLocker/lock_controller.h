@@ -9,6 +9,7 @@ class LockController {
   void begin();
   bool start(LockState desiredState, unsigned long now);
   bool tick(unsigned long now, LockState* completedState);
+  void cancel();
   bool isBusy() const;
 
  private:

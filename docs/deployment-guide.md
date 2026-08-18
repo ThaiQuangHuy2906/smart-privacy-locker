@@ -1,6 +1,6 @@
 # Smart Privacy Locker deployment guide
 
-> Release note 2026-08-17: automated build/test gates pass, but this audit did
+> Release note 2026-08-18: automated build/test gates pass, but this audit did
 > not redeploy or rerun external Supabase/FlowFuse/Telegram/Gemini/SMTP state.
 > Deploy only to an explicitly identified test project, preserve a rollback,
 > keep secrets outside Git, then execute
@@ -184,8 +184,9 @@ have been checked. Validate the buzzer module polarity/current and safe boot
 with appropriate lab supervision before running P3-M01/P3-M11. Simulator and
 compile results are software evidence, not hardware evidence.
 
-The current as-built SG90 uses close `170°` and open `80°`, directly moving the
-door without a latch. Before enabling the external 5 V branch, meter-check the
+The current as-built SG90 rotates a latch: `LOCK=80°`, `UNLOCK=170°`, while the
+user moves the door manually. It has no latch-angle feedback. Before enabling
+or changing the external 5 V branch, meter-check the
 5.5 × 2.5 mm jack polarity, switch/distribution/protection and common ground;
 complete [../hardware/power-budget.md](../hardware/power-budget.md). The adapter
 does not need a built-in I/O switch, but a correctly rated DC switch in the

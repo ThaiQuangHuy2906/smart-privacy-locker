@@ -27,6 +27,24 @@ test('door transition enforces non-UNKNOWN edge and unsynced timestamp policy', 
   const base = { schema_version: 1, locker_id: LOCKER_A, previous_state: 'CLOSED', state: 'OPEN',
     timestamp: '2026-08-08T08:00:00.000Z', time_synced: true };
   assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, base).ok, true);
+  assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, {
+    ...base, authorized: true,
+  }).ok, true);
+  assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, {
+    ...base, authorized: null,
+  }).code, 'INVALID_DOOR_TELEMETRY');
+  assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, {
+    ...base, previous_state: 'OPEN', state: 'CLOSED', authorized: null,
+  }).ok, true);
+  assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, {
+    ...base, previous_state: 'OPEN', state: 'CLOSED', authorized: false,
+  }).code, 'INVALID_DOOR_TELEMETRY');
+  assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, {
+    ...base, event_id: '30000000-0000-4000-8000-000000000001',
+  }).ok, true);
+  assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, {
+    ...base, event_id: 'not-a-uuid',
+  }).code, 'INVALID_DOOR_TELEMETRY');
   assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, { ...base, state: 'CLOSED' }).ok, false);
   assert.equal(validateDoor(`locker/${LOCKER_A}/telemetry/door`, { ...base, timestamp: null, time_synced: false }).ok, true);
 });

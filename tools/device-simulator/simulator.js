@@ -3,10 +3,14 @@
 const { randomUUID } = require('node:crypto');
 
 class DeviceSimulator {
-  constructor({ lockerId = 'LOCKER-001', publish, now = () => Date.parse('2026-08-08T08:00:00.000Z') }) {
+  constructor({ lockerId = 'LOCKER-001', publish,
+    now = () => Date.parse('2026-08-08T08:00:00.000Z'), authorizationWindowMs = 30_000 }) {
     this.lockerId = lockerId; this.publish = publish; this.now = now;
+    this.authorizationWindowMs = authorizationWindowMs;
     this.state = { door: 'CLOSED', lock: 'UNKNOWN', alarm: 'INACTIVE', led: 'OFF' };
     this.completed = new Map(); this.online = false;
+    this.openGrantAvailable = false; this.openGrantStartedAt = 0;
+    this.autoLockOnClose = false;
   }
 
   topic(suffix) { return `locker/${this.lockerId}/${suffix}`; }
@@ -43,8 +47,21 @@ class DeviceSimulator {
     const previous = this.state.door;
     if (state === previous) return;
     this.state.door = state;
+    let authorized = null;
+    if (previous === 'CLOSED' && state === 'OPEN') {
+      authorized = this.openGrantAvailable && this.state.lock === 'UNLOCKED'
+        && this.now() - this.openGrantStartedAt < this.authorizationWindowMs;
+      this.openGrantAvailable = false;
+      this.autoLockOnClose = true;
+      if (!authorized) this.state.alarm = 'ACTIVE';
+    } else if (previous === 'OPEN' && state === 'CLOSED' && this.autoLockOnClose) {
+      this.state.lock = 'LOCKED';
+      this.openGrantAvailable = false;
+      this.autoLockOnClose = false;
+    }
     this.publish(this.topic('telemetry/door'), { schema_version: 1, locker_id: this.lockerId,
-      previous_state: previous, state, timestamp: this.timestamp(), time_synced: true,
+      event_id: randomUUID(), previous_state: previous, state,
+      timestamp: this.timestamp(), time_synced: true, authorized,
       ...overrides }, { retain: false });
     this.publishState();
   }
@@ -60,7 +77,19 @@ class DeviceSimulator {
       this.publish(this.topic('ack'), duplicate, { retain: false });
       return [duplicate];
     }
+    if (command.action === 'LOCK') this.openGrantAvailable = false;
     if (mode === 'error') return this.ack(command, 'error', { code: 'ACTUATION_FAILED', message: 'Simulated error' });
+    if (command.action === 'LOCK' && this.state.door !== 'CLOSED') {
+      return this.ack(command, 'error', { code: 'DOOR_NOT_CLOSED', message: 'Door must be closed' });
+    }
+    if (command.action === 'UNLOCK' && this.state.door !== 'CLOSED') {
+      this.openGrantAvailable = false;
+      return this.ack(command, 'error', {
+        code: 'DOOR_NOT_CLOSED_FOR_ACCESS',
+        message: 'Door must be closed before granting another opening',
+      });
+    }
+    if (command.action === 'LOCK' || command.action === 'UNLOCK') this.autoLockOnClose = false;
     const next = { ...this.state };
     if (command.action === 'LOCK') next.lock = 'LOCKED';
     if (command.action === 'UNLOCK') next.lock = 'UNLOCKED';
@@ -69,6 +98,10 @@ class DeviceSimulator {
     if (command.action === 'LED_ON') next.led = 'ON';
     if (command.action === 'LED_OFF') next.led = 'OFF';
     this.state = next;
+    if (command.action === 'UNLOCK') {
+      this.openGrantAvailable = this.state.door === 'CLOSED';
+      this.openGrantStartedAt = this.now();
+    }
     const overrides = {};
     if (mode === 'wrong_id') overrides.command_id = randomUUID();
     if (mode === 'wrong_locker') overrides.locker_id = 'LOCKER-OTHER';
@@ -78,6 +111,17 @@ class DeviceSimulator {
     if (command.action === 'GET_STATE') this.publishState();
     else this.publishState();
     return result;
+  }
+
+  tick() {
+    if (!this.openGrantAvailable
+        || this.now() - this.openGrantStartedAt < this.authorizationWindowMs) return false;
+    this.openGrantAvailable = false;
+    if (this.state.door !== 'CLOSED') return false;
+    this.autoLockOnClose = false;
+    this.state.lock = 'LOCKED';
+    this.publishState();
+    return true;
   }
 
   delayedCommand(command, delayMs, schedule) { schedule(delayMs, () => this.receiveCommand(command)); }

@@ -1,6 +1,6 @@
 # Smart Privacy Locker database design
 
-> Audit status 2026-08-17: migration/RLS/idempotency source and automated
+> Audit status 2026-08-18: migration/RLS/idempotency source and automated
 > contracts were reviewed with no confirmed P0 finding. Clean migration, pgTAP
 > and cross-owner live gates were not rerun against an external project in this
 > audit; historical PASS evidence applies only to its recorded project/date.
@@ -72,3 +72,11 @@ insert can shift an offset boundary, the adapter deduplicates page overlap by
 the immutable `event_id`. The backend fails with `EVENT_DATASET_TOO_LARGE` at
 its explicit safety ceiling rather than returning a plausible but incomplete
 chart/report/chatbot count.
+
+Runtime persistence is no longer fire-and-forget. Node-RED places normalized
+events in a bounded in-memory outbox, retries transient failures with bounded
+backoff, exposes pending/dead-letter health, and moves an exhausted or
+outbox-full item to a bounded dead-letter record. The queue is deliberately not
+described as durable: a Node-RED process restart can lose pending in-memory
+items, while Supabase `event_id` idempotency prevents duplicate rows when a
+retry does reach the database.

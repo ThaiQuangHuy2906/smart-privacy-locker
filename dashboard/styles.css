@@ -40,12 +40,10 @@
 }
 
 html {
-  min-width: 320px;
   scroll-behavior: smooth;
 }
 
 body {
-  min-width: 320px;
   margin: 0;
   background:
     linear-gradient(135deg, rgba(216, 228, 219, 0.35), transparent 30rem),
@@ -875,6 +873,10 @@ select:focus {
   color: transparent;
 }
 
+.auth-card:has(#auth-form[hidden]) {
+  align-self: start;
+}
+
 .control-button[data-pending="true"]::after {
   color: var(--primary);
 }
@@ -883,12 +885,25 @@ select:focus {
 form[data-pending="true"] .button[type="submit"]::after {
   content: "";
   position: absolute;
+  inset: 0;
+  margin: auto;
   width: 17px;
   height: 17px;
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
   animation: spin 700ms linear infinite;
+}
+
+.control-hint {
+  margin: 18px 0 0;
+  border-left: 4px solid var(--primary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--primary-soft);
+  color: var(--muted-strong);
+  padding: 11px 13px;
+  font-size: 0.86rem;
+  line-height: 1.55;
 }
 
 .chat-form {
@@ -969,7 +984,7 @@ form[data-pending="true"] .button[type="submit"]::after {
 
 .chart-bars {
   display: flex;
-  min-height: 230px;
+  min-height: 250px;
   align-items: end;
   gap: 8px;
   overflow-x: auto;
@@ -1000,11 +1015,21 @@ form[data-pending="true"] .button[type="submit"]::after {
 .chart-day {
   display: grid;
   grid-template-columns: repeat(2, 8px);
+  grid-template-rows: 18px 170px 24px;
   align-items: end;
   justify-content: center;
   gap: 3px;
-  min-width: 30px;
-  height: 178px;
+  min-width: 42px;
+  height: 218px;
+}
+
+.chart-values {
+  grid-column: 1 / -1;
+  align-self: center;
+  color: var(--ink-strong);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .chart-bar {
@@ -1018,10 +1043,9 @@ form[data-pending="true"] .button[type="submit"]::after {
 
 .chart-label {
   grid-column: 1 / -1;
-  transform: rotate(-50deg);
-  transform-origin: top center;
   color: var(--muted);
   font-size: 0.66rem;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -1048,6 +1072,51 @@ form[data-pending="true"] .button[type="submit"]::after {
 
 .legend-open { background: var(--primary); }
 .legend-alert { background: var(--danger); }
+
+.chart-data {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.chart-data summary {
+  cursor: pointer;
+  color: var(--primary-hover);
+  padding: 12px 14px;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.chart-table-scroll {
+  overflow-x: auto;
+  border-top: 1px solid var(--border);
+}
+
+.chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-table caption {
+  padding: 10px 14px;
+  color: var(--muted);
+  text-align: left;
+}
+
+.chart-table th,
+.chart-table td {
+  border-top: 1px solid var(--border);
+  padding: 9px 14px;
+  text-align: right;
+}
+
+.chart-table th:first-child {
+  text-align: left;
+}
 
 .visually-hidden {
   position: absolute !important;
@@ -1171,6 +1240,8 @@ form[data-pending="true"] .button--claim::after {
 .button[data-pending="true"]::after {
   content: "";
   position: absolute;
+  inset: 0;
+  margin: auto;
   width: 17px;
   height: 17px;
   border: 2px solid currentColor;

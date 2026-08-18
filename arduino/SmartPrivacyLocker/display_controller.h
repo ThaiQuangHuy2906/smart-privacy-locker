@@ -15,5 +15,8 @@ class DisplayController {
  private:
   Adafruit_SSD1306 display_;
   bool available_ = false;
+  bool rendered_ = false;
   unsigned long lastRenderAt_ = 0;
+  DeviceState lastState_;
+  EnvironmentReading lastEnvironment_;
 };

@@ -335,11 +335,16 @@ async function setAuthFields(cdp, fields) {
 }
 
 async function submitAuth(cdp, mode) {
-  await cdp.evaluate((requestedMode) => {
+  const started = await cdp.evaluate((requestedMode) => {
     const form = document.getElementById('auth-form');
-    const button = form.querySelector(`[data-mode="${requestedMode}"]`);
-    form.requestSubmit(button);
+    if (form.dataset.mode !== requestedMode) {
+      document.getElementById('auth-mode-toggle').click();
+    }
+    if (form.dataset.mode !== requestedMode) return false;
+    form.requestSubmit(document.getElementById('auth-submit'));
+    return form.dataset.pending === 'true';
   }, mode);
+  if (!started) throw new GateError('AUTH_FORM_DID_NOT_START');
   await waitFor(cdp,
     () => document.getElementById('auth-form').dataset.pending === 'false',
     null, 'AUTH_FORM_TIMEOUT');

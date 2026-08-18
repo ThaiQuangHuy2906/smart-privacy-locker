@@ -1,5 +1,7 @@
 'use strict';
 
+const { createHash } = require('node:crypto');
+
 const DEFAULT_AUTHORIZATION_TIMEOUT_MS = 9000;
 
 function bearer(headers = {}) {
@@ -121,17 +123,56 @@ class SupabaseAuthAdapter {
 }
 
 class AuthGate {
-  constructor(adapter, { authorizationTimeoutMs = DEFAULT_AUTHORIZATION_TIMEOUT_MS } = {}) {
+  constructor(adapter, { authorizationTimeoutMs = DEFAULT_AUTHORIZATION_TIMEOUT_MS,
+    cacheTtlMs = 15_000, cacheLimit = 64, now = Date.now } = {}) {
     this.adapter = adapter;
     this.authorizationTimeoutMs = Number.isFinite(authorizationTimeoutMs) && authorizationTimeoutMs > 0
       ? authorizationTimeoutMs : DEFAULT_AUTHORIZATION_TIMEOUT_MS;
+    this.cacheTtlMs = Number.isFinite(cacheTtlMs) && cacheTtlMs > 0 ? cacheTtlMs : 15_000;
+    this.cacheLimit = Number.isInteger(cacheLimit) && cacheLimit > 0 ? cacheLimit : 64;
+    this.now = now;
+    this.authenticationCache = new Map();
+    this.ownershipCache = new Map();
   }
 
-  async authenticate(headers, { signal } = {}) {
+  cacheKey(accessToken) {
+    return createHash('sha256').update(accessToken).digest('hex');
+  }
+
+  cached(cache, key) {
+    const item = cache.get(key);
+    if (!item) return null;
+    if (item.expiresAt <= this.now()) {
+      cache.delete(key);
+      return null;
+    }
+    cache.delete(key);
+    cache.set(key, item);
+    return item.value;
+  }
+
+  remember(cache, key, value) {
+    cache.delete(key);
+    cache.set(key, { value, expiresAt: this.now() + this.cacheTtlMs });
+    while (cache.size > this.cacheLimit) cache.delete(cache.keys().next().value);
+  }
+
+  clearCache() {
+    this.authenticationCache.clear();
+    this.ownershipCache.clear();
+  }
+
+  async authenticate(headers, { signal, forceFresh = false } = {}) {
     const accessToken = bearer(headers);
     if (!accessToken) return { ok: false, status: 401, code: 'AUTH_REQUIRED' };
+    const tokenKey = this.cacheKey(accessToken);
+    if (!forceFresh) {
+      const principal = this.cached(this.authenticationCache, tokenKey);
+      if (principal) return { ok: true, principal, accessToken };
+    }
     try {
       const principal = await this.adapter.verify(accessToken, { signal });
+      this.remember(this.authenticationCache, tokenKey, principal);
       return { ok: true, principal, accessToken };
     } catch (error) {
       const status = error.status === 401 ? 401 : 503;
@@ -139,7 +180,7 @@ class AuthGate {
     }
   }
 
-  async authorize(headers, lockerId) {
+  async authorize(headers, lockerId, { forceFresh = false } = {}) {
     const controller = new AbortController();
     let timer;
     const deadline = new Promise((resolve) => {
@@ -149,11 +190,18 @@ class AuthGate {
       }, this.authorizationTimeoutMs);
     });
     const authorization = (async () => {
-      const authentication = await this.authenticate(headers, { signal: controller.signal });
+      const authentication = await this.authenticate(headers, {
+        signal: controller.signal, forceFresh,
+      });
       if (!authentication.ok) return authentication;
+      const ownershipKey = `${this.cacheKey(authentication.accessToken)}:${lockerId}`;
+      if (!forceFresh && this.cached(this.ownershipCache, ownershipKey) === true) {
+        return authentication;
+      }
       try {
         const owns = await this.adapter.owns(authentication.accessToken, authentication.principal.id,
           lockerId, { signal: controller.signal });
+        if (owns) this.remember(this.ownershipCache, ownershipKey, true);
         return owns ? authentication : { ok: false, status: 403, code: 'LOCKER_FORBIDDEN' };
       } catch (error) {
         if (error?.status === 401) {

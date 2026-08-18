@@ -1,8 +1,9 @@
 # Node-RED application deployment
 
-> Audit snapshot 2026-08-17: `npm test` passes 156/156, simulator 10 assertions
-> across 15 scenarios, authenticated loopback broker 17 assertions, and the
-> config/dependency audits report zero findings. External FlowFuse/Supabase/
+> Audit snapshot 2026-08-18: `npm test` passes 177/177, simulator 28 assertions
+> across 22 scenarios, authenticated loopback broker 18 assertions, local
+> Chrome/CDP dashboard QA 18/18, and config/dependency audits report zero
+> findings. External FlowFuse/Supabase/
 > Telegram/Gemini/SMTP state was not redeployed or rerun in this audit.
 
 `flows.json` separates MQTT validation/cache, auth/dispatcher/ACK/timeout,
@@ -17,6 +18,19 @@ the active `ONLINE` connection generation; it does not persist a periodic
 `DEVICE_ONLINE` event. Dashboard corrections are documented in
 [../dashboard/README.md](../dashboard/README.md). Regenerate the FlowFuse
 artifact after every source change and run the deterministic artifact test.
+
+Door events preserve a firmware UUIDv4 `event_id` and use its explicit OPEN
+`authorized` boolean when present. One successful `UNLOCK` ACK while CLOSED
+grants one OPEN. Current firmware auto-locks after that opening closes or when
+the unused 30-second grant expires; a later forced OPEN without re-arm is
+unauthorized. The automatic lock publishes state but no command ACK. The
+backend window is a legacy fallback, not an
+override of firmware after restart. A missed OPEN is reconciled from full state
+only when the device also reports local `alarm=ACTIVE`; repeated event IDs are
+idempotent across alarm/history/notification side effects.
+Persistence failures enter a bounded RAM retry outbox; due retries run from the
+periodic flow tick, and exhausted/full-outbox records remain visible as explicit
+dead letters rather than a false healthy state.
 
 ## Install and configure
 
@@ -45,8 +59,7 @@ password in the MQTT broker configuration node's credential fields:
 
 ```text
 LOCKER_ID, MQTT_HOST, MQTT_PORT,
-COMMAND_TIMEOUT_MS, AUTHORIZED_UNLOCK_WINDOW_SECONDS,
-DEVICE_STALE_AFTER_SECONDS, DASHBOARD_BASE_URL,
+COMMAND_TIMEOUT_MS, DEVICE_STALE_AFTER_SECONDS, DASHBOARD_BASE_URL,
 SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
 TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, TELEGRAM_WEBHOOK_SECRET,
 GEMINI_API_KEY, GEMINI_MODEL, REPORT_TIMEZONE,
@@ -168,7 +181,10 @@ See `docs/auth-ownership.md` for route/status contracts. The timeout scheduler
 runs every 250 ms against a 5000 ms default deadline. Actuator timeouts are not
 retried; one internal `GET_STATE` is issued only while the device remains ready.
 Completed IDs are bounded in memory. A Node-RED restart clears them, pending
-commands, cache freshness, and authorized windows by design.
+commands, cache freshness, and the legacy unlock-command window by design.
+Current firmware telemetry remains authoritative for the one-time OPEN decision,
+so a backend restart cannot turn a device-authorized edge into an alert or vice
+versa.
 
 Phase 3 adds owner-protected `GET history`, `GET chart`, and `GET/PUT
 notification-settings` routes. A minute scheduler selects email-enabled

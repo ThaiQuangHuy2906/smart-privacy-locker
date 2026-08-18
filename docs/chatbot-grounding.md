@@ -1,6 +1,6 @@
 # YC8 chatbot routing and grounding
 
-> Audit status 2026-08-17: automated classification/grounding/provider-failure
+> Audit status 2026-08-18: automated classification/grounding/provider-failure
 > coverage passes. The earlier real Gemini success/failure record remains
 > historical evidence; this audit did not call the external provider again.
 > Final E2E must use an owned test locker and compare every answer with the
@@ -10,17 +10,18 @@ The protected `/api/v1/chatbot` route verifies the Supabase access token and
 locker ownership before classification. Questions containing current-state
 intent route to the per-locker live cache. History/count/recent/time-range
 intent routes to the version 1 history adapter in `event-contract.md`.
-Unsupported or empty questions return a controlled response.
+Unsupported or empty questions return `QUESTION_UNSUPPORTED`; the HTTP route
+maps that domain result to `422` rather than presenting it as a server outage.
 
 Live answers require MQTT connected, fresh `ONLINE` availability, and a full
 state observed after that availability signal. Missing, stale, offline, or
 restart-empty state returns `LIVE_STATE_UNAVAILABLE`; retained state alone is
 not passed to Gemini.
 
-Because the current UI can leave lock/alarm/LED visually stale, the chatbot
-backend's validated freshness gate—not the text visible on a stale card—is the
-technical source for live answers. If that gate cannot establish freshness, the
-correct result is `LIVE_STATE_UNAVAILABLE`, not a guess from retained data.
+The current UI marks stale lock/alarm/LED as unknown and disables related
+actions, but the chatbot still relies on its own validated backend freshness
+gate. If that gate cannot establish freshness, the correct result is
+`LIVE_STATE_UNAVAILABLE`, not a guess from retained data or the browser card.
 
 For history, Node-RED receives deterministically paginated event summaries and
 computes `open_count`, `alert_count`, range, recent event summaries and provenance. The

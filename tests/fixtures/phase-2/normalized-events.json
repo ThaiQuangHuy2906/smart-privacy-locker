@@ -16,7 +16,7 @@
     "recorded_at": "2026-08-08T08:00:00.100Z",
     "principal": null,
     "notification_status": null,
-    "metadata": {"detector":"authorized-window-v1"}
+    "metadata": {"detector":"trusted-lock-state-v1"}
   },
   {
     "schema_version": 1,

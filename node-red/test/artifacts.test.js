@@ -251,6 +251,30 @@ test('all exported Function code compiles and settings pre-create the shared run
   assert.ok(Array.isArray(settings.functionGlobalContext.splOutbox));
 });
 
+test('exported scheduler retries persistence and chatbot maps unsupported questions to 422', async () => {
+  const flows = JSON.parse(fs.readFileSync(path.join(root, 'node-red', 'flows.json'), 'utf8'));
+  const timeoutFunction = flows.find((node) => node.id === 'timeout_fn');
+  let retries = 0;
+  executeFlowFunction(timeoutFunction, { values: {
+    splRuntime: {
+      retryPersistence: async () => { retries += 1; },
+      dispatcher: { expire: () => [] },
+    },
+    splOutbox: [],
+  } });
+  await Promise.resolve();
+  assert.equal(retries, 1);
+
+  const chatFunction = flows.find((node) => node.id === 'chat_fn');
+  const request = executeFlowFunction(chatFunction, {
+    msg: { req: { headers: {} }, payload: { question: 'unsupported' } },
+    values: { splRuntime: { protectedChat: async () => ({ ok: false, code: 'QUESTION_UNSUPPORTED' }) } },
+  });
+  const response = await request.output;
+  assert.equal(response.statusCode, 422);
+  assert.equal(response.payload.code, 'QUESTION_UNSUPPORTED');
+});
+
 test('Node-RED exported MQTT lifecycle recognizes the real 4.1.13 status and bootstraps state', () => {
   const flows = JSON.parse(fs.readFileSync(path.join(root, 'node-red', 'flows.json'), 'utf8'));
   const statusNode = flows.find((node) => node.id === 'mqtt_status');
@@ -381,7 +405,8 @@ test('Dashboard has no MQTT/service-role path and uses canonical Bearer header',
   assert.match(html, /id="full-name"/);
   assert.match(html, /id="full-name-field"[^>]*hidden/);
   assert.match(html, /id="auth-submit"[^>]*disabled/);
-  assert.match(html, /id="auth-mode-toggle"[^>]*aria-pressed="false"[^>]*disabled/);
+  assert.match(html, /id="auth-mode-toggle"[^>]*disabled/);
+  assert.doesNotMatch(html, /id="auth-mode-toggle"[^>]*aria-pressed/);
   assert.match(html, /id="claim-message"[^>]*role="status"/);
   assert.match(app, /data:\s*\{\s*full_name:\s*fullName\s*\}/);
   assert.match(app, /notification_status/);
@@ -409,6 +434,17 @@ test('Dashboard has no MQTT/service-role path and uses canonical Bearer header',
   assert.match(css,
     /\.control-button\[data-pending="true"\]::after\s*\{[^}]*color:\s*var\(--primary\)/s,
     'pending control spinner must retain a visible color after its label becomes transparent');
+  assert.match(css,
+    /\.control-button\[data-pending="true"\]::after,\s*form\[data-pending="true"\] \.button\[type="submit"\]::after\s*\{[^}]*inset:\s*0;[^}]*margin:\s*auto;/s,
+    'control and form spinners must be centered independently of their hidden labels');
+  assert.match(css,
+    /\.button\[data-pending="true"\]::after\s*\{[^}]*inset:\s*0;[^}]*margin:\s*auto;/s,
+    'generic button spinners must be centered independently of their hidden labels');
+
+  const firmwareMain = fs.readFileSync(path.join(root, 'firmware', 'src', 'main.cpp'), 'utf8');
+  assert.match(firmwareMain,
+    /desiredState == LockState::UNLOCKED[\s\S]*?stateManager\.current\(\)\.door != DoorState::CLOSED \|\| !rawDoorIsClosed\(\)[\s\S]*?doorAccessController\.revoke\(\)[\s\S]*?DOOR_NOT_CLOSED_FOR_ACCESS[\s\S]*?stateManager\.current\(\)\.lock == desiredState/,
+    'firmware must reject every UNLOCK unless both stable and raw door state are closed before same-state handling');
 });
 
 test('owner live gate observes stable state attributes instead of localized labels', () => {
@@ -431,10 +467,11 @@ test('Phase 3 deployment docs and firmware compatibility use the executable runt
     'app_config.example.h'), 'utf8');
   const runtimeConfig = fs.readFileSync(path.join(root, 'firmware', 'include', 'runtime_config.h'), 'utf8');
   const firmwareMain = fs.readFileSync(path.join(root, 'firmware', 'src', 'main.cpp'), 'utf8');
+  const wokwiSketch = fs.readFileSync(path.join(root, 'wokwi',
+    'smart-privacy-locker-wokwi', 'sketch.ino'), 'utf8');
   const mqttClient = fs.readFileSync(path.join(root, 'firmware', 'src', 'mqtt_client.cpp'), 'utf8');
   const pinMap = fs.readFileSync(path.join(root, 'hardware', 'pin-map.md'), 'utf8');
-  const assemblyGuide = fs.readFileSync(path.join(root,
-    'HUONG_DAN_LAP_MACH_THEO_THU_TU.md'), 'utf8');
+  const runGuide = fs.readFileSync(path.join(root, 'HUONG_DAN_CHAY_HE_THONG.md'), 'utf8');
   for (const key of ['GMAIL_APP_PASSWORD', 'EMAIL_FROM']) {
     assert.match(nodeRedReadme, new RegExp(`\\b${key}\\b`));
     assert.match(builder, new RegExp(`['\"]${key}['\"]`));
@@ -447,15 +484,64 @@ test('Phase 3 deployment docs and firmware compatibility use the executable runt
   assert.match(firmwareMain, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
   assert.doesNotMatch(firmwareMain, /AppConfig::BUZZER_ACTIVE_HIGH/);
   assert.match(mqttClient,
-    /const bool onlinePublished = publishAvailability\("ONLINE"[\s\S]*?onlinePublished && publishState\(/);
+    /const bool onlinePublished = publishAvailability\("ONLINE"[\s\S]*?bootstrapStatePending_ = true/);
   assert.match(mqttClient,
-    /if \(!statePublished \|\| !onlinePublished\)[\s\S]*?disconnectWithOfflineFallback\(\)[\s\S]*?scheduleRetry\(now\)/);
+    /if \(bootstrapStatePending_\)[\s\S]*?if \(!doorOutboxEmpty\)[\s\S]*?publishState\(state\.current\(\), true\)/);
+  assert.match(mqttClient,
+    /if \(!publishState\(state\.current\(\), true\)\)[\s\S]*?disconnectWithOfflineFallback\(\)[\s\S]*?scheduleRetry\(now\)/);
   assert.match(mqttClient,
     /publishHeartbeat\(\)[\s\S]*?heartbeatPublished && publishState\(state\.current\(\), true\)/);
+  assert.match(firmwareMain,
+    /if \(lockCommandInFlight \|\| lockController\.isBusy\(\)\)[\s\S]*?CommandError::ACTUATION_FAILED[\s\S]*?if \(stateManager\.current\(\)\.lock == desiredState\)/);
+  assert.match(firmwareMain,
+    /void cancelInFlightLatch\(\)[\s\S]*?lockController\.cancel\(\);[\s\S]*?stateManager\.setLock\(LockState::UNKNOWN\);[\s\S]*?CommandAction::UNLOCK[\s\S]*?CommandError::DOOR_NOT_CLOSED_FOR_ACCESS[\s\S]*?rememberAndPublish\(inFlightLockAck\)/);
+  assert.match(firmwareMain,
+    /shouldCancelLatchActuation\(doorTransition\.current, isLatchActuationInFlight\(\)\)[\s\S]*?cancelInFlightLatch\(\)/,
+    'a stable open edge must cancel either LOCK or UNLOCK actuation');
+  assert.match(firmwareMain,
+    /isLatchActuationInFlight\(\) && !rawDoorClosed[\s\S]*?cancelInFlightLatch\(\)/,
+    'the raw fail-safe edge must cancel either LOCK or UNLOCK actuation');
+  assert.match(firmwareMain,
+    /void startAutoLock\(unsigned long now\)[\s\S]*?DoorState::CLOSED[\s\S]*?autoLockPending = true[\s\S]*?tryStartPendingAutoLock\(now\)/,
+    'auto-lock must only be requested locally while the stable door is closed');
+  assert.match(firmwareMain,
+    /void tryStartPendingAutoLock\(unsigned long now\)[\s\S]*?!rawDoorIsClosed\(\)[\s\S]*?lockController\.start\(LockState::LOCKED, now\)[\s\S]*?autoLockInFlight = true/,
+    'auto-lock must wait through a raw bounce and start only while the raw door is closed');
+  assert.match(firmwareMain,
+    /autoLockPolicy\.observeTransition\(\s*doorTransition\.previous, doorTransition\.current\)[\s\S]*?startAutoLock\(now\)/,
+    'an observed OPEN to CLOSED cycle must start local auto-lock');
+  assert.match(firmwareMain,
+    /doorAccessController\.expireIfDue\(actuatorNow\)[\s\S]*?startAutoLock\(actuatorNow\)/,
+    'an unused grant expiring while closed must start local auto-lock');
+  assert.match(firmwareMain,
+    /startAutoLock\(actuatorNow\)[\s\S]*?tryStartPendingAutoLock\(actuatorNow\)/,
+    'a pending auto-lock must retry after a sub-debounce raw sensor glitch');
+  assert.match(firmwareMain,
+    /if \(lockCommandInFlight\)[\s\S]*?rememberAndPublish\(inFlightLockAck\)[\s\S]*?else if \(autoLockInFlight\)[\s\S]*?requestStatePublish\(\)/,
+    'auto-lock completion must publish state without fabricating a command ACK');
+  assert.match(wokwiSketch,
+    /if \(!doorClosed \|\| digitalRead\(DOOR_PIN\) != LOW\)[\s\S]*?door_not_closed_for_access[\s\S]*?return;/,
+    'the standalone Wokwi sketch must reject UNLOCK while the door is open');
+  assert.match(wokwiSketch,
+    /!wasClosed && doorClosed && autoLockOnClose[\s\S]*?moveLock\(LockState::LOCKED, true\)/,
+    'the standalone Wokwi sketch must mirror lock-on-close behavior');
+  assert.match(wokwiSketch,
+    /now - openGrantStartedAt >= AUTHORIZED_OPEN_WINDOW_MS[\s\S]*?moveLock\(LockState::LOCKED, true\)/,
+    'the standalone Wokwi sketch must mirror unused-grant expiry auto-lock');
+  assert.match(firmwareMain,
+    /void flushPendingStatePublish\(\)[\s\S]*?!doorTransitionOutbox\.empty\(\)[\s\S]*?publishState\(stateManager\.current\(\), true\)/);
+  assert.match(mqttClient,
+    /heartbeatTimer_\.due[\s\S]*?if \(!doorOutboxEmpty\)[\s\S]*?return;[\s\S]*?publishHeartbeat\(\)/);
+  const doorSensorBlock = firmwareMain.slice(
+    firmwareMain.indexOf('void processDoorSensor'),
+    firmwareMain.indexOf('void processUsbMaintenanceCommand'),
+  );
+  assert.match(doorSensorBlock, /requestStatePublish\(\)/);
+  assert.doesNotMatch(doorSensorBlock, /mqttClient\.publishState/);
   assert.match(pinMap, /SPL_BUZZER_ACTIVE_HIGH/);
   assert.match(pinMap, /RuntimeConfig::BUZZER_ACTIVE_HIGH/);
-  assert.match(assemblyGuide, /SPL_BUZZER_ACTIVE_HIGH\s+0/);
-  assert.doesNotMatch(`${pinMap}\n${assemblyGuide}`, /AppConfig::BUZZER_ACTIVE_HIGH/);
+  assert.match(runGuide, /SPL_BUZZER_ACTIVE_HIGH=0/);
+  assert.doesNotMatch(`${pinMap}\n${runGuide}`, /AppConfig::BUZZER_ACTIVE_HIGH/);
   assert.match(requirements, /Requirement traceability — Phases 1–3/);
   assert.match(architecture, /Phase 1–3 architecture/);
   assert.match(chatbotGrounding, /Phase 3 now connects the\s+same frozen history contract/);

@@ -119,6 +119,89 @@ class MemoryPhase3Data {
   }
 }
 
+test('persistence outbox retries a failed idempotent event and exposes pending health', async () => {
+  let attempts = 0;
+  const persisted = [];
+  const { runtime, clock } = makeRuntime({ runtimeOptions: {
+    data: {
+      async persist(event) {
+        attempts += 1;
+        if (attempts === 1) throw Object.assign(new Error('temporary'), { code: 'DATA_UNAVAILABLE' });
+        persisted.push(event.event_id);
+        return { inserted: true, duplicate: false };
+      },
+    },
+    persistenceRetryBaseMs: 1000,
+  } });
+  runtime.emitEvent(normalizedEvent({
+    eventType: 'DOOR_OPENED', lockerId: LOCKER_A,
+    state: { door: 'OPEN', lock: 'UNLOCKED', alarm: 'INACTIVE', led: 'OFF' },
+    source: 'sensor', uuid: () => '60000000-0000-4000-8000-000000000001',
+  }));
+  await runtime.flushPersistence();
+
+  assert.equal(attempts, 1);
+  assert.equal(runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A })
+    .persistence.pending, 1);
+
+  clock.value += 1000;
+  await runtime.retryPersistence();
+  await runtime.flushPersistence();
+  assert.equal(attempts, 2);
+  assert.deepEqual(persisted, ['60000000-0000-4000-8000-000000000001']);
+  assert.equal(runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A })
+    .persistence.pending, 0);
+});
+
+test('a full persistence outbox leaves an explicit dead letter instead of reporting recovery', async () => {
+  const { runtime } = makeRuntime({ runtimeOptions: {
+    data: { async persist() { throw Object.assign(new Error('offline'), { code: 'DATA_OFFLINE' }); } },
+    persistenceOutboxLimit: 1,
+  } });
+  const event = (eventId) => normalizedEvent({
+    eventType: 'DOOR_OPENED', lockerId: LOCKER_A,
+    state: { door: 'OPEN', lock: 'UNLOCKED', alarm: 'INACTIVE', led: 'OFF' },
+    source: 'sensor', result: 'observed', uuid: () => eventId,
+  });
+
+  runtime.emitEvent(event('60000000-0000-4000-8000-000000000011'));
+  await runtime.flushPersistence();
+  runtime.emitEvent(event('60000000-0000-4000-8000-000000000012'));
+
+  const health = runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A })
+    .persistence;
+  assert.equal(health.status, 'error');
+  assert.equal(health.pending, 1);
+  assert.equal(health.dead_letter, 1);
+  assert.equal(runtime.persistenceDeadLetters[0].error, 'PERSISTENCE_OUTBOX_FULL');
+});
+
+test('persistence health keeps an actionable dead-letter error after a later write succeeds', async () => {
+  let shouldFail = true;
+  const { runtime } = makeRuntime({ runtimeOptions: {
+    data: { async persist() {
+      if (shouldFail) throw Object.assign(new Error('offline'), { code: 'DATA_OFFLINE' });
+      return { inserted: true, duplicate: false };
+    } },
+    persistenceMaxAttempts: 1,
+  } });
+  const event = (eventId) => normalizedEvent({
+    eventType: 'DOOR_OPENED', lockerId: LOCKER_A,
+    state: { door: 'OPEN', lock: 'UNLOCKED', alarm: 'INACTIVE', led: 'OFF' },
+    source: 'sensor', result: 'observed', uuid: () => eventId,
+  });
+
+  runtime.emitEvent(event('60000000-0000-4000-8000-000000000021'));
+  await runtime.flushPersistence();
+  shouldFail = false;
+  runtime.emitEvent(event('60000000-0000-4000-8000-000000000022'));
+  await runtime.flushPersistence();
+
+  assert.deepEqual(runtime.persistenceHealth, {
+    status: 'error', last_error: 'DATA_OFFLINE', pending: 0, dead_letter: 1,
+  });
+});
+
 function alarmAck(command, state = 'ACTIVE') {
   return { schema_version: 1, command_id: command.command_id, locker_id: LOCKER_A,
     action: command.action, result: 'success', device_state: { door: 'CLOSED', lock: 'LOCKED',

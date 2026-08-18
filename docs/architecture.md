@@ -1,9 +1,9 @@
 # Phase 1–3 architecture
 
-> Audit status 2026-08-17: this architecture matches the current source, with
-> the explicit limitations below. The as-built SG90 arm directly closes/opens
-> the door; there is no separate latch or position/current feedback. Automated
-> software paths pass, while physical E2E/full-load remains open.
+> Audit status 2026-08-18: this architecture matches the current source, with
+> the explicit limitations below. Physical photos confirm the SG90 arm is a
+> rotating latch at the door edge. It has no position/current feedback;
+> automated software paths pass while final physical E2E remains manual.
 
 ## Trust and data boundaries
 
@@ -59,15 +59,16 @@ old connectivity value.
 | `state_manager` | One in-memory full-state source | cold boot defaults; only a completed actuator action confirms state |
 | `command_handler` | Parse and validate MQTT v1 command JSON | validates schema, UUID, topic/device locker, action, timestamp and requester |
 | `ack_publisher` | Serialize ACK and cache bounded results | duplicate replay preserves the original result/state/error and adds `duplicate:true` |
-| `mqtt_client` | Broker lifecycle | unique client ID, LWT, retained availability/state, bounded retry and subscription |
+| `mqtt_client` | Broker lifecycle | unique client ID, LWT, retained availability/state, bounded retry/subscription, and outbox-before-state reconnect bootstrap |
 | `wifi_provisioning` | WiFiManager lifecycle | captive portal/non-blocking processing and USB-local reset |
-| `lock_controller` | CB2 SG90 direct door arm | attach/write after a valid action, settle, detach, then confirm the logical commanded state; no position/current feedback proves physical travel |
+| `lock_controller` | CB2 SG90 rotating latch | attach/write after a valid command or local auto-lock request, settle, detach, cancel any in-flight movement if the door opens, then confirm the logical commanded state; no position/current feedback proves physical travel |
 | `led_controller` | YC3 WS2812B | configured brightness/pixel count; changes only on LED actions |
 | `alarm_controller` | CB3 active buzzer | configurable active-high/low polarity, safe boot inactive and non-blocking state change |
 | `environment_monitor` | YC1 DHT22 | 2.5-second polling with valid/error readings |
 | `display_controller` | YC1 OLED | local value/error render plus Wi-Fi/MQTT status |
 | `time_utils` | NTP plausibility guard | applies stale checks only after time sync |
 | `door_sensor` | CB1 MC-38 | boot `UNKNOWN`, stable `OPEN/CLOSED` debounce and transition-only output |
+| `door_security` | Local door-security/auto-lock policy and RAM outbox | one closed-door `UNLOCK` grants one OPEN for 30 seconds; the next OPEN consumes it and arms lock-on-close, an unused grant locks at expiry, any OPEN without a grant alarms locally, and transition decisions replay through a bounded FIFO after MQTT recovery |
 
 ## Node-RED and Supabase modules
 
@@ -92,9 +93,11 @@ notification settings. Browser roles receive only explicit least-privilege
 grants. The service role is confined to Node-RED and is required for trusted
 persistence/scheduler operations that must not be exposed to a browser.
 
-Runtime restart clears pending commands, completed IDs, authorization windows,
-cache freshness and in-memory operational buffers. Durable events, settings and
-delivery reservations remain in Supabase.
+Runtime restart clears pending commands, completed IDs, cache freshness,
+authorization caches and in-memory operational buffers/outboxes. Durable
+events, settings and delivery reservations remain in Supabase. Both the
+firmware door-event outbox and Node-RED persistence retry outbox are RAM-only,
+so a process/device reboot before replay can lose an undelivered item.
 
 Telegram alerts have no deployment-wide recipient. Each owner selects a locker
 and requests a 10-minute deep link; only a secret-authenticated webhook from a
@@ -107,17 +110,20 @@ routed through another user's Chat ID.
 ## Cooperative firmware loop
 
 `loop()` runs short activities in order: serial reset command, Wi-Fi
-portal/process, MQTT tick/reconnect, actuator completion, and
+portal/process, MQTT tick/reconnect, debounced/raw door safety checks, door
+outbox replay, grant-expiry/auto-lock handling, actuator completion, and
 environment/display refresh. Servo and buzzer work are state transitions; an
 incoming MQTT callback does not block for motion or replay an already cached
-command as a new physical action.
+command as a new physical action. A stable observed `OPEN → CLOSED` requests
+local lock immediately after the 50 ms debounce; a grant that remains unused
+requests it at 30 seconds. Neither path depends on MQTT or creates a command
+ACK. A raw open edge cancels either command-driven or automatic servo travel.
 
 The compatibility enums `LOCKED`/`UNLOCKED` remain in MQTT/database/UI, but on
-the current prototype they mean “the SG90 control cycle reached its configured
-close/open deadline.” The controller cannot detect a jam, detached horn,
-insufficient force or manually opened door. MC-38 `CLOSED/OPEN` and physical
-test evidence are separate outcome signals; the system must not claim a
-tamper-resistant mechanical lock from the servo ACK alone.
+the current prototype they mean “the SG90 latch-control cycle reached its
+configured deadline.” The controller cannot detect a jam, detached horn or
+insufficient force. MC-38 `CLOSED/OPEN` is a separate door-contact signal; the
+system must not claim measured latch position from the servo ACK alone.
 
 ## Recovery and safe boot
 
@@ -130,10 +136,11 @@ At cold boot, the source of truth is:
 The SG90 is not attached in `setup()`, the buzzer is driven to its configured
 inactive level, no stored command is replayed, and no lock position is inferred
 from NVS. After broker reconnect the firmware sends the command subscription,
-then publishes retained `ONLINE` and full state only after local/send-level
-subscription success. It publishes retained `ONLINE` immediately followed by
-retained full state; consumers require that same-generation state after ONLINE,
-so the brief bootstrap cannot enable controls on old retained data.
+then publishes retained `ONLINE` after local/send-level subscription success.
+It defers incoming command callbacks and retained full state until the bounded
+door-transition outbox is empty, so queued edges arrive before the newer state
+snapshot. Consumers still require same-generation state after ONLINE, so this
+bootstrap cannot enable controls on old or incomplete retained data.
 PubSubClient 2.8 does not expose broker SUBACK grant
 confirmation, so the broker ACL remains a deployment prerequisite. Consumers
 must use availability and staleness, not retained state alone, to decide whether
@@ -147,6 +154,6 @@ architectural limit is that QoS0 can leave an ambiguous physical outcome and
 the SG90 has no position feedback; neither warrants automatic actuator retry.
 
 See [mqtt-contract.md](mqtt-contract.md), [event-contract.md](event-contract.md),
-[database-design.md](database-design.md) and
-[../HUONG_DAN_LAP_MACH_THEO_THU_TU.md](../HUONG_DAN_LAP_MACH_THEO_THU_TU.md)
-for the exact contracts and physical safety gates.
+[database-design.md](database-design.md), [the pin map](../hardware/pin-map.md)
+and [the power budget](../hardware/power-budget.md) for the exact contracts and
+physical safety gates.

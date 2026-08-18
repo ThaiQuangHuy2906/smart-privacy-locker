@@ -1,21 +1,22 @@
 # Arduino IDE build of Smart Privacy Locker
 
-> Audit snapshot 2026-08-17: the 30 production mirror files match
+> Audit snapshot 2026-08-18: the 32 production mirror files match
 > byte-for-byte and the pinned Arduino profile compiles successfully. The local
-> as-built configuration uses SG90 close `170°`, open `80°`, ten WS2812 pixels
+> as-built configuration uses SG90 latch-lock `80°`, latch-unlock `170°`, a
+> 2,000 ms settle deadline, ten WS2812 pixels
 > and active-low GPIO26 buzzer. Compile success is software evidence; run the
 > physical sequence in
 > [../HUONG_DAN_TEST_END_TO_END.md](../HUONG_DAN_TEST_END_TO_END.md).
 
-Current measured builds after the heartbeat/future-skew correction:
+Current measured isolated build after the door-security correction:
 
-- isolated pinned profile: 1,108,993 program bytes (84%) and 52,976 RAM bytes
+- isolated pinned profile: 1,112,269 program bytes (84%) and 53,608 RAM bytes
   (16%);
-- global Arduino IDE-equivalent environment: 1,108,781 program bytes (84%) and
-  52,968 RAM bytes (16%).
+- the earlier Arduino IDE-equivalent global result (1,111,201/53,600 bytes)
+  predates auto-lock and was not rerun; do not cite it as the current binary.
 
-Both compile the same 30 production mirror files. The small packaging-size
-difference is expected and is not physical runtime evidence.
+The profile compiles the same 32 production mirror files checked by the sync
+script. This remains software evidence, not physical runtime evidence.
 
 `SmartPrivacyLocker/` is the Arduino IDE-compatible mirror of the production
 firmware in `../firmware/`. The primary `.ino` intentionally contains only

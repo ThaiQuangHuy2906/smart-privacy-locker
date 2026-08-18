@@ -62,8 +62,13 @@ function validateDoor(topic, payload) {
   const result = common(payload, topic, 'telemetry/door');
   if (!result.ok) return result;
   const v = result.value;
+  const hasAuthorization = Object.prototype.hasOwnProperty.call(v, 'authorized');
+  const validAuthorization = !hasAuthorization || (v.state === 'OPEN'
+    ? typeof v.authorized === 'boolean' : v.authorized === null);
   if (!DOOR.has(v.previous_state) || v.previous_state === 'UNKNOWN'
       || !DOOR.has(v.state) || v.state === 'UNKNOWN' || v.state === v.previous_state
+      || (v.event_id !== undefined && !UUID.test(v.event_id))
+      || !validAuthorization
       || typeof v.time_synced !== 'boolean'
       || (v.time_synced ? !utc(v.timestamp) : v.timestamp !== null)) {
     return { ok: false, code: 'INVALID_DOOR_TELEMETRY' };

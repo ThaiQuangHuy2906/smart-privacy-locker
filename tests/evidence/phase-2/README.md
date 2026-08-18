@@ -1,5 +1,9 @@
 # Phase 2 evidence index
 
+> This directory preserves the dated Phase 2 baseline. Current correction-pass
+> software totals and generated-artifact identity are recorded in
+> [../phase-3/automated-results.md](../phase-3/automated-results.md).
+
 | Evidence | Status | Location |
 |---|---|---|
 | P1 regression + P2-A01 firmware native/clean build | Automated PASS | `automated-results.md` |

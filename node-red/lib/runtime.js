@@ -56,6 +56,8 @@ class Phase2Runtime {
     eventLimit = 256, notificationLimit = 128, diagnosticLimit = 128,
     commandStatusLimit = 64, deliveryRetryDelayMs = 60_000,
     deliveryPendingLeaseMs = 5 * 60_000, deliveryMaxAttempts = 3,
+    persistenceOutboxLimit = 256, persistenceMaxAttempts = 5,
+    persistenceRetryBaseMs = 1000, persistenceRetryMaxMs = 60_000,
     now = Date.now, uuid = randomUUID }) {
     this.authGate = authGate;
     this.publish = publish;
@@ -68,7 +70,14 @@ class Phase2Runtime {
     this.deliveryPendingLeaseMs = positiveInteger(deliveryPendingLeaseMs, 5 * 60_000);
     this.deliveryMaxAttempts = Math.min(positiveInteger(deliveryMaxAttempts, 3), 3);
     this.persistenceTasks = new Set();
-    this.persistenceHealth = { status: data ? 'ready' : 'not_configured', last_error: null };
+    this.persistenceOutbox = new Map();
+    this.persistenceDeadLetters = [];
+    this.persistenceOutboxLimit = positiveInteger(persistenceOutboxLimit, 256);
+    this.persistenceMaxAttempts = positiveInteger(persistenceMaxAttempts, 5);
+    this.persistenceRetryBaseMs = positiveInteger(persistenceRetryBaseMs, 1000);
+    this.persistenceRetryMaxMs = positiveInteger(persistenceRetryMaxMs, 60_000);
+    this.persistenceHealth = { status: data ? 'ready' : 'not_configured',
+      last_error: null, pending: 0, dead_letter: 0 };
     this.events = [];
     this.notificationStatuses = [];
     this.diagnostics = [];
@@ -104,20 +113,80 @@ class Phase2Runtime {
     this.chatbot = new ChatbotRouter({ cache: this.cache, history, provider: gemini, now, uuid });
   }
 
-  trackPersistence(operation) {
-    const task = Promise.resolve(operation).then((value) => {
-      this.persistenceHealth = { status: 'ready', last_error: null };
+  updatePersistenceHealth(lastError = this.persistenceHealth.last_error) {
+    const pending = this.persistenceOutbox.size;
+    const deadLetter = this.persistenceDeadLetters.length;
+    const pendingError = [...this.persistenceOutbox.values()].reverse()
+      .find((item) => item.lastError)?.lastError || null;
+    const deadLetterError = this.persistenceDeadLetters[deadLetter - 1]?.error || null;
+    const effectiveError = pending > 0 || deadLetter > 0
+      ? (lastError || pendingError || deadLetterError || null) : null;
+    this.persistenceHealth = {
+      status: !this.data ? 'not_configured' : deadLetter > 0 ? 'error' : pending > 0 ? 'degraded' : 'ready',
+      last_error: effectiveError,
+      pending,
+      dead_letter: deadLetter,
+    };
+  }
+
+  attemptPersistence(item, force = false) {
+    if (!this.data || item.inFlight || (!force && item.nextAttemptAt > this.now())) return null;
+    item.inFlight = true;
+    item.attempts += 1;
+    const task = Promise.resolve(this.data.persist(item.event)).then((value) => {
+      this.persistenceOutbox.delete(item.event.event_id);
+      this.updatePersistenceHealth(null);
       return value;
     }).catch((error) => {
-      this.persistenceHealth = { status: 'error', last_error: error?.code || 'PERSISTENCE_FAILED' };
+      const code = error?.code || 'PERSISTENCE_FAILED';
+      item.lastError = code;
       pushBounded(this.diagnostics, {
-        code: error?.code || 'PERSISTENCE_FAILED',
+        code, event_id: item.event.event_id,
+        attempt: item.attempts,
         observed_at: new Date(this.now()).toISOString(),
       }, this.diagnosticLimit);
+      if (item.attempts >= this.persistenceMaxAttempts) {
+        this.persistenceOutbox.delete(item.event.event_id);
+        pushBounded(this.persistenceDeadLetters, {
+          event_id: item.event.event_id, attempts: item.attempts, error: code,
+        }, this.persistenceOutboxLimit);
+      } else {
+        const delay = Math.min(this.persistenceRetryMaxMs,
+          this.persistenceRetryBaseMs * (2 ** (item.attempts - 1)));
+        item.nextAttemptAt = this.now() + delay;
+      }
+      this.updatePersistenceHealth(code);
       return null;
-    }).finally(() => this.persistenceTasks.delete(task));
+    }).finally(() => {
+      item.inFlight = false;
+      this.persistenceTasks.delete(task);
+    });
     this.persistenceTasks.add(task);
     return task;
+  }
+
+  enqueuePersistence(event) {
+    if (!this.data || this.persistenceOutbox.has(event.event_id)) return;
+    if (this.persistenceOutbox.size >= this.persistenceOutboxLimit) {
+      pushBounded(this.diagnostics, {
+        code: 'PERSISTENCE_OUTBOX_FULL', event_id: event.event_id,
+        observed_at: new Date(this.now()).toISOString(),
+      }, this.diagnosticLimit);
+      pushBounded(this.persistenceDeadLetters, {
+        event_id: event.event_id, attempts: 0, error: 'PERSISTENCE_OUTBOX_FULL',
+      }, this.persistenceOutboxLimit);
+      this.updatePersistenceHealth('PERSISTENCE_OUTBOX_FULL');
+      return;
+    }
+    const item = { event, attempts: 0, nextAttemptAt: this.now(), inFlight: false, lastError: null };
+    this.persistenceOutbox.set(event.event_id, item);
+    this.updatePersistenceHealth(null);
+    this.attemptPersistence(item);
+  }
+
+  async retryPersistence({ force = false } = {}) {
+    for (const item of this.persistenceOutbox.values()) this.attemptPersistence(item, force);
+    await this.flushPersistence();
   }
 
   async flushPersistence() {
@@ -126,7 +195,7 @@ class Phase2Runtime {
 
   emitEvent(event) {
     pushBounded(this.events, event, this.eventLimit);
-    if (this.data) this.trackPersistence(this.data.persist(event));
+    if (this.data) this.enqueuePersistence(event);
     return event;
   }
 
@@ -184,6 +253,9 @@ class Phase2Runtime {
     this.notificationStatuses.length = 0;
     this.diagnostics.length = 0;
     this.persistenceTasks.clear();
+    this.persistenceOutbox.clear();
+    this.persistenceDeadLetters.length = 0;
+    this.updatePersistenceHealth(null);
   }
 
   setMqttConnected(connected, lockerIds = []) {
@@ -255,8 +327,25 @@ class Phase2Runtime {
       return { accepted: true, type: 'heartbeat', persisted: false };
     }
     if (topic.endsWith('/state')) {
+      const previous = this.cache.lastKnownState(lockerId);
       const updated = this.cache.ingestState(lockerId, value, observedAt);
-      return { accepted: updated, type: 'state', code: updated ? undefined : 'LATE_STATE' };
+      if (!updated) return { accepted: false, type: 'state', code: 'LATE_STATE' };
+      const snapshot = this.cache.snapshot(lockerId, observedAt);
+      let outputs = [];
+      if (previous && previous.door !== value.door
+          && ['OPEN', 'CLOSED'].includes(previous.door)
+          && ['OPEN', 'CLOSED'].includes(value.door)
+          && (value.door === 'CLOSED' || value.alarm === 'ACTIVE')) {
+        outputs = await this.detector.onDoor({
+          lockerId, previousState: previous.door, state: value.door,
+          deviceState: snapshot.state, lockTrusted: snapshot.fresh,
+          occurredAt: value.timestamp, observedAt: new Date(observedAt).toISOString(),
+          timeSynced: Boolean(value.timestamp), metadata: { reconciled_from_state: true },
+          authorization: value.door === 'OPEN' ? false : undefined,
+          authorizationSource: value.door === 'OPEN' ? 'retained_state_alarm' : null,
+        });
+      }
+      return { accepted: true, type: 'state', outputs };
     }
     if (topic.endsWith('/ack')) {
       const result = this.dispatcher.processAck(value);
@@ -276,26 +365,33 @@ class Phase2Runtime {
         code: correlated ? undefined : result.code, result };
     }
 
-    const before = this.cache.snapshot(lockerId, observedAt).state;
+    const before = this.cache.snapshot(lockerId, observedAt);
     const updated = this.cache.ingestDoor(lockerId, value, observedAt);
     if (!updated) return { accepted: false, code: 'LATE_DOOR' };
     const snapshot = this.cache.snapshot(lockerId, observedAt);
-    const deviceState = { ...snapshot.state, door: value.state, lock: before.lock };
+    const deviceState = { ...snapshot.state, door: value.state, lock: before.state.lock };
     const outputs = await this.detector.onDoor({ lockerId, previousState: value.previous_state,
-      state: value.state, deviceState, occurredAt: value.timestamp,
-      observedAt: new Date(observedAt).toISOString(), timeSynced: value.time_synced });
+      state: value.state, deviceState, lockTrusted: before.fresh, occurredAt: value.timestamp,
+      observedAt: new Date(observedAt).toISOString(), timeSynced: value.time_synced,
+      eventId: value.event_id || null, authorization: value.authorized });
     return { accepted: true, type: 'door', outputs };
   }
 
   async protectedCommand({ headers, body, isAborted = () => false }) {
     if (isAborted()) return { ok: false, status: 499, code: 'REQUEST_ABORTED' };
-    const authorization = await this.authGate.authorize(headers, body?.locker_id);
+    const authorization = await this.authGate.authorize(headers, body?.locker_id, { forceFresh: true });
     if (!authorization.ok) return authorization;
     if (isAborted()) return { ok: false, status: 499, code: 'REQUEST_ABORTED' };
     const result = this.dispatcher.dispatchUser({ principal: authorization.principal,
       lockerId: body.locker_id, action: body.action });
-    if (result.ok) this.recordCommandStatus(body.locker_id, { command_id: result.command.command_id,
-      action: body.action, status: 'PENDING', completed_at: null });
+    if (result.ok) this.detector.onCommandStarted({ lockerId: body.locker_id, action: body.action });
+    if (result.noop) {
+      this.recordCommandStatus(body.locker_id, { command_id: null,
+        action: body.action, status: result.code, completed_at: new Date(this.now()).toISOString() });
+    } else if (result.ok) {
+      this.recordCommandStatus(body.locker_id, { command_id: result.command.command_id,
+        action: body.action, status: 'PENDING', completed_at: null });
+    }
     return result;
   }
 
@@ -355,7 +451,8 @@ class Phase2Runtime {
   }
 
   async protectedSettings({ headers, lockerId, body = null }) {
-    const authorization = await this.authGate.authorize(headers, lockerId);
+    const authorization = await this.authGate.authorize(headers, lockerId,
+      { forceFresh: body != null });
     if (!authorization.ok) return authorization;
     if (!this.data) return { ok: false, status: 503, code: 'DATA_NOT_CONFIGURED' };
     try {
@@ -369,7 +466,7 @@ class Phase2Runtime {
   }
 
   async protectedTelegramLink({ headers, lockerId }) {
-    const authorization = await this.authGate.authorize(headers, lockerId);
+    const authorization = await this.authGate.authorize(headers, lockerId, { forceFresh: true });
     if (!authorization.ok) return authorization;
     if (!this.data) return { ok: false, status: 503, code: 'DATA_NOT_CONFIGURED' };
     if (!this.telegram.configured()) {
@@ -396,7 +493,7 @@ class Phase2Runtime {
   }
 
   async protectedTelegramDisconnect({ headers, lockerId }) {
-    const authorization = await this.authGate.authorize(headers, lockerId);
+    const authorization = await this.authGate.authorize(headers, lockerId, { forceFresh: true });
     if (!authorization.ok) return authorization;
     if (!this.data) return { ok: false, status: 503, code: 'DATA_NOT_CONFIGURED' };
     try {
@@ -408,7 +505,7 @@ class Phase2Runtime {
   }
 
   async protectedTelegramTest({ headers, lockerId }) {
-    const authorization = await this.authGate.authorize(headers, lockerId);
+    const authorization = await this.authGate.authorize(headers, lockerId, { forceFresh: true });
     if (!authorization.ok) return authorization;
     if (!this.data) return { ok: false, status: 503, code: 'DATA_NOT_CONFIGURED' };
     try {
@@ -644,10 +741,12 @@ class Phase2Runtime {
   }
 
   async protectedClaim({ headers, body }) {
-    const authentication = await this.authGate.authenticate(headers);
+    const authentication = await this.authGate.authenticate(headers, { forceFresh: true });
     if (!authentication.ok) return authentication;
     try {
-      return { ok: true, status: 200, locker: await this.authGate.adapter.claim(authentication.accessToken, body?.locker_code) };
+      const locker = await this.authGate.adapter.claim(authentication.accessToken, body?.locker_code);
+      this.authGate.clearCache?.();
+      return { ok: true, status: 200, locker };
     } catch (error) {
       const status = error.status === 401 ? 401 : error.status === 503 ? 503 : 409;
       const code = status === 401 ? 'INVALID_SESSION'
@@ -698,8 +797,7 @@ function createFromEnvironment({ env = process.env, publish = () => {}, history,
     telegramBotUsername: env.TELEGRAM_BOT_USERNAME,
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
     staleAfterMs: requiredNumber(env.DEVICE_STALE_AFTER_SECONDS, 30) * 1000,
-    timeoutMs: requiredNumber(env.COMMAND_TIMEOUT_MS, 5000),
-    windowMs: requiredNumber(env.AUTHORIZED_UNLOCK_WINDOW_SECONDS, 30) * 1000 });
+    timeoutMs: requiredNumber(env.COMMAND_TIMEOUT_MS, 5000) });
 }
 
 module.exports = { Phase2Runtime, createFromEnvironment };

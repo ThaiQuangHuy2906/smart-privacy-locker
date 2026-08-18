@@ -87,6 +87,11 @@ class LiveStateCache {
     return true;
   }
 
+  lastKnownState(lockerId) {
+    const item = this.entry(lockerId);
+    return item.state ? { ...item.state, door: item.door } : null;
+  }
+
   ingestDoor(lockerId, value, observedAt) {
     const item = this.entry(lockerId);
     if (observedAt < item.doorObservedAt) return false;

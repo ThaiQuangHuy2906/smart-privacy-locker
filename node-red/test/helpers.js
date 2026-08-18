@@ -66,7 +66,7 @@ function makeRuntime({ history, provider, telegramTransport, runtimeOptions = {}
       request_id: request.request_id, locker_id: request.locker_id, range: { from: '2026-08-01T00:00:00.000Z', to: '2026-08-08T00:00:00.000Z' },
       source: 'fixture', events: [] }; } },
     data: linkedTelegramData,
-    telegram, gemini: provider || null, timeoutMs: 5000, windowMs: 30000,
+    telegram, gemini: provider || null, timeoutMs: 5000,
     staleAfterMs: 30000, now: () => clock.value, uuid: uuidSequence(), ...runtimeOptions });
   return { runtime, clock, publications };
 }

@@ -11,7 +11,7 @@ This contract is additive to MQTT v1 and does not change any MQTT topic, enum,
 retain, ACK, timeout or QoS behavior. Fixtures live in
 `tests/fixtures/phase-2/`.
 
-Audit note 2026-08-17: the automated event/adapter suite passes. Current live
+Audit note 2026-08-18: the automated event/adapter suite passes. Current live
 provider/database evidence remains tied to its historical test records and was
 not rerun during this audit. Physical producers and final E2E remain open.
 
@@ -35,11 +35,34 @@ listed in `PLAN.md` and enforced by the Phase 3 migration. An additive new type
 requires a documented contract update; changing a field's type or meaning
 requires a new schema version.
 
-An unauthorized stable transition produces two distinct events:
-`DOOR_OPENED authorized=false` and `UNAUTHORIZED_OPEN authorized=false`. Charts
-and reports count `DOOR_OPENED` as an opening and `UNAUTHORIZED_OPEN` as an
-alert. A stable OPEN episode is deduplicated until CLOSED. `event_id` is the
-Phase 3 persistence idempotency key.
+Each successful `UNLOCK` ACK completed while the door is `CLOSED` grants one
+opening for 30 seconds. The first stable `CLOSED→OPEN` consumes that grant. A
+stable observed `OPEN→CLOSED` then starts a local latch lock; if the door is
+never opened, expiry starts that lock while the door remains closed. These
+automatic operations publish retained state after completion but do not create
+a command ACK or a command-completion event. A later forced/reopened door is
+unauthorized until the user issues `UNLOCK` again while closed. `LOCK`, expiry
+and reboot revoke the grant.
+
+Current firmware puts the authoritative boolean `authorized` decision in every
+OPEN telemetry edge. `true` produces only `DOOR_OPENED authorized=true`;
+`false` produces both `DOOR_OPENED authorized=false` and
+`UNAUTHORIZED_OPEN authorized=false`. Charts and reports count the former as
+an opening and the latter as an alert. CLOSED events use `authorized=null`.
+Node-RED keeps the command window only as correlation and as a compatibility
+fallback for legacy telemetry that omits the field; it does not override an
+explicit firmware decision after a backend restart. A retained OPEN snapshot
+is reconciled as unauthorized only when it also reports local
+`alarm=ACTIVE`; otherwise Node-RED waits for authoritative transition telemetry
+instead of manufacturing a false alert.
+
+A stable OPEN episode is deduplicated until CLOSED. Firmware assigns a UUIDv4
+`event_id` to every debounced door transition and keeps a bounded RAM outbox
+while MQTT is unavailable; Node-RED uses it as the Phase 3
+persistence/idempotency key. Legacy/synthetic door payloads may omit it, in
+which case Node-RED derives a server event identity. Replaying the same
+firmware `event_id` is idempotent for alarm, persistence and notification side
+effects.
 
 Retained availability payloads with a non-null `sent_at` derive a stable UUID
 from `(locker_id, status, sent_at)`. Replaying the same retained ONLINE/OFFLINE
@@ -66,9 +89,9 @@ exercise the software path. Real buzzer polarity/current, GPIO behavior and a
 physical `alarm=ACTIVE` ACK remain P3-M01/P3-M02 hardware final gates.
 
 Likewise, a successful SG90 command event records completion of the firmware's
-timed control cycle, not measured door position. The current as-built has no
-latch or servo feedback; MC-38 and synchronized physical evidence are needed
-before interpreting `LOCKED` as an actual closed-door outcome.
+timed latch-control cycle, not measured latch position. The as-built uses a
+rotating servo latch but has no angle/limit feedback; MC-38 separately reports
+whether the door is open or closed.
 
 Timeout is 5000 ms by default, does not retry the actuator, and may send one
 `GET_STATE`. A timeout never becomes success merely because a late ACK arrives.
@@ -115,6 +138,12 @@ event/diagnostic/status buffers and Telegram event/locker dedupe maps are
 bounded; eviction affects only old in-memory operational evidence, not the
 normalized event handed to the persistence interface.
 
+If persistence fails, Node-RED keeps a bounded in-memory retry outbox and moves
+exhausted/full-outbox records to an explicit dead-letter collection exposed by
+health state. A periodic FlowFuse runtime tick invokes due retries. This outbox
+is intentionally RAM-only: a Node-RED process restart can still lose events
+that had not reached durable Supabase storage.
+
 ## Compatibility log
 
 - `2026-08-08`: v1 frozen for Phase 2; defined normalized events, YC6
@@ -122,3 +151,11 @@ normalized event handed to the persistence interface.
 - `2026-08-10`: Phase 3 implemented the frozen persistence/history interface,
   CB3 software controller and durable daily-email delivery state machine. MQTT
   schema remains v1 unchanged.
+- `2026-08-18`: door telemetry gained optional UUIDv4 `event_id`; firmware
+  gained a bounded RAM replay outbox/local alarm, retained-state reconciliation
+  and Node-RED persistence retry/dead-letter health. Existing v1 payloads remain
+  accepted.
+- `2026-08-18`: OPEN telemetry gained additive optional `authorized` for legacy
+  compatibility. Current firmware emits it and enforces one opening per
+  successful closed-door `UNLOCK`; legacy producers remain accepted through
+  the bounded backend window fallback.

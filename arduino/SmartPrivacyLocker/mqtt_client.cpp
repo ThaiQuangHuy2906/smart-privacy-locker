@@ -19,6 +19,7 @@ void MqttClient::begin(MqttMessageCallback messageCallback) {
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
   retryTimer_.clear();
   heartbeatTimer_.clear();
+  bootstrapStatePending_ = false;
   bufferReady_ = mqtt_.setBufferSize(RuntimeConfig::MQTT_PACKET_SIZE);
   if (!bufferReady_) {
     Serial.println("MQTT buffer allocation failed; connection attempts are suppressed");
@@ -36,17 +37,44 @@ void MqttClient::begin(MqttMessageCallback messageCallback) {
   mqtt_.setServer(Secrets::MQTT_HOST, AppConfig::MQTT_PORT);
 }
 
-void MqttClient::tick(unsigned long now, StateManager& state) {
+void MqttClient::tick(unsigned long now, StateManager& state, bool doorOutboxEmpty) {
   if (mqtt_.connected()) {
+    // Retained ONLINE is sent during connect, but the retained full state waits
+    // until every locally queued door edge has been published. Do not run the
+    // MQTT callback before that point: a queued GET_STATE command could
+    // otherwise publish newer full state ahead of the transition outbox.
+    if (bootstrapStatePending_) {
+      if (!doorOutboxEmpty) {
+        return;
+      }
+      if (!publishState(state.current(), true)) {
+        state.setMqttConnected(false);
+        heartbeatTimer_.clear();
+        disconnectWithOfflineFallback();
+        scheduleRetry(now);
+        Serial.println("MQTT bootstrap state publish failed; disconnected and retry scheduled");
+        return;
+      }
+      bootstrapStatePending_ = false;
+      heartbeatTimer_.reset(static_cast<uint32_t>(now));
+      Serial.println("MQTT transition outbox drained; retained bootstrap state published");
+      return;
+    }
     mqtt_.loop();
     if (!mqtt_.connected()) {
       state.setMqttConnected(false);
       heartbeatTimer_.clear();
+      bootstrapStatePending_ = false;
       scheduleRetry(now);
       return;
     }
     if (heartbeatTimer_.due(static_cast<uint32_t>(now),
                             AppConfig::MQTT_HEARTBEAT_INTERVAL_MS)) {
+      if (!doorOutboxEmpty) {
+        // A newer full-state snapshot must never overtake queued physical door
+        // edges. Leave the timer due and retry after the FIFO drains.
+        return;
+      }
       // Heartbeat is deliberately non-retained. A retained full-state refresh
       // follows it so the backend can prove both current liveness and current
       // state without creating periodic DEVICE_ONLINE history rows.
@@ -132,9 +160,14 @@ bool MqttClient::publishState(const DeviceState& state, bool retained) {
 }
 
 bool MqttClient::publishDoorTransition(DoorState previous, DoorState current,
-                                       const char* timestamp, bool timeSynced) {
+                                       const char* timestamp, bool timeSynced,
+                                       const char* eventId, DoorAccessResult access) {
+  const bool validAccess = current == DoorState::OPEN
+      ? access != DoorAccessResult::NOT_APPLICABLE
+      : access == DoorAccessResult::NOT_APPLICABLE;
   if (!mqtt_.connected() || previous == DoorState::UNKNOWN ||
-      (current != DoorState::OPEN && current != DoorState::CLOSED)) {
+      (current != DoorState::OPEN && current != DoorState::CLOSED) ||
+      eventId == nullptr || strlen(eventId) != 36 || !validAccess) {
     return false;
   }
   JsonDocument document;
@@ -148,9 +181,15 @@ bool MqttClient::publishDoorTransition(DoorState previous, DoorState current,
     document["timestamp"] = nullptr;
   }
   document["time_synced"] = timeSynced;
+  document["event_id"] = eventId;
+  if (current == DoorState::OPEN) {
+    document["authorized"] = access == DoorAccessResult::AUTHORIZED;
+  } else {
+    document["authorized"] = nullptr;
+  }
 
   char topic[112] = {};
-  char payload[256] = {};
+  char payload[320] = {};
   makeTopic("telemetry/door", topic, sizeof(topic));
   if (serializeJson(document, payload, sizeof(payload)) >= sizeof(payload)) {
     Serial.println("Door telemetry serialization failed");
@@ -224,26 +263,26 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
 
   // PubSubClient 2.8 returns true after its local transport writes the
   // SUBSCRIBE packet; it does not wait for or expose the broker SUBACK grant.
-  // Callbacks run from a later mqtt_.loop(). Publish ONLINE immediately before
-  // full state. The backend requires the state observation to follow ONLINE,
-  // so controls cannot become trusted during the brief two-packet bootstrap.
-  // If state publication fails, the retained OFFLINE repair below closes that
-  // incomplete bootstrap before reconnecting.
+  // Callbacks run only from a later mqtt_.loop(). Publish ONLINE now, then let
+  // tick() defer both callbacks and retained full state until main.cpp drains
+  // the bounded door-transition outbox. The backend therefore sees queued
+  // edges in order before the newer state snapshot and cannot become ready on
+  // incomplete bootstrap data.
   state.setMqttConnected(true);
   const bool onlinePublished = publishAvailability("ONLINE", true);
-  const bool statePublished = onlinePublished && publishState(state.current(), true);
-  if (!statePublished || !onlinePublished) {
+  if (!onlinePublished) {
     state.setMqttConnected(false);
     disconnectWithOfflineFallback();
     scheduleRetry(now);
-    Serial.println("MQTT retained bootstrap publish failed; disconnected and retry scheduled");
+    Serial.println("MQTT retained ONLINE publish failed; disconnected and retry scheduled");
     return false;
   }
 
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
   retryTimer_.clear();
-  heartbeatTimer_.reset(static_cast<uint32_t>(now));
-  Serial.println("MQTT command SUBSCRIBE packet sent; retained availability and state published");
+  heartbeatTimer_.clear();
+  bootstrapStatePending_ = true;
+  Serial.println("MQTT command SUBSCRIBE packet sent; retained ONLINE published, state pending outbox");
   return true;
 }
 
@@ -296,6 +335,7 @@ bool MqttClient::publishAvailability(const char* status, bool retained) {
 }
 
 void MqttClient::disconnectWithOfflineFallback() {
+  bootstrapStatePending_ = false;
   if (!mqtt_.connected()) {
     return;
   }

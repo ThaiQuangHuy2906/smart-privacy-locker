@@ -61,7 +61,7 @@
 
           <div class="auth-actions">
             <button id="auth-submit" type="submit" class="button button--primary" disabled>Đăng nhập</button>
-            <button id="auth-mode-toggle" type="button" class="button button--secondary" aria-pressed="false" disabled>Tạo tài khoản mới</button>
+            <button id="auth-mode-toggle" type="button" class="button button--secondary" disabled>Tạo tài khoản mới</button>
           </div>
         </form>
 
@@ -87,7 +87,7 @@
             <span class="field-hint">Mỗi tủ chỉ có thể liên kết với một tài khoản.</span>
             <input id="locker-code" value="LOCKER-001" autocomplete="off" autocapitalize="characters" spellcheck="false">
           </label>
-          <button id="claim-button" type="submit" class="button button--claim">Liên kết tủ</button>
+          <button id="claim-button" type="submit" class="button button--claim" disabled>Liên kết tủ</button>
         </form>
         <p id="claim-message" class="message message--claim" data-state="idle" role="status" aria-live="polite" aria-atomic="true"></p>
 
@@ -111,7 +111,7 @@
             <p class="section-copy">Các nút điều khiển chỉ bật khi tủ đang trực tuyến và dữ liệu vừa được xác nhận.</p>
           </div>
         </div>
-        <div class="freshness-key"><span aria-hidden="true"></span> Tự cập nhật mỗi 2 giây</div>
+        <div class="freshness-key" title="Khi chuyển sang tab khác, hệ thống giảm còn mỗi 15 giây để tránh request thừa."><span aria-hidden="true"></span> Tự cập nhật mỗi 5 giây khi đang xem</div>
       </div>
 
       <div class="status-rail" aria-label="Trạng thái kết nối và tủ">
@@ -132,8 +132,8 @@
         </article>
         <article class="status-cell status-cell--lock">
           <span class="status-icon" aria-hidden="true"></span>
-          <span class="status-label">Vị trí tay servo</span>
-          <strong id="lock" data-state="unknown">Chưa xác nhận</strong>
+          <span class="status-label">Lệnh điều khiển chốt</span>
+          <strong id="lock" data-state="unknown">Chưa xác nhận lệnh chốt</strong>
         </article>
         <article class="status-cell status-cell--alarm">
           <span class="status-icon" aria-hidden="true"></span>
@@ -167,20 +167,20 @@
           <span class="section-index" aria-hidden="true">04</span>
           <div>
             <p class="section-kicker">Điều khiển an toàn</p>
-            <h2 id="control-title">Điều khiển cửa</h2>
-            <p class="section-copy">Hệ thống sẽ chờ thiết bị xác nhận trước khi báo lệnh thành công.</p>
+            <h2 id="control-title">Điều khiển chốt &amp; thiết bị</h2>
+            <p class="section-copy">Bạn đóng/mở cánh cửa bằng tay; servo chỉ xoay chốt. Mở chốt cấp một lượt mở trong 30 giây. Khi cửa được mở rồi đóng lại, ESP32 tự khóa chốt; nếu không mở trong 30 giây, chốt cũng tự khóa.</p>
           </div>
         </div>
 
-        <div class="controls" aria-describedby="command-message">
+        <div class="controls" aria-describedby="control-hint command-message">
           <div class="control-group">
-            <span class="control-group-label">Cánh tay servo đóng/mở cửa</span>
+            <span class="control-group-label">Chốt khóa quay bằng servo</span>
             <div class="control-buttons">
               <button type="button" data-action="LOCK" data-domain="lock" class="control-button" disabled>
-                <span>Đóng cửa</span>
+                <span>Khóa ngay</span>
               </button>
               <button type="button" data-action="UNLOCK" data-domain="lock" class="control-button control-button--open" disabled>
-                <span>Mở cửa</span>
+                <span>Mở chốt</span>
               </button>
             </div>
           </div>
@@ -189,7 +189,7 @@
             <span class="control-group-label">Còi cảnh báo</span>
             <div class="control-buttons">
               <button type="button" data-action="ALARM_ON" data-domain="alarm" class="control-button control-button--alarm" disabled>
-                <span>Kiểm tra còi</span>
+                <span>Bật còi</span>
               </button>
               <button type="button" data-action="ALARM_OFF" data-domain="alarm" class="control-button control-button--open" disabled>
                 <span>Tắt còi</span>
@@ -210,6 +210,7 @@
           </div>
         </div>
 
+        <p id="control-hint" class="control-hint">Đăng nhập và chờ trạng thái tủ được xác minh để điều khiển.</p>
         <p id="command-message" class="message message--command" role="status" aria-live="polite" aria-atomic="true">Chưa có lệnh nào được gửi.</p>
       </section>
 
@@ -228,7 +229,8 @@
             <span class="field-label">Câu hỏi</span>
             <textarea id="question" rows="3">Cửa tủ hiện tại đang mở hay đóng?</textarea>
           </label>
-          <button id="chat-submit" type="submit" class="button button--primary chat-submit">
+          <p id="chat-hint" class="field-hint">Đăng nhập và chờ trạng thái tủ được xác minh để đặt câu hỏi.</p>
+          <button id="chat-submit" type="submit" class="button button--primary chat-submit" disabled aria-describedby="chat-hint">
             <span>Gửi câu hỏi</span><span class="button-arrow" aria-hidden="true">→</span>
           </button>
         </form>
@@ -286,13 +288,14 @@
         <div class="data-toolbar">
           <label class="field field--compact" for="range-days">
             <span class="field-label">Khoảng dữ liệu</span>
-            <select id="range-days">
+            <select id="range-days" disabled>
               <option value="7">7 ngày</option>
               <option value="30">30 ngày</option>
             </select>
           </label>
-          <button id="refresh-phase3" type="button" class="button button--secondary">Cập nhật dữ liệu</button>
+          <button id="refresh-phase3" type="button" class="button button--secondary" disabled>Cập nhật dữ liệu</button>
         </div>
+        <p id="data-access-hint" class="field-hint">Đăng nhập và chọn mã tủ để tải lịch sử.</p>
         <div id="history-list" class="history-list" aria-live="polite">Chưa tải lịch sử.</div>
         <p id="history-message" class="message" role="status" aria-live="polite"></p>
       </article>
@@ -312,13 +315,16 @@
           <p id="chart-empty" class="empty-state" hidden>Chưa có lượt mở tủ hoặc cảnh báo trong khoảng này.</p>
         </div>
         <div class="chart-legend"><span><i class="legend-open"></i>Mở tủ</span><span><i class="legend-alert"></i>Cảnh báo</span></div>
-        <div class="visually-hidden">
-          <table>
+        <details class="chart-data">
+          <summary>Xem bảng số liệu chi tiết</summary>
+          <div class="chart-table-scroll">
+          <table class="chart-table">
             <caption>Dữ liệu biểu đồ số lần mở tủ và cảnh báo theo ngày</caption>
             <thead><tr><th scope="col">Ngày</th><th scope="col">Số lần mở</th><th scope="col">Số cảnh báo</th></tr></thead>
             <tbody id="chart-table-body"></tbody>
           </table>
-        </div>
+          </div>
+        </details>
       </article>
 
       <article class="card settings-card" aria-labelledby="settings-title">
@@ -330,6 +336,7 @@
             <p class="section-copy">Chọn nơi nhận và thời gian gửi bản tóm tắt hoạt động của ngày hôm trước.</p>
           </div>
         </div>
+        <p id="settings-access-hint" class="field-hint">Đăng nhập và chọn mã tủ để quản lý thông báo.</p>
         <form id="settings-form" class="settings-form" data-pending="false" aria-busy="false">
           <div id="telegram-connection" class="telegram-connection" data-connected="false">
             <div>
@@ -337,7 +344,7 @@
               <p id="telegram-status" class="field-hint">Chưa liên kết. Bạn không cần tìm hoặc nhập Chat ID.</p>
             </div>
             <div class="telegram-actions">
-              <button id="telegram-link" type="button" class="button button--secondary">Liên kết Telegram</button>
+              <button id="telegram-link" type="button" class="button button--secondary" disabled>Liên kết Telegram</button>
               <a id="telegram-open-link" class="button button--secondary" target="_blank" rel="noopener noreferrer" hidden>Mở bot Telegram</a>
               <button id="telegram-test" type="button" class="button button--secondary" hidden>Gửi tin thử</button>
               <button id="telegram-disconnect" type="button" class="button button--danger" hidden>Ngắt liên kết</button>
@@ -348,7 +355,7 @@
             <span>Nhận cảnh báo qua Telegram</span>
           </label>
           <label class="check-field" for="email-enabled">
-            <input id="email-enabled" type="checkbox">
+            <input id="email-enabled" type="checkbox" disabled>
             <span>Nhận báo cáo qua email</span>
           </label>
           <label id="report-email-field" class="field conditional-field" for="report-email" data-enabled="false">
@@ -365,8 +372,8 @@
             <input id="report-timezone" value="Asia/Ho_Chi_Minh" autocomplete="off" disabled>
           </label>
           <div class="settings-actions">
-            <button id="load-settings" type="button" class="button button--secondary">Tải cài đặt</button>
-            <button id="save-settings" type="submit" class="button button--primary">Lưu cài đặt</button>
+            <button id="load-settings" type="button" class="button button--secondary" disabled>Tải cài đặt</button>
+            <button id="save-settings" type="submit" class="button button--primary" disabled>Lưu cài đặt</button>
           </div>
         </form>
         <p id="settings-message" class="message" role="status" aria-live="polite"></p>

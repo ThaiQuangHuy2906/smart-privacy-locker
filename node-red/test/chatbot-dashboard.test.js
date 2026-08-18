@@ -140,10 +140,61 @@ test('YC12 exposes only fresh validated Wi-Fi connectivity and hides stale value
   assert.equal(ui.lock_unconfirmed, true);
 });
 
+test('latest-alert intent receives the actual latest alert even when it is outside recent ten events', async () => {
+  let context;
+  const provider = { async render(value) { context = value; return 'ok'; } };
+  const newerActivity = Array.from({ length: 10 }, (_value, index) => ({
+    event_type: 'DOOR_CLOSED',
+    occurred_at: `2026-08-08T08:${String(20 - index).padStart(2, '0')}:00.000Z`,
+    authorized: null,
+  }));
+  const latestAlert = {
+    event_type: 'UNAUTHORIZED_OPEN', occurred_at: '2026-08-08T08:05:00.000Z',
+    authorized: false,
+  };
+  const history = { async query(request) { return {
+    schema_version: 1, request_id: request.request_id, locker_id: request.locker_id,
+    source: 'fixture', range: {}, events: [...newerActivity, latestAlert],
+  }; } };
+  const { runtime } = makeRuntime({ history, provider });
+  await prime(runtime);
+
+  const result = await runtime.protectedChat({ headers: headers(), body: {
+    locker_id: LOCKER_A, question: 'Cảnh báo gần nhất xảy ra khi nào?',
+  } });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(context.facts.latest_alert, latestAlert);
+});
+
 test('dashboard never shows success on publish; pending domain remains disabled until ACK', async () => {
   const { runtime } = makeRuntime(); await prime(runtime);
-  await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'LOCK' } });
+  await runtime.protectedCommand({ headers: headers(), body: { locker_id: LOCKER_A, action: 'UNLOCK' } });
   const ui = runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A });
   assert.equal(ui.controls.lock.pending, true);
   assert.equal(ui.controls.lock.enabled, false);
+});
+
+test('dashboard exposes action-level safety gates and no-op states', async () => {
+  const { runtime } = makeRuntime();
+  await prime(runtime);
+
+  let ui = runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A });
+  assert.equal(ui.actions.LOCK.enabled, false);
+  assert.deepEqual(ui.actions.LOCK.reasons, ['ALREADY_IN_STATE']);
+  assert.equal(ui.actions.UNLOCK.enabled, true);
+  assert.equal(ui.actions.ALARM_OFF.enabled, false);
+  assert.deepEqual(ui.actions.ALARM_OFF.reasons, ['ALREADY_IN_STATE']);
+  assert.equal(ui.actions.LED_OFF.enabled, false);
+
+  for (const lock of ['LOCKED', 'UNLOCKED', 'UNKNOWN']) {
+    await runtime.ingest(`locker/${LOCKER_A}/state`, state(LOCKER_A, {
+      door: 'OPEN', lock, alarm: 'INACTIVE', led: 'OFF',
+    }), Date.now());
+    ui = runtime.uiState({ authenticated: true, ownsLocker: true, lockerId: LOCKER_A });
+    assert.equal(ui.actions.LOCK.enabled, false);
+    assert.ok(ui.actions.LOCK.reasons.includes('DOOR_NOT_CLOSED'));
+    assert.equal(ui.actions.UNLOCK.enabled, false);
+    assert.deepEqual(ui.actions.UNLOCK.reasons, ['DOOR_NOT_CLOSED_FOR_ACCESS']);
+  }
 });

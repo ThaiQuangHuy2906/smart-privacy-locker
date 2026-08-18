@@ -75,6 +75,9 @@ async function main() {
   const simulator = new DeviceSimulator({ lockerId,
     publish: (topic, payload, options) => device.publish(topic,
       typeof payload === 'string' ? payload : JSON.stringify(payload), { qos: 0, retain: Boolean(options?.retain) }) });
+  // This broker scenario exercises the unauthorized-open path, so establish a
+  // known locked state instead of relying on the simulator's cold-boot UNKNOWN.
+  simulator.state.lock = 'LOCKED';
   device.on('message', (_topic, payload) => simulator.receiveCommand(JSON.parse(payload.toString()), 'success'));
   await subscribe(device, `locker/${lockerId}/command`);
 
@@ -120,7 +123,10 @@ async function main() {
 
   simulator.door('OPEN');
   await waitFor(() => messages.some((item) => item.topic.endsWith('/telemetry/door')));
-  assert.equal(messages.find((item) => item.topic.endsWith('/telemetry/door')).retain, false);
+  const doorTransition = messages.find((item) => item.topic.endsWith('/telemetry/door'));
+  assert.equal(doorTransition.retain, false);
+  assert.match(doorTransition.payload.event_id,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   await waitFor(() => runtime.events.some((event) => event.event_type === 'UNAUTHORIZED_OPEN'));
   assert.equal(runtime.cache.snapshot(lockerId).latest_alert.event_type, 'UNAUTHORIZED_OPEN');
 
@@ -150,7 +156,7 @@ async function main() {
   await waitFor(() => runtime.cache.snapshot(lockerId).fresh);
   assert.equal(runtimeErrors.length, 0);
 
-  const summary = { result: 'PASS', assertions: 17, transport: url.replace(/:\d+$/, ':ephemeral'),
+  const summary = { result: 'PASS', assertions: 18, transport: url.replace(/:\d+$/, ':ephemeral'),
     authentication: 'test username/password accepted; anonymous connection rejected',
     scenarios: ['exported Node-RED 4.1.13 MQTT status handling and bootstrap',
       'retained availability/state', 'Node-RED runtime cache ingestion',

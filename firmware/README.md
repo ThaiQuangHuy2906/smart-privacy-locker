@@ -1,9 +1,10 @@
 # ESP32 firmware — Phase 3 CB3 integration
 
-> Audit snapshot 2026-08-17: native tests pass 20/20 and a clean ESP32 build
-> passes at 16.2% RAM/84.3% flash. OLED/DHT22, MC-38, ten WS2812 pixels and SG90
-> have individual user-observed results, but GPIO26 active sound, measured
-> combined load and final E2E remain open.
+> Audit snapshot 2026-08-18: native tests pass 28/28 and a clean ESP32 build
+> passes at 53,580 bytes RAM (16.4%) and 1,108,145 bytes flash (84.5%).
+> OLED/DHT22, MC-38, ten WS2812 pixels and SG90 have individual user-observed
+> results, but GPIO26 active production sound and final physical E2E remain
+> open. P1-05 combined-load measurement is an accepted demo-only risk.
 
 This directory is the source of truth and PlatformIO test/build project for the
 accepted Phase 1 foundation (CB2, YC1, YC3, YC12), Phase 2 CB1 monitoring, and
@@ -13,10 +14,10 @@ LOW-trigger/TMB12A05 module's inactive path was bench-verified with module VCC
 at ESP32 3V3 and a 4.7 kΩ series input resistor; active output, repeated boot
 on GPIO26 and combined load remain hardware-final gates.
 
-The as-built SG90 arm directly closes the door at `170°` and opens it at `80°`;
-there is no separate latch or servo feedback. `LOCKED`/`UNLOCKED` remain
-protocol compatibility enums and describe timed controller completion, not a
-measured tamper-resistant lock. MC-38/physical evidence must confirm the door.
+The as-built SG90 arm is a rotating latch: `LOCK=80°`, `UNLOCK=170°`, with a
+2,000 ms software settle deadline. The user moves the door manually. There is
+no servo angle/limit feedback; `LOCKED`/`UNLOCKED` describe timed controller
+completion, while MC-38 independently reports the door contact.
 
 Commands are rejected as stale after 120 seconds and, once NTP is plausibly
 synchronized, as invalid when more than 30 seconds in the future. The ESP32
@@ -78,13 +79,15 @@ both use:
 #define SPL_BUZZER_ACTIVE_HIGH 0
 ```
 
-The liveness/future-skew correction also adds two normal `AppConfig` constants.
+The current liveness, future-skew and door-event replay corrections add three
+normal `AppConfig` constants.
 An existing ignored full-copy config must include them (or be recreated from
 the example and recalibrated) before compiling:
 
 ```cpp
 constexpr uint32_t MQTT_HEARTBEAT_INTERVAL_MS = 10000;
 constexpr uint32_t COMMAND_MAX_FUTURE_SKEW_SECONDS = 30;
+constexpr size_t DOOR_EVENT_OUTBOX_SIZE = 8;
 ```
 
 Do not overwrite an ignored calibrated file blindly; merge these constants and
@@ -122,17 +125,14 @@ profile. With Arduino IDE 2.3.10 installed, this clean build has been verified:
 .\arduino\verify-sketch.ps1
 ```
 
-Recorded result (rechecked 2026-08-17): 1,108,993 of 1,310,720 program bytes
-(Arduino CLI reports 84%) and 52,976 of 327,680 global-variable bytes (16%).
+Recorded result after the auto-lock correction (rechecked 2026-08-18): 1,112,269 of 1,310,720 program bytes
+(Arduino CLI reports 84%) and 53,608 of 327,680 global-variable bytes (16%).
 This compile result does not replace the physical gates.
 
 The Arduino IDE global environment is prepared with core 2.0.17 and the same
 pinned libraries. Its separate GUI-equivalent build can be reproduced with
-`.\arduino\verify-arduino-ide.ps1`; the rechecked 2026-08-17 result is
-1,108,781 program
-bytes (84%) and 52,968 global-variable bytes (16%). A small binary-size
-difference between isolated and global packaging is recorded, not hidden;
-both compile the same 30 mirrored production source files.
+`.\arduino\verify-arduino-ide.ps1`. The isolated build above compiles the same
+32 mirrored production source files verified by `sync-sketch.ps1 -Check`.
 
 ## Build and test
 
@@ -141,34 +141,23 @@ From this directory:
 ```powershell
 python -m platformio test -e native
 python -m platformio run -e esp32dev -t clean
-python -m platformio run -e esp32dev
+..\firmware\build-esp32.ps1
 ```
 
 The native suite succeeds from the repository's current Vietnamese Windows
 path. The Xtensa toolchain used by the clean `esp32dev` build can still mangle
-that path and then report missing temporary compiler files. If that exact
-failure occurs, map the unchanged repository root to an unused ASCII drive
-letter for the command, then remove the mapping. From the repository root:
+that path. `build-esp32.ps1` detects a non-ASCII repository path, maps the exact
+repository temporarily to a validated unused drive letter, builds, and removes
+the mapping in `finally`. From the repository root:
 
 ```powershell
-$repoRoot = (Resolve-Path '.').Path
-if (Test-Path 'R:\') { throw 'Choose an unused drive letter instead of R:' }
-
-subst.exe R: $repoRoot
-try {
-  Push-Location R:\firmware
-  python -m platformio test -e native
-  python -m platformio run -e esp32dev -t clean
-  python -m platformio run -e esp32dev
-}
-finally {
-  Pop-Location
-  subst.exe R: /D
-}
+.\firmware\build-esp32.ps1
 ```
 
-The recorded native suite covers 20 contract/state tests: command parsing,
-stale/future/duplicate behavior, wrap-safe heartbeat timing, door debounce and the CB3 controller's
+The recorded native suite covers 28 contract/state tests: command parsing,
+stale/future/duplicate behavior, wrap-safe heartbeat timing, door debounce,
+local alarm/outbox/lock-cancellation policy, wrap-safe grant expiry, auto-lock
+arming after a real observed OPEN and the CB3 controller's
 active-high/active-low, safe-boot and idempotent behavior. A clean ESP32 build
 also guards the ESP32Servo 3.0.7 integration: channel `0` returned by
 `attach()` is valid, so initialization verifies `attached()` rather than
@@ -195,7 +184,7 @@ To clear only Wi-Fi configuration, open the USB serial monitor and send a single
 ## Runtime behavior
 
 - `loop()` contains no intentional long `delay`; WiFiManager processing, MQTT, DHT polling, OLED refresh, and servo completion run cooperatively.
-- MQTT reconnect is bounded from 1 second up to 30 seconds. With PubSubClient 2.8, a broker connection becomes operational only after the `command` SUBSCRIBE packet is sent successfully by the local transport. That return value is not broker confirmation: the library does not wait for or expose a SUBACK grant/rejection. The firmware then publishes retained `ONLINE` immediately followed by retained full state before the next MQTT callback can process a command. Backend controls require that new-generation state after `ONLINE`. If subscribe or either bootstrap publish fails, firmware repairs retained `OFFLINE` when possible, disconnects, and waits for bounded retry; it does not leave an incomplete bootstrap as ready.
+- MQTT reconnect is bounded from 1 second up to 30 seconds. With PubSubClient 2.8, a broker connection becomes operational only after the `command` SUBSCRIBE packet is sent successfully by the local transport. That return value is not broker confirmation: the library does not wait for or expose a SUBACK grant/rejection. Firmware publishes retained `ONLINE`, then holds incoming callbacks and retained full state until the bounded door outbox is empty. Queued transitions therefore precede the newer state snapshot; backend controls still require new-generation state after `ONLINE`. Any bootstrap publish failure repairs retained `OFFLINE` when possible, disconnects and enters bounded retry.
 - While connected, every 10 seconds the firmware publishes a non-retained `heartbeat` and then a retained full-state refresh. If either local publish fails it marks MQTT disconnected, attempts retained `OFFLINE`, disconnects and enters the normal bounded retry. Heartbeat does not create periodic `DEVICE_ONLINE` history.
 - The application packet limit is `RuntimeConfig::MQTT_PACKET_SIZE = 1024`.
   Startup checks PubSubClient's runtime buffer resize; if allocation fails,
@@ -203,7 +192,7 @@ To clear only Wi-Fi configuration, open the USB serial monitor and send a single
   smaller build-system-dependent buffer.
 - PubSubClient publishes at QoS 0. The design therefore uses correlated ACKs, bounded duplicate cache, Node-RED timeout, and `GET_STATE` reconciliation instead of claiming delivery exactly once.
 - The servo is **not attached at boot**. `lock=UNKNOWN` remains until a new valid `LOCK` or `UNLOCK` action finishes. When motion starts, the ESP32Servo 3.0.7 result is checked with `attached()` because allocated channel `0` is a valid success result.
-- GPIO27 is sampled with `INPUT_PULLUP` through a 50 ms non-blocking stable debounce. Door remains `UNKNOWN` until the first full stable interval. A later stable edge publishes one non-retained `telemetry/door` message and updates retained full state. Unsynchronized telemetry uses `timestamp:null,time_synced:false`.
+- GPIO27 is sampled with `INPUT_PULLUP` through a 50 ms non-blocking stable debounce. Door remains `UNKNOWN` until the first full stable interval. Every later stable edge gets a UUIDv4 `event_id`, an `authorized` decision for OPEN (`null` for CLOSED), updates retained state and enters a bounded RAM FIFO until non-retained `telemetry/door` publish succeeds. Unsynchronized telemetry uses `timestamp:null,time_synced:false`. Every `LOCK`/`UNLOCK` requires both stable and raw door state to be `CLOSED`, preventing a same-state `UNLOCK` from granting access during the 50 ms opening-debounce race; invalid `UNLOCK` returns `DOOR_NOT_CLOSED_FOR_ACCESS` before same-state handling or servo movement. Each successful closed-door `UNLOCK` grants one OPEN for 30 seconds; the first edge consumes it. A stable observed `CLOSED → OPEN` arms local auto-lock, and the following stable `OPEN → CLOSED` starts `LOCK=80°` immediately after the 50 ms close confirmation. If the door is never opened, the unused grant starts the same auto-lock at the exact 30-second deadline. Auto-lock requires both stable and raw CLOSED, retries after only a sub-debounce raw glitch, works without MQTT, publishes retained state after completion, and emits no command ACK. Boot sampling alone never arms or moves the servo. Any OPEN without a valid grant activates the buzzer locally before any network round trip. Repeating `UNLOCK` while already unlocked and still closed grants a new opening without servo movement. Opening during either command-driven or automatic latch movement cancels the servo, sets lock state to `UNKNOWN`, revokes the grant, and returns an action-specific error only when a command actually exists.
 - `ALARM_ON`/`ALARM_OFF` update GPIO26 through `AlarmController`, return a success ACK only after the state changes, and publish full state `ACTIVE`/`INACTIVE`. `SPL_BUZZER_ACTIVE_HIGH` supports a deployment override; the public project baseline is `0` for the selected module (LOW=active, HIGH=inactive). Setup writes the inactive latch before configuring the output pin to reduce boot glitches.
 - DHT22 readings are rendered only to OLED. No DHT telemetry topic exists.
 

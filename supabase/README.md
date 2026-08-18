@@ -1,6 +1,6 @@
 # Supabase Phase 2 + Phase 3 setup
 
-> Audit snapshot 2026-08-17: SQL/migration/RLS source and automated contracts
+> Audit snapshot 2026-08-18: SQL/migration/RLS source and automated contracts
 > were reviewed; no confirmed P0 finding was found. This audit did not run
 > `db reset`, pgTAP or disposable cross-owner live gates against an external
 > project. Historical evidence remains historical—rerun the release candidate
