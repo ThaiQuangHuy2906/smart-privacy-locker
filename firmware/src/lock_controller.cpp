@@ -5,11 +5,13 @@
 #include "pin_map.h"
 #include "runtime_config.h"
 
+// Giữ servo ở trạng thái detach khi boot để tránh chốt tự chuyển động.
 void LockController::begin() {
   // Cố ý không attach/write lúc boot. SG90 không phản hồi vị trí, nên tự ghi góc
   // tại đây vừa làm chốt chuyển động bất ngờ vừa khẳng định sai trạng thái thật.
 }
 
+// Bắt đầu đưa SG90 đến góc LOCKED hoặc UNLOCKED nếu controller đang rảnh.
 bool LockController::start(LockState desiredState, unsigned long now) {
   // Chỉ nhận hai endpoint hợp lệ và không cho hai chuyển động chồng nhau.
   if (busy_ || (desiredState != LockState::LOCKED && desiredState != LockState::UNLOCKED)) {
@@ -33,6 +35,7 @@ bool LockController::start(LockState desiredState, unsigned long now) {
   return true;
 }
 
+// Kiểm tra thời gian settle, detach servo và báo endpoint đã hoàn tất.
 bool LockController::tick(unsigned long now, LockState* completedState) {
   // Phép trừ unsigned vẫn đúng khi millis() tràn số sau khoảng 49,7 ngày.
   if (!busy_ || now - startedAt_ < AppConfig::SERVO_SETTLE_MS) {
@@ -48,6 +51,7 @@ bool LockController::tick(unsigned long now, LockState* completedState) {
   return true;
 }
 
+// Hủy chuyển động đang chạy và detach servo ngay lập tức.
 void LockController::cancel() {
   // Hủy giữa chừng không chứng minh được góc cuối; main.cpp sẽ đặt lock=UNKNOWN.
   if (servo_.attached()) {
@@ -57,4 +61,5 @@ void LockController::cancel() {
   desiredState_ = LockState::UNKNOWN;
 }
 
+// Cho biết SG90 hiện có đang trong một lần chuyển động hay không.
 bool LockController::isBusy() const { return busy_; }

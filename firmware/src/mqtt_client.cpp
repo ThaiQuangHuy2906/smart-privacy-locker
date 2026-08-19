@@ -11,8 +11,10 @@
 
 MqttClient* MqttClient::activeInstance_ = nullptr;
 
+// Tạo PubSubClient ban đầu với WiFiClient thường; begin() sẽ đổi sang TLS nếu cấu hình.
 MqttClient::MqttClient() : mqtt_(plainClient_) {}
 
+// Khởi tạo callback, buffer, transport và địa chỉ broker MQTT.
 void MqttClient::begin(MqttMessageCallback messageCallback) {
   // PubSubClient yêu cầu callback tĩnh; activeInstance_ chuyển tiếp về đúng object.
   activeInstance_ = this;
@@ -38,6 +40,7 @@ void MqttClient::begin(MqttMessageCallback messageCallback) {
   mqtt_.setServer(Secrets::MQTT_HOST, AppConfig::MQTT_PORT);
 }
 
+// Duy trì kết nối, xử lý message, bootstrap state, heartbeat và retry non-blocking.
 void MqttClient::tick(unsigned long now, StateManager& state, bool doorOutboxEmpty) {
   if (mqtt_.connected()) {
     // connect() đã phát retained ONLINE, nhưng retained full state phải chờ mọi
@@ -112,8 +115,10 @@ void MqttClient::tick(unsigned long now, StateManager& state, bool doorOutboxEmp
   }
 }
 
+// Cho biết transport MQTT hiện đang kết nối với broker hay không.
 bool MqttClient::isConnected() { return mqtt_.connected(); }
 
+// Serialize và publish ACK không retained lên topic của locker.
 bool MqttClient::publishAck(const AckRecord& record, bool duplicate, const char* timestamp) {
   if (!mqtt_.connected()) {
     return false;
@@ -130,6 +135,7 @@ bool MqttClient::publishAck(const AckRecord& record, bool duplicate, const char*
   return mqtt_.publish(topic, payload, false);
 }
 
+// Serialize và publish snapshot trạng thái đầy đủ của thiết bị.
 bool MqttClient::publishState(const DeviceState& state, bool retained) {
   if (!mqtt_.connected()) {
     return false;
@@ -161,6 +167,7 @@ bool MqttClient::publishState(const DeviceState& state, bool retained) {
   return mqtt_.publish(topic, payload, retained);
 }
 
+// Publish một cạnh cửa vật lý không retained kèm quyền truy cập và event_id.
 bool MqttClient::publishDoorTransition(DoorState previous, DoorState current,
                                        const char* timestamp, bool timeSynced,
                                        const char* eventId, DoorAccessResult access) {
@@ -203,11 +210,13 @@ bool MqttClient::publishDoorTransition(DoorState previous, DoorState current,
   return mqtt_.publish(topic, payload, false);
 }
 
+// Tắt heartbeat và ngắt MQTT sau khi cố gắng báo OFFLINE.
 void MqttClient::disconnectGracefully() {
   heartbeatTimer_.clear();
   disconnectWithOfflineFallback();
 }
 
+// Chuyển callback tĩnh của PubSubClient đến instance MqttClient đang hoạt động.
 void MqttClient::dispatchMessage(char* topic, uint8_t* payload, unsigned int payloadLength) {
   // Cầu nối callback C tĩnh của thư viện sang instance MqttClient đang hoạt động.
   if (activeInstance_ != nullptr) {
@@ -215,12 +224,14 @@ void MqttClient::dispatchMessage(char* topic, uint8_t* payload, unsigned int pay
   }
 }
 
+// Chuyển message nhận được sang callback nghiệp vụ đã đăng ký từ main.cpp.
 void MqttClient::handleMessage(const char* topic, const uint8_t* payload, unsigned int payloadLength) {
   if (messageCallback_ != nullptr) {
     messageCallback_(topic, payload, payloadLength);
   }
 }
 
+// Kết nối broker, đăng ký LWT, subscribe command và bắt đầu bootstrap state.
 bool MqttClient::connect(unsigned long now, StateManager& state) {
   char availabilityTopic[96] = {};
   char lwtPayload[160] = {};
@@ -289,6 +300,7 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
   return true;
 }
 
+// Publish heartbeat không retained để backend xác nhận thiết bị còn sống.
 bool MqttClient::publishHeartbeat() {
   if (!mqtt_.connected()) {
     return false;
@@ -313,6 +325,7 @@ bool MqttClient::publishHeartbeat() {
   return mqtt_.publish(topic, payload, false);
 }
 
+// Publish ONLINE/OFFLINE cùng thời gian hiện tại lên topic availability.
 bool MqttClient::publishAvailability(const char* status, bool retained) {
   if (!mqtt_.connected()) {
     return false;
@@ -337,6 +350,7 @@ bool MqttClient::publishAvailability(const char* status, bool retained) {
   return mqtt_.publish(topic, payload, retained);
 }
 
+// Ngắt sạch nếu báo được OFFLINE, nếu không thì đóng transport để kích hoạt LWT.
 void MqttClient::disconnectWithOfflineFallback() {
   bootstrapStatePending_ = false;
   if (!mqtt_.connected()) {
@@ -358,6 +372,7 @@ void MqttClient::disconnectWithOfflineFallback() {
   }
 }
 
+// Kiểm tra toàn bộ cấu hình tối thiểu trước khi cho phép kết nối broker.
 bool MqttClient::configured() const {
   // Placeholder hoặc thiếu CA khi bật TLS đều chặn kết nối thay vì thử với secret rỗng.
   const bool basicConfiguration = bufferReady_ &&
@@ -371,6 +386,7 @@ bool MqttClient::configured() const {
   return basicConfiguration && tlsConfiguration;
 }
 
+// Lập lịch kết nối lại và tăng thời gian chờ theo exponential backoff.
 void MqttClient::scheduleRetry(unsigned long now) {
   retryTimer_.schedule(static_cast<uint32_t>(now),
                        static_cast<uint32_t>(reconnectDelayMs_));
@@ -382,6 +398,7 @@ void MqttClient::scheduleRetry(unsigned long now) {
   }
 }
 
+// Ghép topic chuẩn locker/<LOCKER_ID>/<suffix> vào buffer đầu ra.
 void MqttClient::makeTopic(const char* suffix, char* destination, size_t destinationCapacity) const {
   snprintf(destination, destinationCapacity, "locker/%s/%s", AppConfig::LOCKER_ID, suffix);
 }

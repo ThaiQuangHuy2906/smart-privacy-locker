@@ -26,6 +26,7 @@ class RecentCommandCache {
 
   // Trả về ACK đã xử lý nếu command_id từng xuất hiện, ngược lại trả nullptr.
   const AckRecord* find(const char* commandId) const;
+  // Lưu ACK mới vào bộ nhớ vòng để có thể phát lại khi command bị gửi trùng.
   void remember(const AckRecord& record);
 
  private:

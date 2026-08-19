@@ -7,11 +7,12 @@
 
 namespace {
 
-// So sánh an toàn, không gọi strcmp nếu một trong hai con trỏ null.
+// So sánh hai chuỗi an toàn, không gọi strcmp nếu một con trỏ bị null.
 bool equals(const char* left, const char* right) {
   return left != nullptr && right != nullptr && strcmp(left, right) == 0;
 }
 
+// Sao chép JSON string hợp lệ vào buffer cố định mà không âm thầm cắt chuỗi.
 bool copyString(JsonVariantConst value, char* destination, size_t destinationSize) {
   // Chỉ chấp nhận JSON string khác rỗng và vừa buffer; không âm thầm cắt dữ liệu.
   if (!value.is<const char*>()) {
@@ -26,11 +27,13 @@ bool copyString(JsonVariantConst value, char* destination, size_t destinationSiz
   return true;
 }
 
+// Kiểm tra một ký tự có phải chữ số hexadecimal hay không.
 bool isHex(char value) {
   return (value >= '0' && value <= '9') || (value >= 'a' && value <= 'f') ||
          (value >= 'A' && value <= 'F');
 }
 
+// Kiểm tra chuỗi có đúng hình dạng UUID 8-4-4-4-12 hay không.
 bool isUuid(const char* value) {
   // Kiểm hình dạng UUID 8-4-4-4-12; không cần phụ thuộc thư viện UUID riêng.
   if (value == nullptr || strlen(value) != 36) {
@@ -45,10 +48,12 @@ bool isUuid(const char* value) {
   return true;
 }
 
+// Xác định một năm dương lịch có phải năm nhuận hay không.
 bool isLeapYear(int year) {
   return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 }
 
+// Trả về số ngày hợp lệ của một tháng, có xét tháng 2 năm nhuận.
 int daysInMonth(int year, int month) {
   static constexpr int kDays[] = {31, 28, 31, 30, 31, 30,
                                   31, 31, 30, 31, 30, 31};
@@ -58,6 +63,7 @@ int daysInMonth(int year, int month) {
   return kDays[month - 1];
 }
 
+// Đọc một đoạn chữ số có độ rộng cố định trong timestamp thành số nguyên.
 bool parseNumber(const char* value, size_t offset, size_t width, int* result) {
   // Đọc đúng số chữ số ở vị trí cố định của timestamp ISO-8601.
   int parsed = 0;
@@ -85,6 +91,7 @@ int64_t daysFromCivil(int year, unsigned month, unsigned day) {
   return static_cast<int64_t>(era) * 146097 + static_cast<int64_t>(dayOfEra) - 719468;
 }
 
+// Parse timestamp ISO-8601 UTC và đổi thành epoch seconds để kiểm tra tuổi command.
 bool parseIso8601Utc(const char* value, int64_t* epochSeconds) {
   if (value == nullptr) {
     return false;
@@ -127,6 +134,7 @@ bool parseIso8601Utc(const char* value, int64_t* epochSeconds) {
   return true;
 }
 
+// Đổi chuỗi action trong JSON thành enum CommandAction của firmware.
 CommandAction parseAction(const char* value) {
   // Danh sách đóng: action lạ luôn thành UNKNOWN rồi bị từ chối.
   if (equals(value, "LOCK")) return CommandAction::LOCK;
@@ -139,6 +147,7 @@ CommandAction parseAction(const char* value) {
   return CommandAction::UNKNOWN;
 }
 
+// Kiểm tra requested_by là UUID người dùng hoặc service principal được duyệt.
 bool isValidRequestedBy(const char* value) {
   // Người dùng thật dùng UUID; detector nội bộ chỉ được dùng đúng service principal này.
   return isUuid(value) || equals(value, "system:unauthorized-detector");
@@ -146,6 +155,7 @@ bool isValidRequestedBy(const char* value) {
 
 }  // namespace
 
+// Parse JSON và kiểm tra đầy đủ schema, ID, locker, action và thời gian command.
 CommandParseResult parseAndValidateCommand(const char* payload, size_t payloadLength,
                                            const CommandValidationContext& context) {
   CommandParseResult result;
@@ -226,6 +236,7 @@ CommandParseResult parseAndValidateCommand(const char* payload, size_t payloadLe
   return result;
 }
 
+// Đổi CommandAction thành chuỗi chuẩn của MQTT contract.
 const char* toString(CommandAction action) {
   // Chuỗi trả về là giá trị frozen của MQTT contract, không phải nhãn giao diện.
   switch (action) {
@@ -249,6 +260,7 @@ const char* toString(CommandAction action) {
   }
 }
 
+// Đổi CommandError thành mã chuỗi ổn định để ghi vào ACK.
 const char* toString(CommandError error) {
   // Mã lỗi phải ổn định để Node-RED phân loại được nguyên nhân.
   switch (error) {

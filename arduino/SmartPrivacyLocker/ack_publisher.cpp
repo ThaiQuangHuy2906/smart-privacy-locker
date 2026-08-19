@@ -6,9 +6,11 @@
 
 // Cache này giúp command có tính idempotent: cùng command_id sẽ không chạy
 // actuator lần hai mà chỉ phát lại kết quả đã ghi nhớ.
+// Khởi tạo cache và chặn sức chứa trong khoảng an toàn từ 1 đến 16 phần tử.
 RecentCommandCache::RecentCommandCache(size_t capacity)
     : capacity_(capacity == 0 ? 1 : (capacity > kMaximumEntries ? kMaximumEntries : capacity)) {}
 
+// Tìm ACK đã lưu theo command_id để phát lại mà không chạy command lần hai.
 const AckRecord* RecentCommandCache::find(const char* commandId) const {
   if (commandId == nullptr) {
     return nullptr;
@@ -21,6 +23,7 @@ const AckRecord* RecentCommandCache::find(const char* commandId) const {
   return nullptr;
 }
 
+// Ghi ACK mới vào vị trí kế tiếp của bộ nhớ vòng.
 void RecentCommandCache::remember(const AckRecord& record) {
   // Ghi đè phần tử cũ nhất khi vòng đệm đã đầy.
   entries_[nextIndex_] = record;
@@ -30,6 +33,7 @@ void RecentCommandCache::remember(const AckRecord& record) {
   }
 }
 
+// Chuyển AckRecord thành JSON hoàn chỉnh để publish lên MQTT.
 bool serializeAck(const AckRecord& record, bool duplicate, const char* timestamp,
                   char* destination, size_t destinationCapacity) {
   if (destination == nullptr || destinationCapacity == 0) {

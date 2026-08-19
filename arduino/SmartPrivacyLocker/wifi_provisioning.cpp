@@ -6,6 +6,7 @@
 #include "runtime_config.h"
 #include "time_utils.h"
 
+// Khởi tạo WiFiManager ở chế độ non-blocking và thử credential đã lưu trong NVS.
 void WifiProvisioning::begin() {
   // STA là chế độ hoạt động bình thường sau khi đã có SSID/password hợp lệ.
   WiFi.mode(WIFI_STA);
@@ -21,6 +22,7 @@ void WifiProvisioning::begin() {
   started_ = true;
 }
 
+// Xử lý portal/kết nối Wi-Fi và phát hiện các cạnh kết nối hoặc mất kết nối.
 void WifiProvisioning::tick() {
   if (!started_) {
     return;
@@ -37,8 +39,10 @@ void WifiProvisioning::tick() {
   wasConnected_ = connected;
 }
 
+// Kiểm tra ESP32 hiện đang có kết nối Wi-Fi hợp lệ hay không.
 bool WifiProvisioning::isConnected() const { return WiFi.status() == WL_CONNECTED; }
 
+// Xóa credential Wi-Fi trong NVS rồi khởi động lại ESP32.
 void WifiProvisioning::resetConfigurationAndRestart() {
   // Chỉ đường USB vật lý mới gọi hàm này; tuyệt đối không đọc hoặc in SSID/password.
   manager_.resetSettings();

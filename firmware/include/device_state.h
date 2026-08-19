@@ -17,8 +17,11 @@ struct DeviceState {
   bool mqttConnected = false;
 };
 
-// Chuyển enum thành chuỗi đúng hợp đồng MQTT (ví dụ LOCKED, UNLOCKED).
+// Đổi trạng thái cửa thành OPEN, CLOSED hoặc UNKNOWN.
 const char* toString(DoorState state);
+// Đổi trạng thái chốt thành LOCKED, UNLOCKED hoặc UNKNOWN.
 const char* toString(LockState state);
+// Đổi trạng thái còi thành ACTIVE, INACTIVE hoặc UNKNOWN.
 const char* toString(AlarmState state);
+// Đổi trạng thái đèn thành ON, OFF hoặc UNKNOWN.
 const char* toString(LedState state);

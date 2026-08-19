@@ -28,11 +28,15 @@ class DoorAccessController {
  public:
   static constexpr uint32_t DEFAULT_WINDOW_MS = 30000;
 
+  // Khởi tạo cửa sổ thời gian cho phép một lượt mở sau UNLOCK.
   explicit DoorAccessController(uint32_t windowMs = DEFAULT_WINDOW_MS);
   // Chỉ cấp quyền nếu tại thời điểm cấp, cửa đang CLOSED.
   bool grantNextOpen(DoorState door, unsigned long now);
+  // Thu hồi quyền và trả true khi cửa sổ cho phép đã hết hạn.
   bool expireIfDue(unsigned long now);
+  // Hủy quyền mở đang chờ ngay lập tức.
   void revoke();
+  // Phân loại cạnh cửa là được phép, trái phép hoặc không áp dụng.
   DoorAccessResult evaluateTransition(DoorState previous, DoorState current,
                                       LockState lock, unsigned long now);
 
@@ -45,7 +49,9 @@ class DoorAccessController {
 // Sau chuỗi CLOSED -> OPEN -> CLOSED, yêu cầu main.cpp tự khóa lại chốt.
 class DoorAutoLockPolicy {
  public:
+  // Quan sát cạnh cửa và trả true khi chuỗi OPEN rồi CLOSED yêu cầu tự khóa.
   bool observeTransition(DoorState previous, DoorState current);
+  // Xóa trạng thái chờ tự khóa khi có command hoặc chu kỳ mới.
   void disarm();
 
  private:
@@ -57,12 +63,19 @@ class DoorTransitionOutbox {
  public:
   static constexpr size_t MAX_CAPACITY = 8;
 
+  // Khởi tạo FIFO event cửa với sức chứa cố định trong RAM.
   explicit DoorTransitionOutbox(size_t capacity = MAX_CAPACITY);
+  // Thêm event vào cuối FIFO; trả false nếu hàng đợi đã đầy.
   bool enqueue(const DoorTransitionRecord& record);
+  // Trả con trỏ đến event đầu FIFO mà chưa xóa nó.
   const DoorTransitionRecord* front() const;
+  // Xóa event đầu FIFO sau khi publish thành công.
   bool pop();
+  // Trả về số event hiện có trong FIFO.
   size_t size() const;
+  // Cho biết FIFO hiện có rỗng hay không.
   bool empty() const;
+  // Xóa toàn bộ event đang lưu trong FIFO.
   void clear();
 
  private:

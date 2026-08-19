@@ -13,9 +13,11 @@ constexpr uint8_t kDisplayWidth = 128;
 constexpr uint8_t kDisplayHeight = 64;
 }  // namespace
 
+// Tạo framebuffer OLED 128x64 dùng bus I2C Wire và không dùng chân reset riêng.
 DisplayController::DisplayController()
     : display_(kDisplayWidth, kDisplayHeight, &Wire, -1) {}
 
+// Khởi tạo I2C/OLED và hiển thị màn hình chào khi thiết bị phản hồi.
 bool DisplayController::begin() {
   // ESP32 cho phép chọn rõ hai chân I2C thay vì phụ thuộc pin mặc định của board.
   Wire.begin(static_cast<int>(PinMap::OLED_SDA), static_cast<int>(PinMap::OLED_SCL));
@@ -32,6 +34,7 @@ bool DisplayController::begin() {
   return available_;
 }
 
+// Cập nhật OLED theo chu kỳ khi dữ liệu môi trường hoặc trạng thái đã thay đổi.
 void DisplayController::tick(unsigned long now, const EnvironmentReading& environment,
                              const DeviceState& state) {
   // OLED lỗi hoặc chưa đến chu kỳ refresh thì trả ngay để loop() không bị chặn.
@@ -82,4 +85,5 @@ void DisplayController::tick(unsigned long now, const EnvironmentReading& enviro
   display_.display();
 }
 
+// Cho biết OLED đã được phát hiện và khởi tạo thành công hay chưa.
 bool DisplayController::isAvailable() const { return available_; }

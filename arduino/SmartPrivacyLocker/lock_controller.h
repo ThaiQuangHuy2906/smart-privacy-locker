@@ -16,6 +16,7 @@ class LockController {
   bool tick(unsigned long now, LockState* completedState);
   // Dừng ngay và detach khi interlock phát hiện cửa mở trong lúc servo chạy.
   void cancel();
+  // Cho biết servo đang trong thời gian thực hiện một chuyển động hay không.
   bool isBusy() const;
 
  private:

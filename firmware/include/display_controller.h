@@ -8,11 +8,13 @@
 // YC1 của Huy, phần output: hiển thị DHT22 và trạng thái hệ thống trên OLED SSD1306.
 class DisplayController {
  public:
+  // Tạo đối tượng điều khiển OLED 128x64 trên bus Wire của ESP32.
   DisplayController();
   // false nếu OLED không phản hồi; firmware vẫn tiếp tục chạy các chức năng khác.
   bool begin();
   // Render có giới hạn tần suất và chỉ khi dữ liệu thay đổi đáng kể.
   void tick(unsigned long now, const EnvironmentReading& environment, const DeviceState& state);
+  // Cho biết OLED đã khởi tạo thành công và có thể hiển thị hay không.
   bool isAvailable() const;
 
  private:

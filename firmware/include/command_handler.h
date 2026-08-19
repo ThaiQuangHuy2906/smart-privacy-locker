@@ -57,6 +57,7 @@ struct CommandParseResult {
   CommandError error = CommandError::NONE;
   bool hasCorrelatableId = false;
 
+  // Cho biết command đã vượt qua toàn bộ bước parse và validation hay chưa.
   bool ok() const { return error == CommandError::NONE; }
 };
 
@@ -65,5 +66,7 @@ CommandParseResult parseAndValidateCommand(const char* payload,
                                            size_t payloadLength,
                                            const CommandValidationContext& context);
 
+// Đổi CommandAction thành chuỗi chuẩn của MQTT contract.
 const char* toString(CommandAction action);
+// Đổi CommandError thành mã lỗi chuỗi ổn định cho ACK/backend.
 const char* toString(CommandError error);

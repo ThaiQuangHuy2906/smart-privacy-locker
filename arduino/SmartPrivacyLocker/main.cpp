@@ -42,6 +42,7 @@ DoorTransitionOutbox doorTransitionOutbox(AppConfig::DOOR_EVENT_OUTBOX_SIZE);
 DoorAccessController doorAccessController;
 DoorAutoLockPolicy autoLockPolicy;
 
+// Ghi mức điện HIGH/LOW ra chân điều khiển buzzer.
 void writeBuzzerOutput(bool high) {
   // Adapter nhỏ để AlarmController test được mà không phụ thuộc trực tiếp digitalWrite().
   digitalWrite(static_cast<int>(PinMap::BUZZER_CONTROL), high ? HIGH : LOW);
@@ -58,8 +59,10 @@ bool autoLockPending = false;
 // Gộp nhiều yêu cầu publish state; chỉ cần gửi snapshot mới nhất một lần.
 bool statePublishPending = false;
 
+// Đọc trực tiếp MC-38 để làm interlock nhanh, không chờ debounce.
 bool rawDoorIsClosed();
 
+// Sinh UUID v4 ngẫu nhiên cho mỗi event chuyển trạng thái cửa.
 void makeEventId(char* destination, size_t capacity) {
   if (destination == nullptr || capacity < 37) {
     return;
@@ -75,6 +78,7 @@ void makeEventId(char* destination, size_t capacity) {
            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]);
 }
 
+// Publish event đầu FIFO khi MQTT sẵn sàng và chỉ pop sau khi gửi thành công.
 void flushDoorTransitionOutbox() {
   if (!mqttClient.isConnected()) {
     return;
@@ -91,8 +95,10 @@ void flushDoorTransitionOutbox() {
   }
 }
 
+// Đánh dấu cần publish snapshot state mới ở thời điểm an toàn kế tiếp.
 void requestStatePublish() { statePublishPending = true; }
 
+// Publish retained state sau khi outbox cửa đã hết và MQTT đang kết nối.
 void flushPendingStatePublish() {
   // Event cửa có thứ tự ưu tiên; state mới không được vượt qua event còn xếp hàng.
   if (!statePublishPending || !doorTransitionOutbox.empty() || !mqttClient.isConnected()) {
@@ -105,6 +111,7 @@ void flushPendingStatePublish() {
   }
 }
 
+// Kiểm tra message có đến đúng topic command của locker hiện tại hay không.
 bool expectedCommandTopic(const char* topic) {
   // Không tin riêng callback subscription; tự đối chiếu chính xác topic của locker này.
   char expected[96] = {};
@@ -112,6 +119,7 @@ bool expectedCommandTopic(const char* topic) {
   return topic != nullptr && strcmp(topic, expected) == 0;
 }
 
+// Sao chép chuỗi vào buffer cố định và luôn thêm ký tự kết thúc null.
 void copyText(char* destination, size_t destinationCapacity, const char* source) {
   // Luôn bảo đảm chuỗi đích kết thúc bằng '\0'.
   if (destinationCapacity == 0) {
@@ -121,6 +129,7 @@ void copyText(char* destination, size_t destinationCapacity, const char* source)
   destination[destinationCapacity - 1] = '\0';
 }
 
+// Tạo AckRecord từ command, kết quả, lỗi và snapshot DeviceState hiện tại.
 AckRecord makeAck(const Command& command, AckResult result, CommandError error, const char* message) {
   // ACK chụp snapshot DeviceState tại thời điểm hàm được gọi.
   AckRecord record;
@@ -134,6 +143,7 @@ AckRecord makeAck(const Command& command, AckResult result, CommandError error, 
   return record;
 }
 
+// Chuyển mã lỗi command thành thông báo dễ hiểu cho ACK/log.
 const char* errorMessage(CommandError error) {
   // Message dành cho log/giao diện; mã ổn định thật sự nằm ở CommandError.
   switch (error) {
@@ -162,6 +172,7 @@ const char* errorMessage(CommandError error) {
   }
 }
 
+// Publish ACK trước rồi yêu cầu publish retained state nếu đây là kết quả mới.
 void publishAckAndState(const AckRecord& record, bool duplicate) {
   char timestamp[25] = {};
   const char* timestampValue = formatUtcTimestamp(timestamp, sizeof(timestamp)) ? timestamp : nullptr;
@@ -175,12 +186,14 @@ void publishAckAndState(const AckRecord& record, bool duplicate) {
   }
 }
 
+// Lưu ACK vào cache chống trùng trước khi publish ACK/state.
 void rememberAndPublish(const AckRecord& record) {
   // Ghi cache trước khi publish để command retry ngay lập tức vẫn không chạy lại actuator.
   recentCommands.remember(record);
   publishAckAndState(record, false);
 }
 
+// Thực hiện các command hoàn tất ngay: buzzer, LED và GET_STATE.
 void handleImmediateCommand(const Command& command) {
   // Còi và LED hoàn tất đồng bộ ngay trong callback; khác servo cần chờ tick().
   if (command.action == CommandAction::ALARM_ON || command.action == CommandAction::ALARM_OFF) {
@@ -213,6 +226,7 @@ void handleImmediateCommand(const Command& command) {
                              errorMessage(CommandError::INVALID_ACTION)));
 }
 
+// Nhận, validate, chống trùng và phân phối command MQTT đến controller phù hợp.
 void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int payloadLength) {
   // Chặn topic lạ và payload không còn chỗ cho ký tự '\0' trước khi copy vào stack.
   if (!expectedCommandTopic(topic) || payloadLength >= RuntimeConfig::MQTT_PACKET_SIZE) {
@@ -316,11 +330,13 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
   handleImmediateCommand(parsed.command);
 }
 
+// Cho biết đang có command servo hoặc auto-lock nào chưa hoàn tất hay không.
 bool isLatchActuationInFlight() {
   // Gộp cả command người dùng và auto-lock để interlock xử lý thống nhất.
   return lockCommandInFlight || autoLockInFlight || lockController.isBusy();
 }
 
+// Hủy chuyển động chốt, đặt state UNKNOWN và trả ACK lỗi khi cần.
 void cancelInFlightLatch() {
   const bool commandOperation = lockCommandInFlight;
   lockController.cancel();
@@ -347,12 +363,14 @@ void cancelInFlightLatch() {
   Serial.println("Latch actuation cancelled because the door opened");
 }
 
+// Đọc mức điện MC-38 và quy đổi trực tiếp thành cửa đóng/mở theo polarity.
 bool rawDoorIsClosed() {
   // Đường raw bỏ qua debounce, chỉ dùng làm interlock tức thời cho chuyển động servo.
   const bool electricalHigh = digitalRead(static_cast<int>(PinMap::MC38_DOOR_SENSOR)) == HIGH;
   return electricalHigh == AppConfig::MC38_CLOSED_LEVEL_HIGH;
 }
 
+// Thử chạy auto-lock đang chờ khi cửa đóng an toàn và servo đang rảnh.
 void tryStartPendingAutoLock(unsigned long now) {
   if (!autoLockPending) {
     return;
@@ -387,6 +405,7 @@ void tryStartPendingAutoLock(unsigned long now) {
   Serial.println("Automatic latch lock started after stable door close");
 }
 
+// Tạo yêu cầu tự khóa, thu hồi quyền mở và thử khởi động servo ngay.
 void startAutoLock(unsigned long now) {
   // Auto-lock kết thúc chu kỳ quyền mở và không tạo grant mới.
   autoLockPolicy.disarm();
@@ -398,6 +417,7 @@ void startAutoLock(unsigned long now) {
   tryStartPendingAutoLock(now);
 }
 
+// Debounce MC-38, cập nhật state, phát hiện mở trái phép và điều phối auto-lock.
 void processDoorSensor(unsigned long now) {
   DoorTransition doorTransition;
   // sample() chỉ trả true sau khi mức GPIO giữ ổn định đủ thời gian debounce.
@@ -448,6 +468,7 @@ void processDoorSensor(unsigned long now) {
   requestStatePublish();
 }
 
+// Đọc lệnh R/r từ USB serial để xóa cấu hình Wi-Fi cục bộ.
 void processUsbMaintenanceCommand() {
   // Kênh bảo trì vật lý tối giản: R/r xóa cấu hình Wi-Fi và reboot.
   while (Serial.available() > 0) {
@@ -460,6 +481,7 @@ void processUsbMaintenanceCommand() {
 
 }  // namespace
 
+// Khởi tạo serial, trạng thái an toàn, phần cứng, Wi-Fi và MQTT khi ESP32 boot.
 void setup() {
   Serial.begin(115200);
   stateManager.resetForColdBoot();
@@ -484,6 +506,7 @@ void setup() {
   Serial.println("Smart Privacy Locker firmware started; send R on USB serial to erase Wi-Fi config");
 }
 
+// Điều phối mọi state machine non-blocking trong suốt thời gian ESP32 hoạt động.
 void loop() {
   // Mọi module đều chạy kiểu tick/state machine; không có delay() chặn hệ thống.
   const unsigned long now = millis();

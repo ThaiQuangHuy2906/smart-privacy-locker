@@ -15,12 +15,16 @@ struct DoorTransition {
 // nhờ vậy lớp này được test native mà không cần giả lập toàn bộ Arduino.
 class DoorSensor {
  public:
+  // Khởi tạo bộ debounce với thời gian lọc và cực tính mức điện của cửa đóng.
   DoorSensor(uint32_t debounceMs, bool closedLevelHigh);
 
+  // Xóa candidate và stable state để bắt đầu quan sát lại từ UNKNOWN.
   void reset();
   // true khi quan sát mới đã giữ ổn định đủ debounceMs và tạo một transition.
   bool sample(bool electricalHigh, uint32_t nowMs, DoorTransition* transition);
+  // Trả về trạng thái cửa ổn định gần nhất sau debounce.
   DoorState stableState() const;
+  // Cho biết cảm biến đã có ít nhất một mẫu ổn định hay chưa.
   bool hasStableState() const;
 
  private:
