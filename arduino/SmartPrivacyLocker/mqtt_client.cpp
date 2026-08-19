@@ -14,6 +14,7 @@ MqttClient* MqttClient::activeInstance_ = nullptr;
 MqttClient::MqttClient() : mqtt_(plainClient_) {}
 
 void MqttClient::begin(MqttMessageCallback messageCallback) {
+  // PubSubClient yêu cầu callback tĩnh; activeInstance_ chuyển tiếp về đúng object.
   activeInstance_ = this;
   messageCallback_ = messageCallback;
   reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_INITIAL_MS;
@@ -27,8 +28,8 @@ void MqttClient::begin(MqttMessageCallback messageCallback) {
   mqtt_.setCallback(dispatchMessage);
 
   if (AppConfig::MQTT_USE_TLS) {
-    // The CA only comes from ignored local configuration. The code deliberately
-    // never calls WiFiClientSecure::setInsecure().
+    // CA chỉ đến từ cấu hình cục bộ bị Git bỏ qua. Không dùng setInsecure(),
+    // vì như vậy TLS sẽ mã hóa nhưng không xác thực đúng broker.
     secureClient_.setCACert(Secrets::MQTT_CA_CERT);
     mqtt_.setClient(secureClient_);
   } else {
@@ -39,10 +40,9 @@ void MqttClient::begin(MqttMessageCallback messageCallback) {
 
 void MqttClient::tick(unsigned long now, StateManager& state, bool doorOutboxEmpty) {
   if (mqtt_.connected()) {
-    // Retained ONLINE is sent during connect, but the retained full state waits
-    // until every locally queued door edge has been published. Do not run the
-    // MQTT callback before that point: a queued GET_STATE command could
-    // otherwise publish newer full state ahead of the transition outbox.
+    // connect() đã phát retained ONLINE, nhưng retained full state phải chờ mọi
+    // cạnh cửa lưu cục bộ được gửi hết. Chưa gọi mqtt_.loop() ở giai đoạn này,
+    // vì GET_STATE có thể chen vào và làm state mới vượt trước event cũ.
     if (bootstrapStatePending_) {
       if (!doorOutboxEmpty) {
         return;
@@ -61,6 +61,7 @@ void MqttClient::tick(unsigned long now, StateManager& state, bool doorOutboxEmp
       return;
     }
     mqtt_.loop();
+    // loop() vừa xử lý socket và có thể phát hiện mất broker.
     if (!mqtt_.connected()) {
       state.setMqttConnected(false);
       heartbeatTimer_.clear();
@@ -71,13 +72,13 @@ void MqttClient::tick(unsigned long now, StateManager& state, bool doorOutboxEmp
     if (heartbeatTimer_.due(static_cast<uint32_t>(now),
                             AppConfig::MQTT_HEARTBEAT_INTERVAL_MS)) {
       if (!doorOutboxEmpty) {
-        // A newer full-state snapshot must never overtake queued physical door
-        // edges. Leave the timer due and retry after the FIFO drains.
+        // Không cho snapshot mới vượt các cạnh cửa vật lý trong FIFO; giữ timer
+        // ở trạng thái due để thử lại ngay sau khi outbox hết.
         return;
       }
-      // Heartbeat is deliberately non-retained. A retained full-state refresh
-      // follows it so the backend can prove both current liveness and current
-      // state without creating periodic DEVICE_ONLINE history rows.
+      // Heartbeat cố ý không retained. Ngay sau đó refresh retained state để
+      // backend chứng minh được cả liveness và trạng thái hiện tại, nhưng không
+      // sinh event DEVICE_ONLINE định kỳ trong lịch sử.
       const bool heartbeatPublished = publishHeartbeat();
       const bool statePublished = heartbeatPublished && publishState(state.current(), true);
       if (!heartbeatPublished || !statePublished) {
@@ -94,6 +95,7 @@ void MqttClient::tick(unsigned long now, StateManager& state, bool doorOutboxEmp
   }
 
   state.setMqttConnected(false);
+  // Khi offline chỉ thử lại lúc timer đến hạn, nên loop() vẫn phục vụ sensor/display.
   if (!retryTimer_.due(static_cast<uint32_t>(now))) {
     return;
   }
@@ -123,9 +125,8 @@ bool MqttClient::publishAck(const AckRecord& record, bool duplicate, const char*
     Serial.println("ACK serialization failed");
     return false;
   }
-  // PubSubClient publishes at QoS 0. Contract v1 therefore relies on ACK
-  // correlation, timeout/reconciliation, and duplicate protection—not a false
-  // claim of QoS 1 delivery.
+  // PubSubClient phát QoS 0. Hệ thống dựa vào command_id, timeout/đối soát và
+  // chống trùng; không tuyên bố sai rằng ACK có đảm bảo giao QoS 1.
   return mqtt_.publish(topic, payload, false);
 }
 
@@ -142,6 +143,7 @@ bool MqttClient::publishState(const DeviceState& state, bool retained) {
   document["led"] = toString(state.led);
   document["wifi_connected"] = state.wifiConnected;
   document["mqtt_connected"] = state.mqttConnected;
+  // Khi NTP chưa sẵn sàng vẫn phát state, nhưng timestamp phải là null trung thực.
   char timestamp[25] = {};
   if (formatUtcTimestamp(timestamp, sizeof(timestamp))) {
     document["timestamp"] = timestamp;
@@ -165,6 +167,7 @@ bool MqttClient::publishDoorTransition(DoorState previous, DoorState current,
   const bool validAccess = current == DoorState::OPEN
       ? access != DoorAccessResult::NOT_APPLICABLE
       : access == DoorAccessResult::NOT_APPLICABLE;
+  // Event OPEN bắt buộc có authorized=true/false; event CLOSED phải là N/A.
   if (!mqtt_.connected() || previous == DoorState::UNKNOWN ||
       (current != DoorState::OPEN && current != DoorState::CLOSED) ||
       eventId == nullptr || strlen(eventId) != 36 || !validAccess) {
@@ -195,8 +198,8 @@ bool MqttClient::publishDoorTransition(DoorState previous, DoorState current,
     Serial.println("Door telemetry serialization failed");
     return false;
   }
-  // Door transitions are deliberately non-retained. Full state is published
-  // separately so a new consumer never replays an old door-open episode.
+  // Transition cửa không retained để consumer mới không nhận lại một lần mở cũ.
+  // Trạng thái cửa hiện tại được gửi riêng trong retained full state.
   return mqtt_.publish(topic, payload, false);
 }
 
@@ -206,6 +209,7 @@ void MqttClient::disconnectGracefully() {
 }
 
 void MqttClient::dispatchMessage(char* topic, uint8_t* payload, unsigned int payloadLength) {
+  // Cầu nối callback C tĩnh của thư viện sang instance MqttClient đang hoạt động.
   if (activeInstance_ != nullptr) {
     activeInstance_->handleMessage(topic, payload, payloadLength);
   }
@@ -223,6 +227,7 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
   char clientId[80] = {};
   makeTopic("availability", availabilityTopic, sizeof(availabilityTopic));
 
+  // Last Will được broker tự phát retained nếu ESP32 rớt mạng mà không DISCONNECT sạch.
   JsonDocument lwt;
   lwt["schema_version"] = 1;
   lwt["locker_id"] = AppConfig::LOCKER_ID;
@@ -240,6 +245,7 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
   }
 
   const uint64_t chipId = ESP.getEfuseMac();
+  // Ghép 16 bit cuối chip ID để giảm khả năng trùng MQTT client ID.
   snprintf(clientId, sizeof(clientId), "locker-%s-%04X", AppConfig::LOCKER_ID,
            static_cast<unsigned int>(chipId & 0xFFFF));
   if (!mqtt_.connect(clientId, Secrets::MQTT_USERNAME, Secrets::MQTT_PASSWORD, availabilityTopic, 0,
@@ -252,8 +258,8 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
   char commandTopic[96] = {};
   makeTopic("command", commandTopic, sizeof(commandTopic));
   if (!mqtt_.subscribe(commandTopic, 0)) {
-    // PubSubClient could not send the command SUBSCRIBE packet through its
-    // local transport. Do not leave a retained ONLINE state behind.
+    // Không gửi được gói SUBSCRIBE qua transport cục bộ thì không được để lại
+    // trạng thái retained ONLINE giả.
     state.setMqttConnected(false);
     disconnectWithOfflineFallback();
     scheduleRetry(now);
@@ -261,13 +267,10 @@ bool MqttClient::connect(unsigned long now, StateManager& state) {
     return false;
   }
 
-  // PubSubClient 2.8 returns true after its local transport writes the
-  // SUBSCRIBE packet; it does not wait for or expose the broker SUBACK grant.
-  // Callbacks run only from a later mqtt_.loop(). Publish ONLINE now, then let
-  // tick() defer both callbacks and retained full state until main.cpp drains
-  // the bounded door-transition outbox. The backend therefore sees queued
-  // edges in order before the newer state snapshot and cannot become ready on
-  // incomplete bootstrap data.
+  // PubSubClient 2.8 trả true sau khi transport ghi SUBSCRIBE, không chờ/expose
+  // SUBACK của broker. Callback chỉ chạy ở mqtt_.loop() sau đó. Vì vậy phát
+  // ONLINE trước, còn tick() trì hoãn callback và retained state đến khi main.cpp
+  // gửi hết outbox; backend luôn thấy các cạnh cũ trước snapshot mới.
   state.setMqttConnected(true);
   const bool onlinePublished = publishAvailability("ONLINE", true);
   if (!onlinePublished) {
@@ -341,13 +344,13 @@ void MqttClient::disconnectWithOfflineFallback() {
   }
 
   if (publishAvailability("OFFLINE", true)) {
+    // Có thể báo OFFLINE rõ ràng thì mới gửi DISCONNECT sạch.
     mqtt_.disconnect();
     return;
   }
 
-  // Do not send a clean MQTT DISCONNECT when the explicit retained OFFLINE
-  // packet could not be written. Closing the transport lets the broker apply
-  // the already-registered Last Will instead of preserving stale ONLINE state.
+  // Nếu không ghi được OFFLINE thì không DISCONNECT sạch. Đóng thẳng transport
+  // để broker kích hoạt Last Will đã đăng ký, tránh retained ONLINE bị treo.
   if (AppConfig::MQTT_USE_TLS) {
     secureClient_.stop();
   } else {
@@ -356,6 +359,7 @@ void MqttClient::disconnectWithOfflineFallback() {
 }
 
 bool MqttClient::configured() const {
+  // Placeholder hoặc thiếu CA khi bật TLS đều chặn kết nối thay vì thử với secret rỗng.
   const bool basicConfiguration = bufferReady_ &&
                                   strcmp(Secrets::MQTT_HOST, "replace_me") != 0 &&
                                   Secrets::MQTT_HOST[0] != '\0' &&
@@ -373,6 +377,7 @@ void MqttClient::scheduleRetry(unsigned long now) {
   if (reconnectDelayMs_ >= AppConfig::MQTT_RECONNECT_MAX_MS / 2) {
     reconnectDelayMs_ = AppConfig::MQTT_RECONNECT_MAX_MS;
   } else {
+    // Exponential backoff: 1 s, 2 s, 4 s... đến giới hạn 30 s.
     reconnectDelayMs_ *= 2UL;
   }
 }

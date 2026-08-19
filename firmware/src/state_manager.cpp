@@ -1,5 +1,6 @@
 #include "state_manager.h"
 
+// Các hàm toString giữ cách viết trạng thái nhất quán giữa OLED, ACK và MQTT.
 const char* toString(DoorState state) {
   switch (state) {
     case DoorState::OPEN:
@@ -53,6 +54,8 @@ StateManager::StateManager() { resetForColdBoot(); }
 const DeviceState& StateManager::current() const { return state_; }
 
 void StateManager::resetForColdBoot() {
+  // Cửa/chốt cần quan sát hoặc command mới để xác nhận. Còi và LED được chủ động
+  // đưa về trạng thái an toàn trong setup(), nên có thể khai báo INACTIVE/OFF.
   state_.door = DoorState::UNKNOWN;
   state_.lock = LockState::UNKNOWN;
   state_.alarm = AlarmState::INACTIVE;

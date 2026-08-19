@@ -8,9 +8,8 @@
 #include "app_config.example.h"
 #endif
 
-// Phase 3 added buzzer polarity after Phase 1/2 deployments had already made
-// local app_config.h copies. A copy without the macro receives the selected
-// TMB12A05 LOW-trigger baseline; other hardware can override it explicitly.
+// Tương thích các bản app_config.h cũ chưa có cấu hình cực tính buzzer:
+// mặc định 0 tương ứng module TMB12A05 kích LOW; phần cứng khác có thể ghi đè.
 #ifndef SPL_BUZZER_ACTIVE_HIGH
 #define SPL_BUZZER_ACTIVE_HIGH 0
 #endif
@@ -20,9 +19,9 @@
 #endif
 
 namespace RuntimeConfig {
-// Keep the application packet contract independent from build-system-only
-// compiler flags. PubSubClient's runtime buffer is resized to this value in
-// MqttClient::begin(), so Arduino IDE and PlatformIO use the same limit.
+// Giữ giới hạn gói MQTT độc lập với cờ riêng của hệ build. MqttClient::begin()
+// đổi buffer PubSubClient về đúng giá trị này nên Arduino IDE và PlatformIO
+// cùng dùng một giới hạn 1024 byte.
 constexpr uint16_t MQTT_PACKET_SIZE = 1024;
 constexpr bool BUZZER_ACTIVE_HIGH = SPL_BUZZER_ACTIVE_HIGH != 0;
 }  // namespace RuntimeConfig

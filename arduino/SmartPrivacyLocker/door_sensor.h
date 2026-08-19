@@ -4,24 +4,27 @@
 
 #include "device_state.h"
 
+// Một cạnh cửa đã qua debounce, kèm trạng thái trước/sau.
 struct DoorTransition {
   DoorState previous = DoorState::UNKNOWN;
   DoorState current = DoorState::UNKNOWN;
   bool initialStableSample = false;
 };
 
-// Platform-neutral stable-state debounce. The caller owns GPIO reads so this
-// class can be covered by the native test environment without Arduino mocks.
+// Bộ lọc debounce độc lập nền tảng. Caller tự đọc GPIO rồi truyền mức điện vào,
+// nhờ vậy lớp này được test native mà không cần giả lập toàn bộ Arduino.
 class DoorSensor {
  public:
   DoorSensor(uint32_t debounceMs, bool closedLevelHigh);
 
   void reset();
+  // true khi quan sát mới đã giữ ổn định đủ debounceMs và tạo một transition.
   bool sample(bool electricalHigh, uint32_t nowMs, DoorTransition* transition);
   DoorState stableState() const;
   bool hasStableState() const;
 
  private:
+  // Đổi mức điện HIGH/LOW thành ý nghĩa vật lý OPEN/CLOSED theo cấu hình polarity.
   DoorState mapLevel(bool electricalHigh) const;
 
   uint32_t debounceMs_;

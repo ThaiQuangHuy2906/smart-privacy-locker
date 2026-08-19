@@ -10,14 +10,17 @@ EnvironmentMonitor::EnvironmentMonitor() : dht_(static_cast<uint8_t>(PinMap::DHT
 void EnvironmentMonitor::begin() { dht_.begin(); }
 
 bool EnvironmentMonitor::tick(unsigned long now) {
+  // DHT22 phản hồi chậm; giới hạn mỗi 2,5 giây và tuyệt đối không dùng delay().
   if (lastReadAt_ != 0 && now - lastReadAt_ < AppConfig::DHT_READ_INTERVAL_MS) {
     return false;
   }
   lastReadAt_ = now;
   const float humidity = dht_.readHumidity();
   const float temperature = dht_.readTemperature();
+  // Thư viện DHT dùng NaN để báo không đọc được checksum/timing.
   reading_.valid = !isnan(humidity) && !isnan(temperature);
   if (reading_.valid) {
+    // Khi lần đọc lỗi, giữ số đo tốt trước đó nhưng valid=false để OLED không dùng nó.
     reading_.humidityPercent = humidity;
     reading_.temperatureC = temperature;
   }

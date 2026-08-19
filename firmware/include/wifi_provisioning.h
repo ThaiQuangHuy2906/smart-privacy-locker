@@ -2,11 +2,15 @@
 
 #include <WiFiManager.h>
 
+// YC12 của Huy: cấu hình Wi-Fi qua captive portal mà không phải nạp lại firmware.
 class WifiProvisioning {
  public:
+  // Thử credential đã lưu; nếu không dùng được thì mở AP "Locker-Setup".
   void begin();
+  // WiFiManager chạy non-blocking nên loop() phải gọi tick() liên tục.
   void tick();
   bool isConnected() const;
+  // Chỉ dùng qua USB serial vật lý để xóa credential NVS rồi khởi động lại.
   void resetConfigurationAndRestart();
 
  private:

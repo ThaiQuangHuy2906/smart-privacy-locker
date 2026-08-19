@@ -5,8 +5,10 @@
 #include "command_handler.h"
 #include "device_state.h"
 
+// ACK (acknowledgement) là gói phản hồi cho biết một command đã thành công hay lỗi.
 enum class AckResult { SUCCESS, ERROR };
 
+// Lưu đủ dữ liệu để phát lại đúng ACK khi backend gửi trùng command_id.
 struct AckRecord {
   char commandId[37] = {};
   char lockerId[33] = {};
@@ -19,8 +21,10 @@ struct AckRecord {
 
 class RecentCommandCache {
  public:
+  // Bộ nhớ vòng trong RAM; capacity luôn bị chặn trong khoảng 1..16.
   explicit RecentCommandCache(size_t capacity);
 
+  // Trả về ACK đã xử lý nếu command_id từng xuất hiện, ngược lại trả nullptr.
   const AckRecord* find(const char* commandId) const;
   void remember(const AckRecord& record);
 
@@ -32,7 +36,7 @@ class RecentCommandCache {
   size_t count_ = 0;
 };
 
-// Writes a complete ACK JSON payload. timestamp is an ISO-8601 UTC string
-// when the device clock is synchronized; otherwise pass nullptr to emit null.
+// Ghi toàn bộ ACK thành JSON. timestamp là chuỗi UTC ISO-8601 khi ESP32 đã
+// đồng bộ thời gian; truyền nullptr để JSON phát timestamp = null.
 bool serializeAck(const AckRecord& record, bool duplicate, const char* timestamp,
                   char* destination, size_t destinationCapacity);

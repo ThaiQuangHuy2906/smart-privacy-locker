@@ -4,15 +4,15 @@
 #include <time.h>
 
 void startTimeSync() {
-  // NTP is best-effort. Command validation uses the device clock only after
-  // this guard confirms a plausible epoch; otherwise Node-RED timeout and the
-  // non-retained clean-session command path remain the safety boundary.
+  // NTP là best-effort. Chỉ sau khi epoch hợp lý thì parser mới dùng đồng hồ
+  // ESP32 để chặn command quá cũ/tương lai; trước đó backend vẫn chịu trách nhiệm timeout.
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 }
 
 bool isTimeSynced() { return time(nullptr) >= 1700000000; }
 
 bool formatUtcTimestamp(char* destination, size_t destinationCapacity) {
+  // Cần ít nhất 21 byte: 20 ký tự timestamp cộng ký tự kết thúc '\0'.
   if (destination == nullptr || destinationCapacity < 21 || !isTimeSynced()) {
     return false;
   }

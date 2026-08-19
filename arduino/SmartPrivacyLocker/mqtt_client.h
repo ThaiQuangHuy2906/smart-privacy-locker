@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+// Timer retry không chặn; dùng phép trừ uint32_t để vẫn đúng khi millis() tràn.
 class MqttRetryTimer {
  public:
   void schedule(uint32_t now, uint32_t delayMs) {
@@ -17,8 +18,8 @@ class MqttRetryTimer {
   }
 
   bool due(uint32_t now) const {
-    // Unsigned elapsed time remains valid when the 32-bit millis counter wraps;
-    // configured retry delays are many orders of magnitude below one full wrap.
+    // Thời gian retry nhỏ hơn rất nhiều một vòng tràn millis(), nên phép trừ
+    // unsigned vẫn cho elapsed chính xác qua điểm tràn 32 bit.
     return !scheduled_ || static_cast<uint32_t>(now - scheduledAt_) >= delayMs_;
   }
 
@@ -28,6 +29,7 @@ class MqttRetryTimer {
   bool scheduled_ = false;
 };
 
+// Đo khoảng cách giữa hai heartbeat mà không dùng delay().
 class MqttHeartbeatTimer {
  public:
   void reset(uint32_t now) {
@@ -63,10 +65,13 @@ class MqttHeartbeatTimer {
 using MqttMessageCallback = void (*)(const char* topic, const uint8_t* payload,
                                      unsigned int payloadLength);
 
+// Lớp bao PubSubClient: kết nối/backoff, subscribe command và publish ACK,
+// state, availability, heartbeat, telemetry cửa theo MQTT contract v1.
 class MqttClient {
  public:
   MqttClient();
   void begin(MqttMessageCallback messageCallback);
+  // Được gọi mỗi vòng loop; doorOutboxEmpty bảo đảm event cửa không bị state mới vượt mặt.
   void tick(unsigned long now, StateManager& state, bool doorOutboxEmpty);
   bool isConnected();
   bool publishAck(const AckRecord& record, bool duplicate, const char* timestamp);
@@ -85,6 +90,7 @@ class MqttClient {
   void disconnectWithOfflineFallback();
   bool configured() const;
   void scheduleRetry(unsigned long now);
+  // Tạo topic dạng locker/<LOCKER_ID>/<suffix> vào buffer cố định.
   void makeTopic(const char* suffix, char* destination, size_t destinationCapacity) const;
 
   WiFiClient plainClient_;
@@ -93,9 +99,11 @@ class MqttClient {
   MqttMessageCallback messageCallback_ = nullptr;
   MqttRetryTimer retryTimer_;
   MqttHeartbeatTimer heartbeatTimer_;
+  // Backoff tăng gấp đôi sau mỗi lần lỗi, nhưng không vượt giá trị max cấu hình.
   unsigned long reconnectDelayMs_ = 0;
   bool bufferReady_ = false;
   bool configurationWarningPrinted_ = false;
+  // Sau reconnect, phải phát hết event cửa tồn đọng rồi mới phát retained state mới.
   bool bootstrapStatePending_ = false;
 
   static MqttClient* activeInstance_;

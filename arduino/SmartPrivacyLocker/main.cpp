@@ -22,6 +22,8 @@
 #include "wifi_provisioning.h"
 
 namespace {
+// ===== Các module sống suốt vòng đời chương trình =====
+// StateManager giữ trạng thái logic; các controller còn lại giao tiếp phần cứng/mạng.
 StateManager stateManager;
 WifiProvisioning wifiProvisioning;
 MqttClient mqttClient;
@@ -29,22 +31,31 @@ LockController lockController;
 LedController ledController;
 EnvironmentMonitor environmentMonitor;
 DisplayController displayController;
+
+// MC-38 được debounce theo cấu hình; cache chống chạy trùng command;
+// outbox giữ event cửa trong RAM khi MQTT tạm thời chưa gửi được.
 DoorSensor doorSensor(AppConfig::DOOR_DEBOUNCE_MS, AppConfig::MC38_CLOSED_LEVEL_HIGH);
 RecentCommandCache recentCommands(AppConfig::RECENT_COMMAND_CACHE_SIZE);
 DoorTransitionOutbox doorTransitionOutbox(AppConfig::DOOR_EVENT_OUTBOX_SIZE);
+
+// Hai policy ghép CB2 với an toàn cửa: quyền mở một lần và tự khóa sau khi đóng lại.
 DoorAccessController doorAccessController;
 DoorAutoLockPolicy autoLockPolicy;
 
 void writeBuzzerOutput(bool high) {
+  // Adapter nhỏ để AlarmController test được mà không phụ thuộc trực tiếp digitalWrite().
   digitalWrite(static_cast<int>(PinMap::BUZZER_CONTROL), high ? HIGH : LOW);
 }
 
 AlarmController alarmController(RuntimeConfig::BUZZER_ACTIVE_HIGH, writeBuzzerOutput);
 
 AckRecord inFlightLockAck;
+// Command servo chỉ phát ACK sau khi tick() xác nhận đủ thời gian settle.
 bool lockCommandInFlight = false;
+// Auto-lock không có command_id/ACK riêng, chỉ cập nhật retained state.
 bool autoLockInFlight = false;
 bool autoLockPending = false;
+// Gộp nhiều yêu cầu publish state; chỉ cần gửi snapshot mới nhất một lần.
 bool statePublishPending = false;
 
 bool rawDoorIsClosed();
@@ -55,6 +66,7 @@ void makeEventId(char* destination, size_t capacity) {
   }
   uint8_t bytes[16] = {};
   esp_fill_random(bytes, sizeof(bytes));
+  // Đặt đúng bit version 4 và variant RFC 4122 cho UUID event cửa.
   bytes[6] = static_cast<uint8_t>((bytes[6] & 0x0F) | 0x40);
   bytes[8] = static_cast<uint8_t>((bytes[8] & 0x3F) | 0x80);
   snprintf(destination, capacity,
@@ -74,6 +86,7 @@ void flushDoorTransitionOutbox() {
   if (mqttClient.publishDoorTransition(record->previous, record->current,
                                        record->timeSynced ? record->timestamp : nullptr,
                                        record->timeSynced, record->eventId, record->access)) {
+    // Chỉ bỏ event đầu FIFO sau khi PubSubClient ghi publish thành công.
     doorTransitionOutbox.pop();
   }
 }
@@ -81,6 +94,7 @@ void flushDoorTransitionOutbox() {
 void requestStatePublish() { statePublishPending = true; }
 
 void flushPendingStatePublish() {
+  // Event cửa có thứ tự ưu tiên; state mới không được vượt qua event còn xếp hàng.
   if (!statePublishPending || !doorTransitionOutbox.empty() || !mqttClient.isConnected()) {
     return;
   }
@@ -92,12 +106,14 @@ void flushPendingStatePublish() {
 }
 
 bool expectedCommandTopic(const char* topic) {
+  // Không tin riêng callback subscription; tự đối chiếu chính xác topic của locker này.
   char expected[96] = {};
   snprintf(expected, sizeof(expected), "locker/%s/command", AppConfig::LOCKER_ID);
   return topic != nullptr && strcmp(topic, expected) == 0;
 }
 
 void copyText(char* destination, size_t destinationCapacity, const char* source) {
+  // Luôn bảo đảm chuỗi đích kết thúc bằng '\0'.
   if (destinationCapacity == 0) {
     return;
   }
@@ -106,6 +122,7 @@ void copyText(char* destination, size_t destinationCapacity, const char* source)
 }
 
 AckRecord makeAck(const Command& command, AckResult result, CommandError error, const char* message) {
+  // ACK chụp snapshot DeviceState tại thời điểm hàm được gọi.
   AckRecord record;
   copyText(record.commandId, sizeof(record.commandId), command.commandId);
   copyText(record.lockerId, sizeof(record.lockerId), command.lockerId);
@@ -118,6 +135,7 @@ AckRecord makeAck(const Command& command, AckResult result, CommandError error, 
 }
 
 const char* errorMessage(CommandError error) {
+  // Message dành cho log/giao diện; mã ổn định thật sự nằm ở CommandError.
   switch (error) {
     case CommandError::INVALID_SCHEMA:
       return "schema_version must be 1";
@@ -151,19 +169,20 @@ void publishAckAndState(const AckRecord& record, bool duplicate) {
     Serial.println("MQTT ACK publish failed; command will require timeout reconciliation");
   }
   if (!duplicate) {
-    // Keep ACK latency low, but do not let a newer retained state overtake a
-    // queued door edge. The main loop publishes the state as soon as the FIFO
-    // has drained.
+    // Ưu tiên ACK để giảm độ trễ command, nhưng không cho retained state mới
+    // vượt event cửa đang chờ. loop() sẽ phát state ngay khi FIFO hết.
     requestStatePublish();
   }
 }
 
 void rememberAndPublish(const AckRecord& record) {
+  // Ghi cache trước khi publish để command retry ngay lập tức vẫn không chạy lại actuator.
   recentCommands.remember(record);
   publishAckAndState(record, false);
 }
 
 void handleImmediateCommand(const Command& command) {
+  // Còi và LED hoàn tất đồng bộ ngay trong callback; khác servo cần chờ tick().
   if (command.action == CommandAction::ALARM_ON || command.action == CommandAction::ALARM_OFF) {
     const bool shouldBeActive = command.action == CommandAction::ALARM_ON;
     if (!alarmController.setActive(shouldBeActive)) {
@@ -185,6 +204,7 @@ void handleImmediateCommand(const Command& command) {
   }
 
   if (command.action == CommandAction::GET_STATE) {
+    // Không đụng phần cứng; ACK mang snapshot state hiện tại để backend đối soát.
     rememberAndPublish(makeAck(command, AckResult::SUCCESS, CommandError::NONE, ""));
     return;
   }
@@ -194,6 +214,7 @@ void handleImmediateCommand(const Command& command) {
 }
 
 void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int payloadLength) {
+  // Chặn topic lạ và payload không còn chỗ cho ký tự '\0' trước khi copy vào stack.
   if (!expectedCommandTopic(topic) || payloadLength >= RuntimeConfig::MQTT_PACKET_SIZE) {
     Serial.println("Rejected MQTT message with an unexpected topic or size");
     return;
@@ -213,22 +234,23 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
   const CommandParseResult parsed = parseAndValidateCommand(json, payloadLength, context);
 
   if (parsed.hasCorrelatableId) {
+    // Command đã hoàn tất: phát lại ACK cached với duplicate=true, không chạy lại.
     const AckRecord* cached = recentCommands.find(parsed.command.commandId);
     if (cached != nullptr) {
       publishAckAndState(*cached, true);
       return;
     }
     if (lockCommandInFlight && strcmp(inFlightLockAck.commandId, parsed.command.commandId) == 0) {
-      // The original actuation is still running. Do not act a second time;
-      // completion will publish its normal ACK, which a duplicate can replay.
+      // Servo của command gốc vẫn đang chạy. Không chạy lần hai; khi hoàn tất sẽ
+      // phát ACK thường, những lần retry sau có thể nhận ACK cached.
       return;
     }
   }
 
   if (!parsed.ok()) {
     if (!parsed.hasCorrelatableId) {
-      // Contract: malformed/unidentifiable input produces only local diagnostic,
-      // never a fabricated `command_id:null` ACK.
+      // Payload không nhận diện được chỉ tạo log cục bộ; không bịa ACK có
+      // command_id=null vì backend không thể tương quan ACK đó với yêu cầu nào.
       Serial.println("Rejected uncorrelatable MQTT command");
       return;
     }
@@ -238,11 +260,12 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
   }
 
   if (parsed.command.action == CommandAction::LOCK || parsed.command.action == CommandAction::UNLOCK) {
+    // LOCK/UNLOCK đi qua state machine riêng vì SG90 cần thời gian cơ khí.
     const LockState desiredState = parsed.command.action == CommandAction::LOCK
         ? LockState::LOCKED : LockState::UNLOCKED;
     if (desiredState == LockState::LOCKED) {
-      // A lock request immediately revokes any unused one-time opening grant,
-      // including when the movement later fails its door interlock.
+      // Nhận LOCK là thu hồi quyền mở một lần ngay lập tức, kể cả sau đó servo
+      // không chạy được do interlock cửa.
       doorAccessController.revoke();
     }
     if (lockCommandInFlight || lockController.isBusy()) {
@@ -253,14 +276,15 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
     }
     if (desiredState == LockState::LOCKED
         && (stateManager.current().door != DoorState::CLOSED || !rawDoorIsClosed())) {
+      // Kiểm cả stable state lẫn raw GPIO để không khóa khi cửa đang/hơi bắt đầu mở.
       rememberAndPublish(makeAck(parsed.command, AckResult::ERROR, CommandError::DOOR_NOT_CLOSED,
                                  errorMessage(CommandError::DOOR_NOT_CLOSED)));
       return;
     }
     if (desiredState == LockState::UNLOCKED
         && (stateManager.current().door != DoorState::CLOSED || !rawDoorIsClosed())) {
-      // An ACKed UNLOCK must always create a usable one-time opening grant.
-      // Rejecting here also prevents any stale grant from surviving an open-door request.
+      // ACK UNLOCK thành công phải tạo được một quyền mở dùng được. Từ chối khi
+      // cửa không đóng cũng bảo đảm grant cũ không sống sót qua yêu cầu này.
       doorAccessController.revoke();
       rememberAndPublish(makeAck(parsed.command, AckResult::ERROR,
                                  CommandError::DOOR_NOT_CLOSED_FOR_ACCESS,
@@ -271,8 +295,8 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
     autoLockPending = false;
     if (stateManager.current().lock == desiredState) {
       if (desiredState == LockState::UNLOCKED) {
-        // Repeating UNLOCK does not move the servo; it deliberately grants one
-        // new opening after the universal closed-door check above.
+        // UNLOCK lặp không quay servo, nhưng sau kiểm tra cửa đóng ở trên vẫn
+        // cố ý cấp một lượt mở mới.
         doorAccessController.grantNextOpen(stateManager.current().door, millis());
       }
       rememberAndPublish(makeAck(parsed.command, AckResult::SUCCESS, CommandError::NONE, ""));
@@ -283,6 +307,7 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
                                  errorMessage(CommandError::ACTUATION_FAILED)));
       return;
     }
+    // Chưa publish ACK tại đây: chỉ lưu để loop() hoàn tất sau SERVO_SETTLE_MS.
     inFlightLockAck = makeAck(parsed.command, AckResult::SUCCESS, CommandError::NONE, "");
     lockCommandInFlight = true;
     return;
@@ -292,18 +317,19 @@ void onMqttMessage(const char* topic, const uint8_t* payload, unsigned int paylo
 }
 
 bool isLatchActuationInFlight() {
+  // Gộp cả command người dùng và auto-lock để interlock xử lý thống nhất.
   return lockCommandInFlight || autoLockInFlight || lockController.isBusy();
 }
 
 void cancelInFlightLatch() {
   const bool commandOperation = lockCommandInFlight;
   lockController.cancel();
-  // Once a servo has started moving and is detached early, its old logical
-  // position is no longer trustworthy. Force the next LOCK/UNLOCK to move the
-  // latch to a newly confirmed endpoint instead of taking a same-state no-op.
+  // Servo đã đi một phần rồi bị detach thì vị trí logic cũ không còn đáng tin.
+  // Đặt UNKNOWN để command sau bắt buộc đưa chốt tới endpoint mới, không no-op.
   stateManager.setLock(LockState::UNKNOWN);
   doorAccessController.revoke();
   if (commandOperation) {
+    // Command người dùng cần ACK lỗi tương quan; auto-lock chỉ cần publish state UNKNOWN.
     const CommandError doorError = inFlightLockAck.action == CommandAction::UNLOCK
         ? CommandError::DOOR_NOT_CLOSED_FOR_ACCESS : CommandError::DOOR_NOT_CLOSED;
     inFlightLockAck.result = AckResult::ERROR;
@@ -322,6 +348,7 @@ void cancelInFlightLatch() {
 }
 
 bool rawDoorIsClosed() {
+  // Đường raw bỏ qua debounce, chỉ dùng làm interlock tức thời cho chuyển động servo.
   const bool electricalHigh = digitalRead(static_cast<int>(PinMap::MC38_DOOR_SENSOR)) == HIGH;
   return electricalHigh == AppConfig::MC38_CLOSED_LEVEL_HIGH;
 }
@@ -331,12 +358,13 @@ void tryStartPendingAutoLock(unsigned long now) {
     return;
   }
   if (stateManager.current().door != DoorState::CLOSED) {
+    // Stable state đã mở thì pending cũ không còn hợp lệ.
     autoLockPending = false;
     return;
   }
-  // Keep the request pending across a sub-debounce raw HIGH/LOW glitch. A real
-  // stable OPEN clears it above and the following stable CLOSE requests a new
-  // auto-lock, so the servo is never deliberately driven against an open door.
+  // Giữ pending qua một nhiễu raw ngắn hơn debounce. Nếu thật sự OPEN ổn định,
+  // nhánh trên xóa pending; lần CLOSE ổn định sau sẽ tạo yêu cầu mới. Nhờ đó
+  // không cố ý quay chốt khi cửa đang mở.
   if (!rawDoorIsClosed()) {
     return;
   }
@@ -344,6 +372,7 @@ void tryStartPendingAutoLock(unsigned long now) {
     return;
   }
   if (stateManager.current().lock == LockState::LOCKED) {
+    // Đã khóa rồi thì không cần tạo chuyển động/ACK giả.
     autoLockPending = false;
     return;
   }
@@ -359,6 +388,7 @@ void tryStartPendingAutoLock(unsigned long now) {
 }
 
 void startAutoLock(unsigned long now) {
+  // Auto-lock kết thúc chu kỳ quyền mở và không tạo grant mới.
   autoLockPolicy.disarm();
   doorAccessController.revoke();
   if (stateManager.current().door != DoorState::CLOSED) {
@@ -370,6 +400,7 @@ void startAutoLock(unsigned long now) {
 
 void processDoorSensor(unsigned long now) {
   DoorTransition doorTransition;
+  // sample() chỉ trả true sau khi mức GPIO giữ ổn định đủ thời gian debounce.
   if (!doorSensor.sample(digitalRead(static_cast<int>(PinMap::MC38_DOOR_SENSOR)) == HIGH,
                          now, &doorTransition)) {
     return;
@@ -377,6 +408,7 @@ void processDoorSensor(unsigned long now) {
 
   stateManager.setDoor(doorTransition.current);
   if (!doorTransition.initialStableSample) {
+    // Mẫu ổn định đầu tiên sau boot chỉ xác lập state, không được bịa event chuyển cửa.
     if (doorTransition.current != DoorState::CLOSED) {
       autoLockPending = false;
     }
@@ -390,6 +422,7 @@ void processDoorSensor(unsigned long now) {
         doorTransition.previous, doorTransition.current);
     if (access == DoorAccessResult::UNAUTHORIZED
         && stateManager.current().alarm != AlarmState::ACTIVE) {
+      // Báo động cục bộ chạy ngay cả khi MQTT/cloud đang mất kết nối.
       if (alarmController.setActive(true)) {
         stateManager.setAlarm(AlarmState::ACTIVE);
         Serial.println("Local unauthorized-open alarm activated");
@@ -403,6 +436,7 @@ void processDoorSensor(unsigned long now) {
     record.access = access;
     record.timeSynced = formatUtcTimestamp(record.timestamp, sizeof(record.timestamp));
     makeEventId(record.eventId, sizeof(record.eventId));
+    // Nếu FIFO đầy vẫn giữ alarm và local state; chỉ telemetry mới không xếp thêm được.
     if (!doorTransitionOutbox.enqueue(record)) {
       Serial.println("Door event outbox full; local alarm/state remain active");
     }
@@ -415,6 +449,7 @@ void processDoorSensor(unsigned long now) {
 }
 
 void processUsbMaintenanceCommand() {
+  // Kênh bảo trì vật lý tối giản: R/r xóa cấu hình Wi-Fi và reboot.
   while (Serial.available() > 0) {
     const int input = Serial.read();
     if (input == 'r' || input == 'R') {
@@ -428,9 +463,8 @@ void processUsbMaintenanceCommand() {
 void setup() {
   Serial.begin(115200);
   stateManager.resetForColdBoot();
-  // Load the safe inactive latch before enabling output. This avoids an
-  // active-low pulse during boot. GPIO26 reaches the selected module IN pin
-  // through 4.7 kOhm; the module VCC is powered from ESP32 3V3.
+  // Nạp sẵn mức tắt trước khi chuyển GPIO thành OUTPUT để tránh xung LOW làm
+  // buzzer kêu lúc boot. GPIO26 đến IN qua 4,7 kOhm; module dùng nguồn 3V3.
   digitalWrite(static_cast<int>(PinMap::BUZZER_CONTROL),
                RuntimeConfig::BUZZER_ACTIVE_HIGH ? LOW : HIGH);
   pinMode(static_cast<int>(PinMap::BUZZER_CONTROL), OUTPUT);
@@ -438,6 +472,7 @@ void setup() {
   stateManager.setAlarm(AlarmState::INACTIVE);
   pinMode(static_cast<int>(PinMap::MC38_DOOR_SENSOR), INPUT_PULLUP);
   doorSensor.reset();
+  // Controller servo không di chuyển ở begin(); các output khác về trạng thái an toàn.
   lockController.begin();
   ledController.begin();
   environmentMonitor.begin();
@@ -450,35 +485,37 @@ void setup() {
 }
 
 void loop() {
+  // Mọi module đều chạy kiểu tick/state machine; không có delay() chặn hệ thống.
   const unsigned long now = millis();
   processUsbMaintenanceCommand();
   wifiProvisioning.tick();
   stateManager.setWifiConnected(wifiProvisioning.isConnected());
   mqttClient.tick(now, stateManager, doorTransitionOutbox.empty());
-  // Sample the debounced door before completing any in-flight latch move. If the
-  // door opened during servo travel, cancel and report the interlock failure.
+  // Lấy mẫu cửa đã debounce trước khi công nhận servo hoàn tất. Nếu cửa mở trong
+  // lúc servo chạy thì hủy chuyển động và báo lỗi interlock.
   processDoorSensor(millis());
   flushDoorTransitionOutbox();
 
   const bool rawDoorClosed = rawDoorIsClosed();
   if (isLatchActuationInFlight() && !rawDoorClosed) {
-    // The raw edge is used only as a fail-safe interlock. User-visible door
-    // state and events still require the normal stable debounce path.
+    // Cạnh raw chỉ dùng làm fail-safe tức thời. State/event cửa cho người dùng
+    // vẫn phải đi qua debounce ổn định ở processDoorSensor().
     cancelInFlightLatch();
   }
 
-  // mqttClient.tick() can synchronously start the servo from its MQTT callback.
-  // Refresh the timestamp so elapsed time is never calculated from a value
-  // captured before LockController::start().
+  // mqttClient.tick() có thể bắt đầu servo ngay trong callback MQTT. Đọc lại
+  // millis() để elapsed không tính từ mốc lấy trước LockController::start().
   const unsigned long actuatorNow = millis();
   if (doorAccessController.expireIfDue(actuatorNow)
       && stateManager.current().door == DoorState::CLOSED) {
+    // Hết 30 giây mà chưa mở cửa: thu hồi grant và tự khóa lại nếu cửa còn đóng.
     startAutoLock(actuatorNow);
   }
   tryStartPendingAutoLock(actuatorNow);
   LockState completedLockState = LockState::UNKNOWN;
   if (lockController.tick(actuatorNow, &completedLockState)
       && (lockCommandInFlight || autoLockInFlight)) {
+    // Đây mới là điểm firmware công nhận endpoint chốt và cập nhật logical state.
     stateManager.setLock(completedLockState);
     if (completedLockState == LockState::UNLOCKED) {
       doorAccessController.grantNextOpen(stateManager.current().door, actuatorNow);
@@ -486,6 +523,7 @@ void loop() {
       doorAccessController.revoke();
     }
     if (lockCommandInFlight) {
+      // ACK của command SG90 chứa state sau khi chuyển động hoàn tất.
       inFlightLockAck.state = stateManager.current();
       rememberAndPublish(inFlightLockAck);
     } else if (autoLockInFlight) {
@@ -498,6 +536,7 @@ void loop() {
 
   flushPendingStatePublish();
 
+  // YC1 chạy cuối vòng lặp: đọc DHT theo chu kỳ rồi render OLED nếu cần.
   environmentMonitor.tick(now);
   displayController.tick(now, environmentMonitor.latest(), stateManager.current());
 }

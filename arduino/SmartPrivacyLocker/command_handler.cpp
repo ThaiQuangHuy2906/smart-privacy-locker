@@ -7,11 +7,13 @@
 
 namespace {
 
+// So sánh an toàn, không gọi strcmp nếu một trong hai con trỏ null.
 bool equals(const char* left, const char* right) {
   return left != nullptr && right != nullptr && strcmp(left, right) == 0;
 }
 
 bool copyString(JsonVariantConst value, char* destination, size_t destinationSize) {
+  // Chỉ chấp nhận JSON string khác rỗng và vừa buffer; không âm thầm cắt dữ liệu.
   if (!value.is<const char*>()) {
     return false;
   }
@@ -30,6 +32,7 @@ bool isHex(char value) {
 }
 
 bool isUuid(const char* value) {
+  // Kiểm hình dạng UUID 8-4-4-4-12; không cần phụ thuộc thư viện UUID riêng.
   if (value == nullptr || strlen(value) != 36) {
     return false;
   }
@@ -56,6 +59,7 @@ int daysInMonth(int year, int month) {
 }
 
 bool parseNumber(const char* value, size_t offset, size_t width, int* result) {
+  // Đọc đúng số chữ số ở vị trí cố định của timestamp ISO-8601.
   int parsed = 0;
   for (size_t index = 0; index < width; ++index) {
     const char character = value[offset + index];
@@ -68,8 +72,8 @@ bool parseNumber(const char* value, size_t offset, size_t width, int* result) {
   return true;
 }
 
-// Days since 1970-01-01. This is a small, timezone-free civil date conversion
-// so stale-command validation remains deterministic on ESP32 and native tests.
+// Đổi ngày dương lịch thành số ngày kể từ 1970-01-01, không phụ thuộc múi giờ.
+// Nhờ đó kiểm tra command cũ có cùng kết quả trên ESP32 và native test.
 int64_t daysFromCivil(int year, unsigned month, unsigned day) {
   year -= month <= 2;
   const int era = (year >= 0 ? year : year - 399) / 400;
@@ -86,6 +90,7 @@ bool parseIso8601Utc(const char* value, int64_t* epochSeconds) {
     return false;
   }
   const size_t length = strlen(value);
+  // Contract chỉ nhận ...SSZ (20 ký tự) hoặc ...SS.mmmZ (24 ký tự).
   if (length != 20 && length != 24) {
     return false;
   }
@@ -123,6 +128,7 @@ bool parseIso8601Utc(const char* value, int64_t* epochSeconds) {
 }
 
 CommandAction parseAction(const char* value) {
+  // Danh sách đóng: action lạ luôn thành UNKNOWN rồi bị từ chối.
   if (equals(value, "LOCK")) return CommandAction::LOCK;
   if (equals(value, "UNLOCK")) return CommandAction::UNLOCK;
   if (equals(value, "ALARM_ON")) return CommandAction::ALARM_ON;
@@ -134,6 +140,7 @@ CommandAction parseAction(const char* value) {
 }
 
 bool isValidRequestedBy(const char* value) {
+  // Người dùng thật dùng UUID; detector nội bộ chỉ được dùng đúng service principal này.
   return isUuid(value) || equals(value, "system:unauthorized-detector");
 }
 
@@ -143,6 +150,7 @@ CommandParseResult parseAndValidateCommand(const char* payload, size_t payloadLe
                                            const CommandValidationContext& context) {
   CommandParseResult result;
   JsonDocument document;
+  // Thứ tự validation có chủ ý: chỉ phát ACK khi lấy được command_id hợp lệ để tương quan.
   if (deserializeJson(document, payload, payloadLength)) {
     result.error = CommandError::INVALID_JSON;
     return result;
@@ -193,6 +201,7 @@ CommandParseResult parseAndValidateCommand(const char* payload, size_t payloadLe
   }
   if (!equals(result.command.lockerId, context.topicLockerId) ||
       !equals(result.command.lockerId, context.configuredLockerId)) {
+    // Chống gửi command của locker A vào topic/thiết bị locker B.
     result.error = CommandError::LOCKER_MISMATCH;
     return result;
   }
@@ -204,11 +213,13 @@ CommandParseResult parseAndValidateCommand(const char* payload, size_t payloadLe
   }
   if (context.timeSynced && issuedEpochSeconds > context.nowEpochSeconds &&
       issuedEpochSeconds - context.nowEpochSeconds > context.maxFutureSkewSeconds) {
+    // Chặn timestamp tương lai quá xa, thường do clock sai hoặc payload giả mạo.
     result.error = CommandError::INVALID_ISSUED_AT;
     return result;
   }
   if (context.timeSynced && context.nowEpochSeconds > issuedEpochSeconds &&
       context.nowEpochSeconds - issuedEpochSeconds > context.maxAgeSeconds) {
+    // Chặn replay command quá cũ; chỉ áp dụng khi đồng hồ ESP32 đã đáng tin.
     result.error = CommandError::STALE_COMMAND;
     return result;
   }
@@ -216,6 +227,7 @@ CommandParseResult parseAndValidateCommand(const char* payload, size_t payloadLe
 }
 
 const char* toString(CommandAction action) {
+  // Chuỗi trả về là giá trị frozen của MQTT contract, không phải nhãn giao diện.
   switch (action) {
     case CommandAction::LOCK:
       return "LOCK";
@@ -238,6 +250,7 @@ const char* toString(CommandAction action) {
 }
 
 const char* toString(CommandError error) {
+  // Mã lỗi phải ổn định để Node-RED phân loại được nguyên nhân.
   switch (error) {
     case CommandError::NONE:
       return "NONE";

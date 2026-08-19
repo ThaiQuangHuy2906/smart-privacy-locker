@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Các action hợp lệ trong MQTT contract v1.
 enum class CommandAction {
   LOCK,
   UNLOCK,
@@ -14,6 +15,7 @@ enum class CommandAction {
   UNKNOWN,
 };
 
+// Mã lỗi máy đọc được; backend dùng để kết thúc trạng thái pending đúng nguyên nhân.
 enum class CommandError {
   NONE,
   INVALID_JSON,
@@ -30,6 +32,8 @@ enum class CommandError {
   ACTUATION_FAILED,
 };
 
+// Command sau khi đã tách từ JSON. Mảng char có kích thước cố định để tránh
+// cấp phát String động trên ESP32 trong đường xử lý lệnh.
 struct Command {
   char commandId[37] = {};
   char lockerId[33] = {};
@@ -38,6 +42,7 @@ struct Command {
   CommandAction action = CommandAction::UNKNOWN;
 };
 
+// Dữ liệu ngoài payload cần cho validation: topic, đúng thiết bị và đồng hồ hiện tại.
 struct CommandValidationContext {
   const char* topicLockerId;
   const char* configuredLockerId;
@@ -55,6 +60,7 @@ struct CommandParseResult {
   bool ok() const { return error == CommandError::NONE; }
 };
 
+// Parse và kiểm tra toàn bộ command trước khi main.cpp được phép chạy actuator.
 CommandParseResult parseAndValidateCommand(const char* payload,
                                            size_t payloadLength,
                                            const CommandValidationContext& context);
